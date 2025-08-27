@@ -1,0 +1,21 @@
+{
+  "000000000001": {
+    "Elo": 0,
+    "Mastercard": 1,
+    "Visa": 1,
+    "American Express": 1,
+    "Hipercard": 0
+  },
+  "1068306022": {
+    "Visa": 1,
+    "Mastercard": 1,
+    "Elo": 1,
+    "American Express": 1,
+    "Hipercard": 1,
+    "Diners Club": 0,
+    "Discover": 0,
+    "Aura": 0,
+    "JCB": 0,
+    "Cabal": 1
+  }
+}

@@ -1,0 +1,89 @@
+[
+  {
+    "cliente_id": "000000000001",
+    "nome_fantasia": "SUPREMA EMBALAGENS",
+    "razao_social": "SUPREMA EMBALAGENS LTDA",
+    "cnpj": "00.000.000/0001-00",
+    "endereco": {
+      "logradouro": "Rua das Flores",
+      "numero": "123",
+      "complemento": "Sala 45",
+      "bairro": "Centro",
+      "cidade": "São Paulo",
+      "uf": "SP"
+    },
+    "contatos": {
+      "telefone1": "(11) 1234-5678",
+      "telefone2": "",
+      "telefone3": "",
+      "email1": "contato@suprema.com.br",
+      "email2": ""
+    },
+    "bancario": {
+      "banco": "Bradesco",
+      "agencia": "1234",
+      "conta": "56789-0"
+    },
+    "ecs": [
+      "000000000001"
+    ]
+  },
+  {
+    "cliente_id": "000000000002",
+    "nome_fantasia": "SUPREMA",
+    "razao_social": "SUPREMA LTDA",
+    "cnpj": "00.000.000/0001-00",
+    "endereco": {
+      "logradouro": "Rua das Flores",
+      "numero": "123",
+      "complemento": "Sala 45",
+      "bairro": "Centro",
+      "cidade": "São Paulo",
+      "uf": "SP"
+    },
+    "contatos": {
+      "telefone1": "(11) 1234-5678",
+      "telefone2": "",
+      "telefone3": "",
+      "email1": "contato@suprema.com.br",
+      "email2": ""
+    },
+    "bancario": {
+      "banco": "Bradesco",
+      "agencia": "1234",
+      "conta": "56789-0"
+    },
+    "ecs": [
+      "000000000001"
+    ]
+  },
+  {
+    "cliente_id": "048376780001",
+    "nome_fantasia": "ESTACIONAMENTO SAO JOSE LTDA",
+    "razao_social": "VANESSA AMARAL REZENDES",
+    "cnpj": "04837678000184",
+    "endereco": {
+      "logradouro": "R IZABEL A REDENTORA",
+      "numero": "1434",
+      "complemento": "",
+      "bairro": "CENTRO",
+      "cidade": "SÃO JOSE DOS PINHAIS",
+      "uf": "PR"
+    },
+    "contatos": {
+      "telefone1": "",
+      "telefone2": "",
+      "telefone3": "",
+      "email1": "",
+      "email2": ""
+    },
+    "bancario": {
+      "banco": "",
+      "agencia": "",
+      "conta": ""
+    },
+    "ecs": [
+      "1068306022"
+    ]
+  }
+]

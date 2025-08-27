@@ -1,0 +1,42 @@
+[
+  {
+    "nome": "Visa",
+    "padrao": true
+  },
+  {
+    "nome": "Mastercard",
+    "padrao": true
+  },
+  {
+    "nome": "Elo",
+    "padrao": true
+  },
+  {
+    "nome": "American Express",
+    "padrao": false
+  },
+  {
+    "nome": "Hipercard",
+    "padrao": false
+  },
+  {
+    "nome": "Diners Club",
+    "padrao": false
+  },
+  {
+    "nome": "Discover",
+    "padrao": false
+  },
+  {
+    "nome": "Aura",
+    "padrao": false
+  },
+  {
+    "nome": "JCB",
+    "padrao": false
+  },
+  {
+    "nome": "Cabal",
+    "padrao": false
+  }
+]

@@ -1,0 +1,37 @@
+.venv/
+__pycache__/
+*.pyc
+*.xlsx
+*.xls
+.DS_Store
+# Arquivos de ambiente virtual
+venv/
+env/
+.venv/
+.env
+
+# Arquivos de cache do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Arquivos de configuração do editor/IDE
+.vscode/
+.idea/
+*.swp
+
+# Arquivos de build/distribuição
+build/
+dist/
+*.egg-info
+
+# Arquivos de sistema operacional
+.DS_Store
+Thumbs.db
+
+# ARQUIVOS SENSÍVEIS (Exemplo!)
+# Se você tiver um arquivo com senhas, NUNCA o envie.
+# Ex: local_settings.py, config.ini, etc.
+# *.ini
+# *.json  # Cuidado com este, pois pode conter dados sensíveis
