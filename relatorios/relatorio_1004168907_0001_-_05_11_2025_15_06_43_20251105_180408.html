@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Relatório de Análise Financeira</title>
+    <style>
+        @media print {
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            body {
+                margin: 0;
+            }
+            .main-content {
+                margin: 0.8cm !important;
+            }
+            .cover-page {
+                width: 100% !important;
+                height: 100vh !important;
+                page-break-after: always !important;
+            }
+            .cover-page img {
+                max-width: 100% !important;
+                max-height: 100% !important;
+                object-fit: contain !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            img {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .report-header {
+                width: 100% !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                left: 0 !important;
+            }
+        }
+
+        body {
+            margin: 0; 
+            font-family: Arial, sans-serif;
+            color: #223a6b;
+        }
+
+        .cover-page {
+            width: 100vw;
+            height: 100vh;
+            background-color: #f8f9fa;
+            page-break-after: always;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .cover-page img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .main-content {
+            padding: 0.8cm; 
+        }
+
+        .report-header {
+            width: 100%;
+            margin-left: 0;
+            margin-right: 0;
+            margin-bottom: 10px;
+        }
+
+        .report-header img {
+            width: 100%;
+            height: auto;
+        }
+
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            font-size: 10px;
+        }
+
+        .report-table th, .report-table td {
+            border: 1px solid #ddd;
+            padding: 4px;
+            text-align: left;
+        }
+
+        .report-table th {
+            font-weight: bold;
+        }
+
+        .report-table .header-blue {
+            background-color: #223a6b;
+            color: white;
+            font-weight: bold;
+        }
+
+        .report-section {
+            margin-top: 15px;
+            margin-bottom: 10px;
+            page-break-inside: avoid;
+        }
+
+        .report-section h3 {
+            color: #223a6b;
+            border-bottom: 2px solid #223a6b;
+            padding-bottom: 5px;
+        }
+
+        .intro-section h2 {
+            text-align:center; 
+            color:#223a6b; 
+            font-size:1.3em; 
+            font-weight:bold; 
+            margin-bottom: 18px; 
+            margin-top: 10px;
+        }
+
+        .intro-section p {
+            font-size:1.08em; 
+            text-align:left; 
+            margin-bottom: 24px; 
+            line-height: 1.6;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            page-break-inside: avoid;
+            margin-top: 10px;
+        }
+
+        .chart-cell {
+            page-break-inside: avoid;
+        }
+
+        .chart-cell img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            border: 1px solid #eee;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    
+    
+    <div class="cover-page">
+        <img src="file:///D:/Financial Checker base/Financial_P/assets/capa_relatorio.jpg" alt="Capa do Relatório">
+    </div>
+    
+
+    <div class="main-content">
+        
+        
+        <div class="report-header">
+            <img src="file:///D:/Financial Checker base/Financial_P/assets/cabecalho_financial.png" alt="Cabeçalho">
+        </div>
+        
+
+        <div class="intro-section">
+            <h2>Perdas Financeiras nas Transações com Cartões, Vouchers e Pix</h2>
+            <p>
+                Pequenas variações nas transações muitas vezes <strong>passam despercebidas</strong> pelos estabelecimentos. São valores aparentemente irrelevantes de centavos que são <strong><span style="color:#9c1313">descontados ou retidos</span></strong> pelas adquirentes de maneira equivocada.
+            </p>
+            <p>
+                Muitas empresas <strong><span style="color:#9c1313">não</span></strong> estão levando em consideração as diversas legendas de descontos, excesso de códigos internos, fragmentação das informações nos extratos e elementos complexos que <strong><span style="color:#9c1313">afetam</span></strong> o faturamento com cartões e vouchers.
+            </p>
+            <p>
+                Nossa <strong><span style="color:#223a6b">conciliação sistêmica</span></strong>, aliada à <strong><span style="color:#223a6b">auditoria estrutural</span></strong> do faturamento retroativo e recorrente, <strong><span style="color:#9c1313">vai além da conciliação tradicional</span></strong>, fornecemos análises tecnicamente <strong>mais</strong> estruturadas, em conformidade com as regulamentações do Banco Central.
+            </p>
+            <p>
+                <strong><span style="color:#9c1313">Objetivo:</span></strong> identificar e eliminar as perdas ocultas que passam despercebidas, implementando ações corretivas e eficazes.
+            </p>
+        </div>
+
+        <div class="report-section">
+            <h3>Efeitos financeiros das perdas na sua Empresa</h3>
+            <table class="report-table">
+                <tr class="header-blue">
+                    <th style="width:20%;">Impacto</th>
+                    <th>Descrição</th>
+                </tr>
+                <tr><td><strong>Financeira</strong></td><td>Impactos negativos no fluxo de caixa; redução da lucratividade; incertezas na projeção de entradas.</td></tr>
+                <tr><td><strong>Tecnológica</strong></td><td>Riscos de integração e sincronização entre sistemas ERP e adquirentes, somados a inconsistências de layout decorrentes da falta de padronização, criando ajustes manuais.</td></tr>
+                <tr><td><strong>Administrativa</strong></td><td>Desconhecimento das regras contratuais e ausência de indicadores objetivos comprometem a gestão e elevam o risco de divergências.</td></tr>
+                <tr><td><strong>Consultoria</strong></td><td>Espaço para ajustar as condições comerciais atuais a níveis mais favoráveis para o estabelecimento; redução de perdas que não eram visíveis antes da coleta de dados e conciliação avançada, monitoramento do faturamento com cartões e entrega de resultados.</td></tr>
+            </table>
+        </div>
+
+        <div class="report-section">
+            <h3>Nossa Tecnologia</h3>
+            <p style="font-size: 1.1em; text-align: center; margin-bottom: 20px; line-height: 1.4;">
+                As análises são potencializadas por um <strong style="color: #223a6b;">software exclusivo, de alta performance</strong>, desenvolvido com rigor técnico para assegurar <strong>robustez e precisão</strong> em cada processamento.
+            </p>
+            <p style="font-size: 1.3em; text-align: center; font-weight: bold; color: #223a6b; background-color: #f0f9ff; padding: 15px; border-left: 4px solid #223a6b; margin: 20px 0;">
+                Conciliamos <span style="color: #9c1313;">10 mil transações</span> em apenas <span style="color: #9c1313;">30 segundos</span>
+            </p>
+        </div>
+        
+        <div class="report-section"><h3>Informações do Processamento</h3><table class="report-table"><tr><td>ID Processamento</td><td>1004168907_0001 - 05/11/2025 15:06:43</td></tr><tr><td><strong>Cliente</strong></td><td><strong style='color: #223a6b;'>SUPERMERCADO DO GATO (25.352.287/0001-40)</strong></td></tr><tr><td>EC ID Principal</td><td>1004168907</td></tr><tr><td>ECs no Processamento</td><td>1004168907</td></tr><tr><td>Total de ECs Distintos</td><td>1</td></tr><tr><td>Adquirente</td><td>CIELO</td></tr><tr><td>Período das Transações</td><td>07/01/2018 a 15/10/2025</td></tr><tr><td>Período (Dias)</td><td>2839 dias</td></tr><tr><td>Data Processamento</td><td>05/11/2025 15:06:43</td></tr></table></div><div class="report-section"><h3>Estatísticas Gerais</h3><table class="report-table"><tr><td><strong>Quantidade de Vendas</strong></td><td><strong style='color: #223a6b;'>688.688</strong></td></tr><tr><td><strong>Faturamento Bruto</strong></td><td><strong style='color: #223a6b;'>R$ 36.671.363,17</strong></td></tr><tr><td>Faturamento Líquido</td><td>N/A</td></tr><tr><td>Valor Médio da Transação</td><td>R$ 53,25</td></tr><tr><td>Menor Transação</td><td>R$ 0,20</td></tr><tr><td>Maior Transação</td><td>R$ 4.780,91</td></tr><tr><td><strong>Menor Taxa Encontrada (%)</strong></td><td><strong style='color: #9c1313;'>0.00</strong></td></tr><tr><td><strong>Maior Taxa Encontrada (%)</strong></td><td><strong style='color: #9c1313;'>2.78</strong></td></tr><tr><td><strong>Diferença de Taxa (%)</strong></td><td><strong style='color: #9c1313;'>2.78</strong></td></tr></table></div>
+        <div class="report-section"><h3>Análise de Perdas Estimadas por Semestre</h3><table class="report-table"><tr><th>Ano-Semestre</th><th>Perda Monetária MDR</th><th>Perda Monetária RR/RA</th><th>Perda Total</th></tr><tr><td>2018-1</td><td>R$ -441,43</td><td>R$ 0,00</td><td>R$ -441,43</td></tr><tr><td>2018-2</td><td>R$ -1.912,69</td><td>R$ 0,00</td><td>R$ -1.912,69</td></tr><tr><td>2019-1</td><td>R$ -5.464,09</td><td>R$ 0,00</td><td>R$ -5.464,09</td></tr><tr><td>2019-2</td><td>R$ -4.052,81</td><td>R$ 0,00</td><td>R$ -4.052,81</td></tr><tr><td>2020-1</td><td>R$ -4.976,39</td><td>R$ 0,00</td><td>R$ -4.976,39</td></tr><tr><td>2020-2</td><td>R$ -12.781,49</td><td>R$ 0,00</td><td>R$ -12.781,49</td></tr><tr><td>2021-1</td><td>R$ -13.324,21</td><td>R$ 0,00</td><td>R$ -13.324,21</td></tr><tr><td>2021-2</td><td>R$ -14.867,87</td><td>R$ 0,00</td><td>R$ -14.867,87</td></tr><tr><td>2022-1</td><td>R$ -6.273,51</td><td>R$ 0,00</td><td>R$ -6.273,51</td></tr><tr><td>2022-2</td><td>R$ -18.144,64</td><td>R$ 0,00</td><td>R$ -18.144,64</td></tr><tr><td>2023-1</td><td>R$ -15.239,20</td><td>R$ 0,00</td><td>R$ -15.239,20</td></tr><tr><td>2023-2</td><td>R$ -2.014,24</td><td>R$ 0,00</td><td>R$ -2.014,24</td></tr><tr><td>2024-1</td><td>R$ -1.220,97</td><td>R$ 0,00</td><td>R$ -1.220,97</td></tr><tr><td>2024-2</td><td>R$ -388,78</td><td>R$ 0,00</td><td>R$ -388,78</td></tr><tr><td>2025-1</td><td>R$ 0,19</td><td>R$ 0,00</td><td>R$ 0,19</td></tr><tr><td>2025-2</td><td>R$ 0,17</td><td>R$ 0,00</td><td>R$ 0,17</td></tr><tr><td style='color: #9c1313; font-weight: bold;'>** TOTAL GERAL **</td><td style='color: #9c1313; font-weight: bold;'>R$ -101.101,96</td><td style='color: #9c1313; font-weight: bold;'>R$ 0,00</td><td style='color: #9c1313; font-weight: bold;'>R$ -101.101,96</td></tr></table></div>
+        <div class="report-section"><h3>Análise de Taxas Mínimas e Máximas por Semestre</h3><table class="report-table"><tr><th>Ano-Semestre</th><th>Bandeira</th><th>Forma_de_pagamento</th><th>Taxa_Min</th><th>Taxa_Max</th></tr><tr><td>2018-1</td><td>CREDSYSTEM</td><td>CRÉDITO A VISTA</td><td>0.74%</td><td>0.74%</td></tr><tr><td>2018-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>1.37%</td><td>1.53%</td></tr><tr><td>2018-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.87%</td><td>2.00%</td></tr><tr><td>2018-1</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>1.29%</td><td>1.85%</td></tr><tr><td>2018-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>1.00%</td><td>1.67%</td></tr><tr><td>2018-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.87%</td><td>1.37%</td></tr><tr><td>2018-1</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>1.43%</td><td>1.43%</td></tr><tr><td>2018-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>1.32%</td><td>1.53%</td></tr><tr><td>2018-1</td><td>VISA</td><td>DÉBITO A VISTA</td><td>0.93%</td><td>1.26%</td></tr><tr><td>2018-2</td><td>CREDSYSTEM</td><td>CRÉDITO A VISTA</td><td>0.86%</td><td>0.86%</td></tr><tr><td>2018-2</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>1.00%</td><td>1.63%</td></tr><tr><td>2018-2</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.71%</td><td>1.38%</td></tr><tr><td>2018-2</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>1.30%</td><td>1.30%</td></tr><tr><td>2018-2</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>1.00%</td><td>1.82%</td></tr><tr><td>2018-2</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.72%</td><td>1.72%</td></tr><tr><td>2018-2</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>0.70%</td><td>0.72%</td></tr><tr><td>2018-2</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>1.18%</td><td>1.69%</td></tr><tr><td>2018-2</td><td>VISA</td><td>DÉBITO A VISTA</td><td>0.79%</td><td>1.92%</td></tr><tr><td>2018-2</td><td>VISA</td><td>PARCELADO LOJA</td><td>1.75%</td><td>1.75%</td></tr><tr><td>2019-1</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>1.89%</td><td>1.89%</td></tr><tr><td>2019-1</td><td>CREDZ</td><td>CRÉDITO A VISTA</td><td>1.28%</td><td>1.28%</td></tr><tr><td>2019-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>0.68%</td><td>1.54%</td></tr><tr><td>2019-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.69%</td></tr><tr><td>2019-1</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>1.00%</td><td>1.85%</td></tr><tr><td>2019-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>0.49%</td><td>1.83%</td></tr><tr><td>2019-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.60%</td><td>1.54%</td></tr><tr><td>2019-1</td><td>MASTERCARD</td><td>PARCELADO LOJA</td><td>1.74%</td><td>1.74%</td></tr><tr><td>2019-1</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>1.29%</td><td>1.29%</td></tr><tr><td>2019-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>0.60%</td><td>1.88%</td></tr><tr><td>2019-1</td><td>VISA</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.85%</td></tr><tr><td>2019-1</td><td>VISA</td><td>PARCELADO LOJA</td><td>1.75%</td><td>1.75%</td></tr><tr><td>2019-2</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>0.57%</td><td>1.61%</td></tr><tr><td>2019-2</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.47%</td><td>1.85%</td></tr><tr><td>2019-2</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>0.69%</td><td>1.87%</td></tr><tr><td>2019-2</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>0.50%</td><td>1.85%</td></tr><tr><td>2019-2</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.61%</td></tr><tr><td>2019-2</td><td>MASTERCARD</td><td>PARCELADO LOJA</td><td>1.75%</td><td>1.75%</td></tr><tr><td>2019-2</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>0.67%</td><td>1.50%</td></tr><tr><td>2019-2</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>0.00%</td><td>1.68%</td></tr><tr><td>2019-2</td><td>VISA</td><td>DÉBITO A VISTA</td><td>0.50%</td><td>1.85%</td></tr><tr><td>2019-2</td><td>VISA</td><td>PARCELADO LOJA</td><td>1.76%</td><td>1.76%</td></tr><tr><td>2020-1</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>1.89%</td><td>1.89%</td></tr><tr><td>2020-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>0.57%</td><td>1.36%</td></tr><tr><td>2020-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.47%</td><td>2.00%</td></tr><tr><td>2020-1</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>1.85%</td><td>1.85%</td></tr><tr><td>2020-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>0.53%</td><td>2.00%</td></tr><tr><td>2020-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.47%</td><td>1.87%</td></tr><tr><td>2020-1</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>1.47%</td><td>1.47%</td></tr><tr><td>2020-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>0.50%</td><td>1.82%</td></tr><tr><td>2020-1</td><td>VISA</td><td>DÉBITO A VISTA</td><td>0.50%</td><td>1.53%</td></tr><tr><td>2020-1</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>0.57%</td><td>0.80%</td></tr><tr><td>2020-2</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>1.89%</td><td>1.90%</td></tr><tr><td>2020-2</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>0.65%</td><td>1.54%</td></tr><tr><td>2020-2</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.55%</td></tr><tr><td>2020-2</td><td>HIPERCARD</td><td>CRÉDITO</td><td>1.85%</td><td>1.85%</td></tr><tr><td>2020-2</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>1.85%</td><td>1.86%</td></tr><tr><td>2020-2</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>0.50%</td><td>1.68%</td></tr><tr><td>2020-2</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.43%</td></tr><tr><td>2020-2</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>1.45%</td><td>1.47%</td></tr><tr><td>2020-2</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>0.62%</td><td>1.55%</td></tr><tr><td>2020-2</td><td>VISA</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.88%</td></tr><tr><td>2020-2</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.45%</td></tr><tr><td>2021-1</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>1.90%</td><td>1.90%</td></tr><tr><td>2021-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>0.69%</td><td>1.50%</td></tr><tr><td>2021-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.82%</td></tr><tr><td>2021-1</td><td>HIPERCARD</td><td>CRÉDITO</td><td>1.85%</td><td>1.85%</td></tr><tr><td>2021-1</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>1.82%</td><td>1.82%</td></tr><tr><td>2021-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>0.50%</td><td>2.56%</td></tr><tr><td>2021-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>2.36%</td></tr><tr><td>2021-1</td><td>MASTERCARD</td><td>PARCELADO LOJA</td><td>1.75%</td><td>1.75%</td></tr><tr><td>2021-1</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>1.45%</td><td>1.47%</td></tr><tr><td>2021-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>0.00%</td><td>1.74%</td></tr><tr><td>2021-1</td><td>VISA</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.80%</td></tr><tr><td>2021-1</td><td>VISA</td><td>PARCELADO LOJA</td><td>0.73%</td><td>1.75%</td></tr><tr><td>2021-1</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.43%</td></tr><tr><td>2021-2</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>1.89%</td><td>2.12%</td></tr><tr><td>2021-2</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>0.65%</td><td>2.74%</td></tr><tr><td>2021-2</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>2.00%</td></tr><tr><td>2021-2</td><td>HIPERCARD</td><td>CRÉDITO</td><td>1.46%</td><td>1.85%</td></tr><tr><td>2021-2</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>1.83%</td><td>1.87%</td></tr><tr><td>2021-2</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>0.00%</td><td>1.92%</td></tr><tr><td>2021-2</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>2.34%</td></tr><tr><td>2021-2</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>1.47%</td><td>1.47%</td></tr><tr><td>2021-2</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>0.50%</td><td>2.56%</td></tr><tr><td>2021-2</td><td>VISA</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>2.38%</td></tr><tr><td>2021-2</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.35%</td></tr><tr><td>2022-1</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>2.12%</td><td>2.12%</td></tr><tr><td>2022-1</td><td>CABAL</td><td>CRÉDITO A VISTA</td><td>1.46%</td><td>1.51%</td></tr><tr><td>2022-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>1.00%</td><td>1.72%</td></tr><tr><td>2022-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.45%</td></tr><tr><td>2022-1</td><td>HIPERCARD</td><td>CRÉDITO</td><td>1.46%</td><td>1.46%</td></tr><tr><td>2022-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>0.00%</td><td>2.63%</td></tr><tr><td>2022-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.43%</td></tr><tr><td>2022-1</td><td>MASTERCARD</td><td>PARCELADO LOJA</td><td>2.00%</td><td>2.00%</td></tr><tr><td>2022-1</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>1.47%</td><td>1.47%</td></tr><tr><td>2022-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>0.00%</td><td>2.56%</td></tr><tr><td>2022-1</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.28%</td></tr><tr><td>2022-2</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>2.12%</td><td>2.57%</td></tr><tr><td>2022-2</td><td>CABAL</td><td>CRÉDITO A VISTA</td><td>1.41%</td><td>1.50%</td></tr><tr><td>2022-2</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>1.39%</td><td>2.32%</td></tr><tr><td>2022-2</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>2.00%</td></tr><tr><td>2022-2</td><td>HIPERCARD</td><td>CRÉDITO</td><td>1.73%</td><td>1.73%</td></tr><tr><td>2022-2</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>1.27%</td><td>2.16%</td></tr><tr><td>2022-2</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>2.33%</td></tr><tr><td>2022-2</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>1.20%</td><td>2.22%</td></tr><tr><td>2022-2</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>2.50%</td></tr><tr><td>2023-1</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>2.57%</td><td>2.77%</td></tr><tr><td>2023-1</td><td>American Express</td><td>CRÉDITO A VISTA</td><td>2.61%</td><td>2.61%</td></tr><tr><td>2023-1</td><td>CABAL</td><td>CRÉDITO A VISTA</td><td>1.46%</td><td>1.49%</td></tr><tr><td>2023-1</td><td>CABAL</td><td>DÉBITO A VISTA</td><td>1.07%</td><td>1.07%</td></tr><tr><td>2023-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>2.00%</td><td>2.73%</td></tr><tr><td>2023-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>1.74%</td></tr><tr><td>2023-1</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>2.24%</td><td>2.33%</td></tr><tr><td>2023-1</td><td>Elo</td><td>DÉBITO A VISTA</td><td>1.47%</td><td>1.47%</td></tr><tr><td>2023-1</td><td>HIPERCARD</td><td>CRÉDITO</td><td>2.06%</td><td>2.13%</td></tr><tr><td>2023-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>1.45%</td><td>2.78%</td></tr><tr><td>2023-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>0.00%</td><td>2.44%</td></tr><tr><td>2023-1</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>2.00%</td><td>2.17%</td></tr><tr><td>2023-1</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>1.41%</td><td>1.41%</td></tr><tr><td>2023-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>1.57%</td><td>2.51%</td></tr><tr><td>2023-1</td><td>VISA</td><td>DÉBITO A VISTA</td><td>1.23%</td><td>1.58%</td></tr><tr><td>2023-1</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>1.00%</td><td>2.27%</td></tr><tr><td>2023-1</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>2.03%</td><td>2.10%</td></tr><tr><td>2023-1</td><td>Visa</td><td>DÉBITO A VISTA</td><td>1.41%</td><td>1.41%</td></tr><tr><td>2023-2</td><td>American Express</td><td>CRÉDITO A VISTA</td><td>2.20%</td><td>2.61%</td></tr><tr><td>2023-2</td><td>Cabal</td><td>CRÉDITO A VISTA</td><td>1.47%</td><td>1.47%</td></tr><tr><td>2023-2</td><td>Cabal</td><td>DÉBITO A VISTA</td><td>1.05%</td><td>1.05%</td></tr><tr><td>2023-2</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>1.44%</td><td>2.29%</td></tr><tr><td>2023-2</td><td>Elo</td><td>DÉBITO A VISTA</td><td>0.85%</td><td>1.47%</td></tr><tr><td>2023-2</td><td>Hipercard</td><td>CRÉDITO A VISTA</td><td>2.50%</td><td>2.50%</td></tr><tr><td>2023-2</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>1.36%</td><td>2.06%</td></tr><tr><td>2023-2</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>0.76%</td><td>1.41%</td></tr><tr><td>2023-2</td><td>Pix</td><td>PIX</td><td>0.00%</td><td>0.00%</td></tr><tr><td>2023-2</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>1.36%</td><td>2.06%</td></tr><tr><td>2023-2</td><td>Visa</td><td>DÉBITO A VISTA</td><td>0.76%</td><td>1.41%</td></tr><tr><td>2024-1</td><td>American Express</td><td>CRÉDITO A VISTA</td><td>2.20%</td><td>2.20%</td></tr><tr><td>2024-1</td><td>Cabal</td><td>CRÉDITO A VISTA</td><td>1.47%</td><td>1.47%</td></tr><tr><td>2024-1</td><td>Cabal</td><td>DÉBITO A VISTA</td><td>1.05%</td><td>1.05%</td></tr><tr><td>2024-1</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>1.44%</td><td>1.44%</td></tr><tr><td>2024-1</td><td>Elo</td><td>DÉBITO A VISTA</td><td>0.85%</td><td>0.85%</td></tr><tr><td>2024-1</td><td>Elo</td><td>PARCELADO LOJA</td><td>1.96%</td><td>1.96%</td></tr><tr><td>2024-1</td><td>Hipercard</td><td>CRÉDITO A VISTA</td><td>2.50%</td><td>2.50%</td></tr><tr><td>2024-1</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>1.36%</td><td>1.36%</td></tr><tr><td>2024-1</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>0.76%</td><td>0.76%</td></tr><tr><td>2024-1</td><td>Pix</td><td>PIX</td><td>0.00%</td><td>0.00%</td></tr><tr><td>2024-1</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>1.36%</td><td>1.36%</td></tr><tr><td>2024-1</td><td>Visa</td><td>DÉBITO A VISTA</td><td>0.76%</td><td>0.76%</td></tr><tr><td>2024-2</td><td>American Express</td><td>CRÉDITO A VISTA</td><td>2.12%</td><td>2.20%</td></tr><tr><td>2024-2</td><td>Cabal</td><td>DÉBITO A VISTA</td><td>1.05%</td><td>1.05%</td></tr><tr><td>2024-2</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>1.44%</td><td>1.62%</td></tr><tr><td>2024-2</td><td>Elo</td><td>DÉBITO A VISTA</td><td>0.85%</td><td>0.88%</td></tr><tr><td>2024-2</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>1.36%</td><td>1.37%</td></tr><tr><td>2024-2</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>0.69%</td><td>0.76%</td></tr><tr><td>2024-2</td><td>Mastercard</td><td>PARCELADO LOJA</td><td>1.76%</td><td>1.76%</td></tr><tr><td>2024-2</td><td>Pix</td><td>PIX</td><td>0.00%</td><td>0.00%</td></tr><tr><td>2024-2</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>1.36%</td><td>1.37%</td></tr><tr><td>2024-2</td><td>Visa</td><td>DÉBITO A VISTA</td><td>0.69%</td><td>0.76%</td></tr><tr><td>2024-2</td><td>Visa</td><td>PARCELADO LOJA</td><td>1.70%</td><td>1.70%</td></tr><tr><td>2025-1</td><td>American Express</td><td>CRÉDITO A VISTA</td><td>2.12%</td><td>2.12%</td></tr><tr><td>2025-1</td><td>Cabal</td><td>DÉBITO A VISTA</td><td>1.05%</td><td>1.05%</td></tr><tr><td>2025-1</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>1.62%</td><td>1.62%</td></tr><tr><td>2025-1</td><td>Elo</td><td>DÉBITO A VISTA</td><td>0.88%</td><td>0.88%</td></tr><tr><td>2025-1</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>1.37%</td><td>1.37%</td></tr><tr><td>2025-1</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>0.69%</td><td>0.69%</td></tr><tr><td>2025-1</td><td>Mastercard</td><td>PARCELADO LOJA</td><td>1.76%</td><td>1.76%</td></tr><tr><td>2025-1</td><td>Pix</td><td>PIX</td><td>0.00%</td><td>0.00%</td></tr><tr><td>2025-1</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>1.37%</td><td>1.37%</td></tr><tr><td>2025-1</td><td>Visa</td><td>DÉBITO A VISTA</td><td>0.69%</td><td>0.69%</td></tr><tr><td>2025-1</td><td>Visa</td><td>PARCELADO LOJA</td><td>1.70%</td><td>1.70%</td></tr><tr><td>2025-2</td><td>American Express</td><td>CRÉDITO A VISTA</td><td>2.12%</td><td>2.12%</td></tr><tr><td>2025-2</td><td>Cabal</td><td>DÉBITO A VISTA</td><td>1.05%</td><td>1.05%</td></tr><tr><td>2025-2</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>1.62%</td><td>1.62%</td></tr><tr><td>2025-2</td><td>Elo</td><td>DÉBITO A VISTA</td><td>0.88%</td><td>0.88%</td></tr><tr><td>2025-2</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>1.37%</td><td>1.37%</td></tr><tr><td>2025-2</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>0.69%</td><td>0.69%</td></tr><tr><td>2025-2</td><td>Pix</td><td>PIX</td><td>0.00%</td><td>0.00%</td></tr><tr><td>2025-2</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>1.37%</td><td>1.37%</td></tr><tr><td>2025-2</td><td>Visa</td><td>DÉBITO A VISTA</td><td>0.69%</td><td>0.69%</td></tr><tr><td>2025-2</td><td>Visa</td><td>PARCELADO LOJA</td><td>1.70%</td><td>1.70%</td></tr></table></div>
+        <div class="report-section"><h3>Contagem de Transações por Ano-Semestre, Bandeira e Modalidade</h3><table class="report-table"><tr><th>Ano-Semestre</th><th>Bandeira</th><th>Forma_de_pagamento</th><th>Contagem</th></tr><tr><td>2018-1</td><td>CREDSYSTEM</td><td>CRÉDITO A VISTA</td><td>1</td></tr><tr><td>2018-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>59</td></tr><tr><td>2018-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>600</td></tr><tr><td>2018-1</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>3</td></tr><tr><td>2018-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>387</td></tr><tr><td>2018-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>305</td></tr><tr><td>2018-1</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>1</td></tr><tr><td>2018-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>363</td></tr><tr><td>2018-1</td><td>VISA</td><td>DÉBITO A VISTA</td><td>886</td></tr><tr><td>2018-2</td><td>CREDSYSTEM</td><td>CRÉDITO A VISTA</td><td>1</td></tr><tr><td>2018-2</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>238</td></tr><tr><td>2018-2</td><td>ELO</td><td>DÉBITO A VISTA</td><td>2.302</td></tr><tr><td>2018-2</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>2</td></tr><tr><td>2018-2</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>1.776</td></tr><tr><td>2018-2</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>1.691</td></tr><tr><td>2018-2</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>2</td></tr><tr><td>2018-2</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>1.767</td></tr><tr><td>2018-2</td><td>VISA</td><td>DÉBITO A VISTA</td><td>3.896</td></tr><tr><td>2018-2</td><td>VISA</td><td>PARCELADO LOJA</td><td>1</td></tr><tr><td>2019-1</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>1</td></tr><tr><td>2019-1</td><td>CREDZ</td><td>CRÉDITO A VISTA</td><td>1</td></tr><tr><td>2019-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>405</td></tr><tr><td>2019-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>3.552</td></tr><tr><td>2019-1</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>4</td></tr><tr><td>2019-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>2.775</td></tr><tr><td>2019-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>2.336</td></tr><tr><td>2019-1</td><td>MASTERCARD</td><td>PARCELADO LOJA</td><td>1</td></tr><tr><td>2019-1</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>1</td></tr><tr><td>2019-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>2.324</td></tr><tr><td>2019-1</td><td>VISA</td><td>DÉBITO A VISTA</td><td>4.880</td></tr><tr><td>2019-1</td><td>VISA</td><td>PARCELADO LOJA</td><td>1</td></tr><tr><td>2019-2</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>461</td></tr><tr><td>2019-2</td><td>ELO</td><td>DÉBITO A VISTA</td><td>3.667</td></tr><tr><td>2019-2</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>7</td></tr><tr><td>2019-2</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>3.351</td></tr><tr><td>2019-2</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>2.643</td></tr><tr><td>2019-2</td><td>MASTERCARD</td><td>PARCELADO LOJA</td><td>2</td></tr><tr><td>2019-2</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>4</td></tr><tr><td>2019-2</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>2.460</td></tr><tr><td>2019-2</td><td>VISA</td><td>DÉBITO A VISTA</td><td>4.840</td></tr><tr><td>2019-2</td><td>VISA</td><td>PARCELADO LOJA</td><td>1</td></tr><tr><td>2020-1</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>1</td></tr><tr><td>2020-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>340</td></tr><tr><td>2020-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>4.909</td></tr><tr><td>2020-1</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>1</td></tr><tr><td>2020-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>3.934</td></tr><tr><td>2020-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>3.670</td></tr><tr><td>2020-1</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>1</td></tr><tr><td>2020-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>2.333</td></tr><tr><td>2020-1</td><td>VISA</td><td>DÉBITO A VISTA</td><td>5.834</td></tr><tr><td>2020-1</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>261</td></tr><tr><td>2020-2</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>32</td></tr><tr><td>2020-2</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>1.054</td></tr><tr><td>2020-2</td><td>ELO</td><td>DÉBITO A VISTA</td><td>15.126</td></tr><tr><td>2020-2</td><td>HIPERCARD</td><td>CRÉDITO</td><td>7</td></tr><tr><td>2020-2</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>7</td></tr><tr><td>2020-2</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>9.322</td></tr><tr><td>2020-2</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>11.798</td></tr><tr><td>2020-2</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>4</td></tr><tr><td>2020-2</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>5.676</td></tr><tr><td>2020-2</td><td>VISA</td><td>DÉBITO A VISTA</td><td>6.811</td></tr><tr><td>2020-2</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>7.268</td></tr><tr><td>2021-1</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>44</td></tr><tr><td>2021-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>1.128</td></tr><tr><td>2021-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>14.090</td></tr><tr><td>2021-1</td><td>HIPERCARD</td><td>CRÉDITO</td><td>5</td></tr><tr><td>2021-1</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>1</td></tr><tr><td>2021-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>10.039</td></tr><tr><td>2021-1</td><td>MASTERCARD</td><td>CRÉDITO PARCELADO LOJA</td><td>1</td></tr><tr><td>2021-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>12.097</td></tr><tr><td>2021-1</td><td>MASTERCARD</td><td>PARCELADO LOJA</td><td>1</td></tr><tr><td>2021-1</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>8</td></tr><tr><td>2021-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>6.355</td></tr><tr><td>2021-1</td><td>VISA</td><td>CRÉDITO PARCELADO LOJA</td><td>1</td></tr><tr><td>2021-1</td><td>VISA</td><td>DÉBITO A VISTA</td><td>7.410</td></tr><tr><td>2021-1</td><td>VISA</td><td>PARCELADO LOJA</td><td>2</td></tr><tr><td>2021-1</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>8.021</td></tr><tr><td>2021-2</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>39</td></tr><tr><td>2021-2</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>1.174</td></tr><tr><td>2021-2</td><td>ELO</td><td>DÉBITO A VISTA</td><td>13.443</td></tr><tr><td>2021-2</td><td>HIPERCARD</td><td>CRÉDITO</td><td>5</td></tr><tr><td>2021-2</td><td>HIPERCARD</td><td>CRÉDITO A VISTA</td><td>2</td></tr><tr><td>2021-2</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>10.211</td></tr><tr><td>2021-2</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>14.854</td></tr><tr><td>2021-2</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>10</td></tr><tr><td>2021-2</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>7.082</td></tr><tr><td>2021-2</td><td>VISA</td><td>DÉBITO A VISTA</td><td>7.791</td></tr><tr><td>2021-2</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>9.816</td></tr><tr><td>2022-1</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>25</td></tr><tr><td>2022-1</td><td>CABAL</td><td>CRÉDITO A VISTA</td><td>17</td></tr><tr><td>2022-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>1.193</td></tr><tr><td>2022-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>6.967</td></tr><tr><td>2022-1</td><td>HIPERCARD</td><td>CRÉDITO</td><td>2</td></tr><tr><td>2022-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>6.841</td></tr><tr><td>2022-1</td><td>MASTERCARD</td><td>CRÉDITO PARCELADO LOJA</td><td>1</td></tr><tr><td>2022-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>11.769</td></tr><tr><td>2022-1</td><td>SOROCRED</td><td>CRÉDITO A VISTA</td><td>3</td></tr><tr><td>2022-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>5.157</td></tr><tr><td>2022-1</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>10.509</td></tr><tr><td>2022-2</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>43</td></tr><tr><td>2022-2</td><td>CABAL</td><td>CRÉDITO A VISTA</td><td>26</td></tr><tr><td>2022-2</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>950</td></tr><tr><td>2022-2</td><td>ELO</td><td>DÉBITO A VISTA</td><td>7.326</td></tr><tr><td>2022-2</td><td>HIPERCARD</td><td>CRÉDITO</td><td>1</td></tr><tr><td>2022-2</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>7.846</td></tr><tr><td>2022-2</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>15.997</td></tr><tr><td>2022-2</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>5.502</td></tr><tr><td>2022-2</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>11.929</td></tr><tr><td>2023-1</td><td>AMEX</td><td>CRÉDITO A VISTA</td><td>26</td></tr><tr><td>2023-1</td><td>American Express</td><td>Crédito à vista</td><td>2</td></tr><tr><td>2023-1</td><td>CABAL</td><td>CRÉDITO A VISTA</td><td>24</td></tr><tr><td>2023-1</td><td>CABAL</td><td>DÉBITO A VISTA</td><td>1</td></tr><tr><td>2023-1</td><td>ELO</td><td>CRÉDITO A VISTA</td><td>915</td></tr><tr><td>2023-1</td><td>ELO</td><td>DÉBITO A VISTA</td><td>6.629</td></tr><tr><td>2023-1</td><td>Elo</td><td>Crédito à vista</td><td>34</td></tr><tr><td>2023-1</td><td>Elo</td><td>DÉBITO A VISTA</td><td>4</td></tr><tr><td>2023-1</td><td>Elo</td><td>Débito à vista</td><td>303</td></tr><tr><td>2023-1</td><td>HIPERCARD</td><td>CRÉDITO</td><td>2</td></tr><tr><td>2023-1</td><td>MASTERCARD</td><td>CRÉDITO A VISTA</td><td>8.982</td></tr><tr><td>2023-1</td><td>MASTERCARD</td><td>DÉBITO A VISTA</td><td>16.288</td></tr><tr><td>2023-1</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>3</td></tr><tr><td>2023-1</td><td>Mastercard</td><td>Crédito à vista</td><td>361</td></tr><tr><td>2023-1</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>443</td></tr><tr><td>2023-1</td><td>Mastercard</td><td>Débito à vista</td><td>271</td></tr><tr><td>2023-1</td><td>VISA</td><td>CRÉDITO A VISTA</td><td>4.916</td></tr><tr><td>2023-1</td><td>VISA</td><td>DÉBITO A VISTA</td><td>499</td></tr><tr><td>2023-1</td><td>VISA ELECTRON</td><td>DÉBITO A VISTA</td><td>10.830</td></tr><tr><td>2023-1</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>25</td></tr><tr><td>2023-1</td><td>Visa</td><td>Crédito à vista</td><td>208</td></tr><tr><td>2023-1</td><td>Visa</td><td>DÉBITO A VISTA</td><td>42</td></tr><tr><td>2023-1</td><td>Visa</td><td>Débito à vista</td><td>433</td></tr><tr><td>2023-2</td><td>American Express</td><td>Crédito à vista</td><td>26</td></tr><tr><td>2023-2</td><td>Cabal</td><td>Crédito à vista</td><td>13</td></tr><tr><td>2023-2</td><td>Cabal</td><td>Débito à vista</td><td>2</td></tr><tr><td>2023-2</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>41</td></tr><tr><td>2023-2</td><td>Elo</td><td>Crédito à vista</td><td>981</td></tr><tr><td>2023-2</td><td>Elo</td><td>DÉBITO A VISTA</td><td>60</td></tr><tr><td>2023-2</td><td>Elo</td><td>Débito à vista</td><td>7.305</td></tr><tr><td>2023-2</td><td>Hipercard</td><td>Crédito à vista</td><td>4</td></tr><tr><td>2023-2</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>89</td></tr><tr><td>2023-2</td><td>Mastercard</td><td>Crédito à vista</td><td>10.944</td></tr><tr><td>2023-2</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>12.318</td></tr><tr><td>2023-2</td><td>Mastercard</td><td>Débito à vista</td><td>8.764</td></tr><tr><td>2023-2</td><td>Pix</td><td>Pix</td><td>2</td></tr><tr><td>2023-2</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>538</td></tr><tr><td>2023-2</td><td>Visa</td><td>Crédito à vista</td><td>5.282</td></tr><tr><td>2023-2</td><td>Visa</td><td>DÉBITO A VISTA</td><td>1.265</td></tr><tr><td>2023-2</td><td>Visa</td><td>Débito à vista</td><td>12.241</td></tr><tr><td>2024-1</td><td>American Express</td><td>Crédito à vista</td><td>37</td></tr><tr><td>2024-1</td><td>Cabal</td><td>Crédito à vista</td><td>3</td></tr><tr><td>2024-1</td><td>Cabal</td><td>Débito à vista</td><td>2</td></tr><tr><td>2024-1</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>28</td></tr><tr><td>2024-1</td><td>Elo</td><td>Crédito parcelado loja</td><td>1</td></tr><tr><td>2024-1</td><td>Elo</td><td>Crédito à vista</td><td>824</td></tr><tr><td>2024-1</td><td>Elo</td><td>DÉBITO A VISTA</td><td>37</td></tr><tr><td>2024-1</td><td>Elo</td><td>Débito à vista</td><td>6.514</td></tr><tr><td>2024-1</td><td>Hipercard</td><td>Crédito à vista</td><td>1</td></tr><tr><td>2024-1</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>309</td></tr><tr><td>2024-1</td><td>Mastercard</td><td>Crédito à vista</td><td>11.568</td></tr><tr><td>2024-1</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>13.266</td></tr><tr><td>2024-1</td><td>Mastercard</td><td>Débito à vista</td><td>8.744</td></tr><tr><td>2024-1</td><td>Pix</td><td>Pix</td><td>2</td></tr><tr><td>2024-1</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>499</td></tr><tr><td>2024-1</td><td>Visa</td><td>Crédito à vista</td><td>5.393</td></tr><tr><td>2024-1</td><td>Visa</td><td>DÉBITO A VISTA</td><td>1.427</td></tr><tr><td>2024-1</td><td>Visa</td><td>Débito à vista</td><td>12.597</td></tr><tr><td>2024-2</td><td>American Express</td><td>Crédito à vista</td><td>28</td></tr><tr><td>2024-2</td><td>Cabal</td><td>Débito à vista</td><td>12</td></tr><tr><td>2024-2</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>82</td></tr><tr><td>2024-2</td><td>Elo</td><td>Crédito à vista</td><td>937</td></tr><tr><td>2024-2</td><td>Elo</td><td>DÉBITO A VISTA</td><td>30</td></tr><tr><td>2024-2</td><td>Elo</td><td>Débito à vista</td><td>5.693</td></tr><tr><td>2024-2</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>153</td></tr><tr><td>2024-2</td><td>Mastercard</td><td>Crédito parcelado loja</td><td>1</td></tr><tr><td>2024-2</td><td>Mastercard</td><td>Crédito à vista</td><td>12.627</td></tr><tr><td>2024-2</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>15.084</td></tr><tr><td>2024-2</td><td>Mastercard</td><td>Débito à vista</td><td>9.666</td></tr><tr><td>2024-2</td><td>Pix</td><td>Pix</td><td>2</td></tr><tr><td>2024-2</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>369</td></tr><tr><td>2024-2</td><td>Visa</td><td>Crédito parcelado loja</td><td>1</td></tr><tr><td>2024-2</td><td>Visa</td><td>Crédito à vista</td><td>6.063</td></tr><tr><td>2024-2</td><td>Visa</td><td>DÉBITO A VISTA</td><td>2.041</td></tr><tr><td>2024-2</td><td>Visa</td><td>Débito à vista</td><td>13.957</td></tr><tr><td>2025-1</td><td>American Express</td><td>Crédito à vista</td><td>29</td></tr><tr><td>2025-1</td><td>Cabal</td><td>Débito à vista</td><td>2</td></tr><tr><td>2025-1</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>201</td></tr><tr><td>2025-1</td><td>Elo</td><td>Crédito à vista</td><td>941</td></tr><tr><td>2025-1</td><td>Elo</td><td>DÉBITO A VISTA</td><td>38</td></tr><tr><td>2025-1</td><td>Elo</td><td>Débito à vista</td><td>4.711</td></tr><tr><td>2025-1</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>166</td></tr><tr><td>2025-1</td><td>Mastercard</td><td>Crédito parcelado loja</td><td>2</td></tr><tr><td>2025-1</td><td>Mastercard</td><td>Crédito à vista</td><td>12.844</td></tr><tr><td>2025-1</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>15.718</td></tr><tr><td>2025-1</td><td>Mastercard</td><td>Débito à vista</td><td>9.228</td></tr><tr><td>2025-1</td><td>Pix</td><td>Pix</td><td>2</td></tr><tr><td>2025-1</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>203</td></tr><tr><td>2025-1</td><td>Visa</td><td>Crédito parcelado loja</td><td>1</td></tr><tr><td>2025-1</td><td>Visa</td><td>Crédito à vista</td><td>6.315</td></tr><tr><td>2025-1</td><td>Visa</td><td>DÉBITO A VISTA</td><td>1.868</td></tr><tr><td>2025-1</td><td>Visa</td><td>Débito à vista</td><td>13.389</td></tr><tr><td>2025-2</td><td>American Express</td><td>Crédito à vista</td><td>27</td></tr><tr><td>2025-2</td><td>Cabal</td><td>Débito à vista</td><td>24</td></tr><tr><td>2025-2</td><td>Elo</td><td>CRÉDITO A VISTA</td><td>250</td></tr><tr><td>2025-2</td><td>Elo</td><td>Crédito à vista</td><td>674</td></tr><tr><td>2025-2</td><td>Elo</td><td>DÉBITO A VISTA</td><td>22</td></tr><tr><td>2025-2</td><td>Elo</td><td>Débito à vista</td><td>3.052</td></tr><tr><td>2025-2</td><td>Mastercard</td><td>CRÉDITO A VISTA</td><td>48</td></tr><tr><td>2025-2</td><td>Mastercard</td><td>Crédito à vista</td><td>8.527</td></tr><tr><td>2025-2</td><td>Mastercard</td><td>DÉBITO A VISTA</td><td>9.624</td></tr><tr><td>2025-2</td><td>Mastercard</td><td>Débito à vista</td><td>5.445</td></tr><tr><td>2025-2</td><td>Pix</td><td>Pix</td><td>57</td></tr><tr><td>2025-2</td><td>Visa</td><td>CRÉDITO A VISTA</td><td>102</td></tr><tr><td>2025-2</td><td>Visa</td><td>Crédito parcelado loja</td><td>2</td></tr><tr><td>2025-2</td><td>Visa</td><td>Crédito à vista</td><td>4.093</td></tr><tr><td>2025-2</td><td>Visa</td><td>DÉBITO A VISTA</td><td>1.487</td></tr><tr><td>2025-2</td><td>Visa</td><td>Débito à vista</td><td>8.361</td></tr></table></div>
+        <div class="report-section"><h3>Sumário de Registros com Descontos Contestáveis/ por Semestre</h3><table class="report-table"><tr><th>Ano-Semestre</th><th>Lançamento</th><th>Valor Total</th></tr><tr><td>2020-2</td><td>EST COB PLANO CIELO - POS                                                                           </td><td>R$ 263,60</td></tr><tr><td>2020-2</td><td>ESTORNO FRANQUIA CIELO CONTROLE                                                                     </td><td>R$ 160,50</td></tr><tr><td>2020-2</td><td>TARIFA DE MANUTENCAO CADASTRAL                                                                      </td><td>R$ -9,90</td></tr><tr><td></td><td><strong>Subtotal 2020-2</strong></td><td><strong>R$ 414,20</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td>2021-1</td><td>EST COB PLANO CIELO - ORIGEM COMERCIAL                                                              </td><td>R$ 392,00</td></tr><tr><td></td><td><strong>Subtotal 2021-1</strong></td><td><strong>R$ 392,00</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td>2021-2</td><td>EST COB PLANO CIELO - ORIGEM COMERCIAL                                                              </td><td>R$ 192,20</td></tr><tr><td>2021-2</td><td>TARIFA PROGRAMA DE BANDEIRAS                                                                        </td><td>R$ -3,57</td></tr><tr><td></td><td><strong>Subtotal 2021-2</strong></td><td><strong>R$ 188,63</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td>2022-1</td><td>CANCELAMENTO DE VENDA                                                                               </td><td>R$ -187,84</td></tr><tr><td>2022-1</td><td>EST COB PLANO CIELO - ORIGEM COMERCIAL                                                              </td><td>R$ 23,95</td></tr><tr><td>2022-1</td><td>ESTORNO DE COMPRA</td><td>R$ -62,34</td></tr><tr><td>2022-1</td><td>TARIFA PROGRAMA DE BANDEIRAS                                                                        </td><td>R$ -5,36</td></tr><tr><td></td><td><strong>Subtotal 2022-1</strong></td><td><strong>R$ -231,59</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td>2022-2</td><td>ACERTO DE COMPROVANTE(S) NAO PROCESSADO(S)                                                          </td><td>R$ 203,53</td></tr><tr><td>2022-2</td><td>TARIFA PROGRAMA DE BANDEIRAS                                                                        </td><td>R$ -4,69</td></tr><tr><td></td><td><strong>Subtotal 2022-2</strong></td><td><strong>R$ 198,84</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td>2023-1</td><td>CORRECAO MONETARIA                                                                                  </td><td>R$ 20,69</td></tr><tr><td>2023-1</td><td>TARIFA PROGRAMA DE BANDEIRAS                                                                        </td><td>R$ -6,87</td></tr><tr><td></td><td><strong>Subtotal 2023-1</strong></td><td><strong>R$ 13,82</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td>2023-2</td><td>Ajuste a débito</td><td>R$ -40,83</td></tr><tr><td>2023-2</td><td>Aluguel de máquina</td><td>R$ -864,96</td></tr><tr><td></td><td><strong>Subtotal 2023-2</strong></td><td><strong>R$ -905,79</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td>2024-1</td><td>Ajuste a débito</td><td>R$ -5,64</td></tr><tr><td>2024-1</td><td>Aluguel de máquina</td><td>R$ -591,40</td></tr><tr><td></td><td><strong>Subtotal 2024-1</strong></td><td><strong>R$ -597,04</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td>2024-2</td><td>Ajuste a débito</td><td>R$ -5,07</td></tr><tr><td>2024-2</td><td>Aluguel de máquina</td><td>R$ -1.604,90</td></tr><tr><td></td><td><strong>Subtotal 2024-2</strong></td><td><strong>R$ -1.609,97</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td>2025-1</td><td>Ajuste a débito</td><td>R$ -5,89</td></tr><tr><td>2025-1</td><td>Aluguel de máquina</td><td>R$ -996,00</td></tr><tr><td></td><td><strong>Subtotal 2025-1</strong></td><td><strong>R$ -1.001,89</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td>2025-2</td><td>Ajuste a débito</td><td>R$ -1,48</td></tr><tr><td>2025-2</td><td>Aluguel de máquina</td><td>R$ -1.014,20</td></tr><tr><td></td><td><strong>Subtotal 2025-2</strong></td><td><strong>R$ -1.015,68</strong></td></tr><tr><td></td><td></td><td></td></tr><tr><td></td><td><strong style="color: #9c1313;">TOTAL GERAL</strong></td><td><strong style="color: #9c1313;">R$ -4.154,47</strong></td></tr></table></div>
+        <div class="report-section"><h3>Dados Bancários Distintos nos Recebíveis</h3><table class="report-table"><tr><th>Banco</th><th>Agência</th><th>Conta-Corrente</th></tr><tr><td>Bancoob</td><td>4329</td><td>697-1</td></tr></table></div>
+        
+        
+        <div class="report-section"><h3>Demonstrativo de Outras Vendas</h3><table class="report-table"><tr><th>Status da Venda</th><th>Bandeira</th><th>Forma de Pagamento</th><th>Quantidade de Vendas</th><th>Valor Bruto Total</th></tr><tr><td>None</td><td>MASTERCARD</td><td>CRÉDITO CONVERSOR MOEDAS</td><td>111</td><td>R$ 6.601,48</td></tr><tr><td>None</td><td>VISA</td><td>CRÉDITO CONVERSOR MOEDAS</td><td>9</td><td>R$ 565,17</td></tr><tr><td>Aprovada</td><td>Mastercard</td><td>Crédito conversor de moedas</td><td>3</td><td>R$ 337,23</td></tr><tr><td>Aprovada</td><td>Visa</td><td>Crédito conversor de moedas</td><td>8</td><td>R$ 1.189,83</td></tr><tr><td style='color: #9c1313; font-weight: bold;'>** TOTAL GERAL **</td><td style='color: #9c1313; font-weight: bold;'></td><td style='color: #9c1313; font-weight: bold;'></td><td style='color: #9c1313; font-weight: bold;'>131</td><td style='color: #9c1313; font-weight: bold;'>R$ 8.693,71</td></tr></table></div>
+        
+        
+        
+        <div class="report-section"><h3>Demonstrativo de Outros Registros de Desconto</h3><table class="report-table"><tr><th>Tipo de Lançamento</th><th>Quantidade de Recebíveis</th><th>Valor Recebível Total</th><th>Valor Líquido Total</th></tr><tr><td></td><td>247.833</td><td>R$ 13.292.903,81</td><td>R$ 13.292.903,81</td></tr><tr><td>Ajuste a crédito</td><td>18</td><td>R$ 12.213,14</td><td>R$ 12.213,14</td></tr><tr><td>CANCELAMENTO VENDA DÉBITO                                                                           </td><td>9</td><td>R$ -748,36</td><td>R$ -748,36</td></tr><tr><td>Venda crédito</td><td>90.166</td><td>R$ 5.321.047,85</td><td>R$ 5.245.588,94</td></tr><tr><td>Venda débito</td><td>205.253</td><td>R$ 10.344.469,50</td><td>R$ 10.265.888,18</td></tr><tr><td>Venda parcelada</td><td>25</td><td>R$ 5.625,78</td><td>R$ 5.527,32</td></tr><tr><td>Venda Pix</td><td>65</td><td>R$ 3.711,89</td><td>R$ 3.677,72</td></tr><tr><td style='color: #9c1313; font-weight: bold;'>** TOTAL GERAL **</td><td style='color: #9c1313; font-weight: bold;'>543.369</td><td style='color: #9c1313; font-weight: bold;'>R$ 28.979.223,61</td><td style='color: #9c1313; font-weight: bold;'>R$ 28.825.050,75</td></tr></table></div>
+        
+
+        <div class="report-section">
+            <h3>Gráficos de Análise</h3>
+            <div class="chart-grid">
+                <div class="chart-cell"><img src="file:///D:/Financial Checker base/Financial_P/relatorios/grafico_bandeira_20251105180251.png"></div>
+                <div class="chart-cell"><img src="file:///D:/Financial Checker base/Financial_P/relatorios/grafico_forma_pagamento_20251105180310.png"></div>
+                <div class="chart-cell"><img src="file:///D:/Financial Checker base/Financial_P/relatorios/grafico_vendas_mes_20251105180331.png"></div>
+                <div class="chart-cell"><img src="file:///D:/Financial Checker base/Financial_P/relatorios/grafico_valor_medio_bandeira_20251105180349.png"></div>
+            </div>
+        </div>
+
+        <!-- Materialidade e Nota Técnica -->
+        <div class="report-section" style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+            <div style="margin-bottom: 25px;">
+                <p style="font-size: 0.8em; font-weight: bold; color: #223a6b; margin-bottom: 8px;">
+                    <strong><u>MATERIALIDADE:</u></strong>
+                </p>
+                <p style="font-size: 0.7em; color: #223a6b; margin: 0; line-height: 1.4; padding-left: 20px;">
+                    As inconformidades apuradas totalizam <strong style="color: #9c1313;">R$ -105.256,43</strong>, correspondendo a <strong style="color: #9c1313;">-0,29%</strong> de possíveis perdas no faturamento.
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 25px;">
+                <p style="font-size: 0.8em; font-weight: bold; color: #223a6b; margin-bottom: 8px;">
+                    <strong><u>NOTA TÉCNICA:</u></strong>
+                </p>
+                <p style="font-size: 0.7em; color: #223a6b; margin: 0; line-height: 1.4; padding-left: 20px;">
+                    Todas as análises são realizadas exclusivamente com base nos extratos oficiais fornecidos pela Adquirente; não alteramos arquivos.
+                </p>
+            </div>
+
+            
+            <div style="margin-bottom: 25px;">
+                <p style="font-size: 0.8em; font-weight: bold; color: #223a6b; margin-bottom: 8px;">
+                    <strong><u>TIPOS DE INCONSISTÊNCIAS DETECTÁVEIS:</u></strong>
+                </p>
+                <p style="font-size: 0.7em; color: #223a6b; margin: 0; line-height: 1.4; padding-left: 20px;">
+                    Oscilações nas taxas MDR; Transações antecipadas; Aplicação de CM; Aluguéis; Ajustes D; Tarifas Programas DB; Taxas vendas canceladas; Contestações portador do cartão; Farol; Est cob do cartão; Est cob vendas pagas em duplicidade; Est correção monetária; Taxas plano OC; Variáveis nas taxas diárias mesmas bandeiras; Cobranças RA/RR; Serviços cadastrados desconhecidos pelo Estabelecimento.
+
+                </p>
+            </div>
+            
+        </div>
+
+        <!-- Disclaimer/Observação Final -->
+        <div class="report-section" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <p style="font-size: 0.5em; text-align: center; font-style: italic; color: #666; margin: 15px 0; line-height: 1.4;">
+                Todas as análises são realizadas com base exclusivamente nos extratos oficiais fornecidos pela Adquirente; não alteramos arquivos.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

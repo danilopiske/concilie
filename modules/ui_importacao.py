@@ -1,67 +1,48 @@
 # modules/ui_importacao.py
 import os
 import tempfile
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 
 import pandas as pd
 import panel as pn
 from sqlalchemy.engine import Engine
 
-# --------- BD helpers ----------
 from conf.funcoesbd import (
-    # De-Para
-    depara_listar, depara_inserir, depara_atualizar, depara_deletar, depara_buscar_por_chave,
-    # Listas dinâmicas
-    listar_contextos, listar_colunas_mapeaveis,
-    # Clientes / EC
-    clientes_listar, ecs_por_cliente,
-    # Controle de colunas
-    colunas_controle_listar, colunas_controle_inserir, colunas_controle_atualizar,
-    colunas_controle_deletar, colunas_controle_sincronizar,
+    depara_listar,
+    depara_inserir,
+    depara_atualizar,
+    depara_deletar,
+    listar_contextos,
+    contextos_listar,
+    clientes_listar,
+    ecs_por_cliente,
+    listar_colunas_vendas_processadas,
+    listar_processamentoids,
+    listar_processamentos_detalhado,
+    deletar_processamento,
 )
 
-# --------- Proc helpers ----------
 from proc.proc_importacao import (
     preparar_dataframe_de_arquivo,
     normalizar_dataframe_vendas,
+    # --- ALTERAÇÃO 1: Adicionar a importação da função de recebíveis ---
+    normalizar_dataframe_recebiveis,
     classificar_e_gravar_vendas,
+    preparar_para_tabulator,
+    detectar_cabecalho,
+    safe_read_file,
 )
 
-# fallback local caso detectar_cabecalho não exista no proc
-try:
-    from proc.proc_importacao import detectar_cabecalho
-except Exception:
-    def detectar_cabecalho(df: pd.DataFrame, min_preenchidos: int = 10) -> int:
-        for i in range(len(df)):
-            row = df.iloc[i]
-            filled = sum(
-                (pd.notna(v)) and (str(v).strip() != "")
-                for v in row.tolist()
-            )
-            if filled >= min_preenchidos:
-                return i
-        return 0
-
-# NÃO chame pn.extension aqui; está no main (com 'tabulator' e notifications=True)
-TIPOS = ["V", "L"]
+TIPOS = ["V", "L", "R"]
 
 
-# =========================
-# Utils locais
-# =========================
 def _notify(kind: str, msg: str):
-    n = getattr(pn.state, "notifications", None)
-    if not n:
-        return
-    fn = getattr(n, kind, None)
-    if fn:
-        try:
-            fn(msg)
-        except Exception:
-            pass
+    if n := getattr(pn.state, "notifications", None):
+        if hasattr(n, kind):
+            getattr(n, kind)(msg)
+
 
 def _ensure_option(select_widget: pn.widgets.Select, value: str):
-    """Se 'value' ainda não está nas options do Select, adiciona."""
     v = (value or "").strip()
     if not v:
         return
@@ -70,22 +51,28 @@ def _ensure_option(select_widget: pn.widgets.Select, value: str):
         opts.append(v)
         select_widget.options = opts
 
+
 def _empty_depara_df() -> pd.DataFrame:
-    return pd.DataFrame(columns=[
-        "id", "origem_nome", "destino_nome", "contexto", "tipo_origem",
-        "ativo", "criado_por", "criado_em", "atualizado_em"
-    ])
+    return pd.DataFrame(
+        columns=[
+            "id",
+            "origem_nome",
+            "destino_nome",
+            "contexto",
+            "tipo_origem",
+            "ativo",
+            "tipo_preenchimento",
+            "valor_padrao",
+        ]
+    )
 
-def _empty_controle_df() -> pd.DataFrame:
-    return pd.DataFrame(columns=[
-        "id", "campo", "preenchimento", "mapeavel", "ativo", "created_at", "updated_at"
-    ])
 
-
-# =========================
-# ABA: De-Para
-# =========================
-def _make_tab_depara(engine: Engine, usuario_logado: Optional[str]) -> pn.viewable.Viewable:
+def _make_tab_depara(
+    engine: Engine, usuario_logado: Optional[str]
+) -> pn.viewable.Viewable:
+    progress_leitura = pn.widgets.Progress(
+        name="Leitura do Arquivo", value=0, max=100, visible=False, width=300
+    )
     grid = pn.widgets.Tabulator(
         _empty_depara_df(),
         height=420,
@@ -97,583 +84,990 @@ def _make_tab_depara(engine: Engine, usuario_logado: Optional[str]) -> pn.viewab
         selectable="checkbox",
     )
 
-    # Carrega listas dinâmicas (Contextos e Destinos) do banco
-    try:
-        CONTEXTOS_VALIDOS = listar_contextos(engine)  # ['CIELO','REDE',...]
-        if not CONTEXTOS_VALIDOS:
-            raise ValueError("sem contextos")
-    except Exception:
-        CONTEXTOS_VALIDOS = ["CIELO", "REDE"]  # fallback
+    contexto_select = pn.widgets.Select(name="Contexto", options=[])
+    tipo_select = pn.widgets.Select(name="Tipo (V/L/R)", options=TIPOS, value="V")
+    destino_select = pn.widgets.Select(name="Destino (Coluna no sistema)", options=[])
 
-    try:
-        DESTINOS_VALIDOS = listar_colunas_mapeaveis(engine)  # só mapeáveis/ativas
-        if not DESTINOS_VALIDOS:
-            raise ValueError("sem colunas mapeáveis")
-    except Exception:
-        DESTINOS_VALIDOS = ["Data_da_venda", "Bandeira", "Forma_de_pagamento"]
+    def atualizar_destino_select(event=None):
+        tipo = tipo_select.value
+        try:
+            if tipo == "R":
+                # Buscar colunas da tabela recebiveis_processados
+                from sqlalchemy import inspect
 
-    # Formulário
-    origem   = pn.widgets.Select(name="Origem (coluna no arquivo)", options=[], value=None)
-    destino  = pn.widgets.Select(name="Destino (coluna padronizada)", options=DESTINOS_VALIDOS,
-                                 value=(DESTINOS_VALIDOS[0] if DESTINOS_VALIDOS else None))
-    contexto = pn.widgets.Select(name="Contexto", options=CONTEXTOS_VALIDOS,
-                                 value=(CONTEXTOS_VALIDOS[0] if CONTEXTOS_VALIDOS else None))
-    tipo     = pn.widgets.Select(name="Tipo", options=TIPOS, value="V")
-    ativo    = pn.widgets.Checkbox(name="Ativo", value=True)
+                insp = inspect(engine)
+                cols = [
+                    col["name"] for col in insp.get_columns("recebiveis_processados")
+                ]
+                destino_select.options = cols
+            else:
+                # Buscar apenas colunas mapeáveis da tabela depara_controle
+                import sqlalchemy
 
-    # Amostra para ler cabeçalho
-    amostra_file = pn.widgets.FileInput(name="Planilha (amostra p/ ler cabeçalho)", accept=".xlsx,.xls,.csv", multiple=False)
-    btn_ler_cab  = pn.widgets.Button(name="Ler Cabeçalho", button_type="light")
+                with engine.connect() as conn:
+                    result = conn.execute(
+                        sqlalchemy.text(
+                            "SELECT nome_coluna FROM depara_controle WHERE mapeavel = 'mapeavel' ORDER BY id"
+                        )
+                    )
+                    destinos_mapeaveis = [row[0] for row in result]
+                destino_select.options = destinos_mapeaveis
+        except Exception as e:
+            _notify("error", f"Erro ao carregar colunas destino: {e}")
 
-    # Botões
-    btn_novo      = pn.widgets.Button(name="Novo", button_type="light")
-    btn_inserir   = pn.widgets.Button(name="Inserir", button_type="primary")
+    tipo_select.param.watch(atualizar_destino_select, "value")
+    tipo_preenchimento_select = pn.widgets.Select(
+        name="Tipo de Preenchimento",
+        options=["importado", "padrão", "sistema", "ignorar"],
+        value="importado",
+    )
+
+    # O widget de origem começa como um TextInput, mas será referenciado por uma lista para permitir troca dinâmica
+    origem_input_widget = [
+        pn.widgets.TextInput(
+            name="Origem (Coluna no arquivo)",
+            placeholder="Obrigatório para 'importado'",
+        )
+    ]
+
+    valor_padrao_input = pn.widgets.TextInput(name="Valor Padrão (para tipo 'padrão')")
+    ativo_check = pn.widgets.Checkbox(name="Ativo", value=True)
+
+    amostra_file = pn.widgets.FileInput(
+        name="Ler colunas de arquivo de amostra",
+        accept=".xlsx,.xls,.csv",
+        multiple=False,
+    )
+    btn_ler_cabecalho = pn.widgets.Button(name="Ler Cabeçalho", button_type="primary")
+
+    btn_novo = pn.widgets.Button(name="Novo", button_type="light")
+    btn_inserir = pn.widgets.Button(name="Inserir", button_type="primary")
     btn_atualizar = pn.widgets.Button(name="Atualizar", button_type="success")
-    btn_excluir   = pn.widgets.Button(name="Excluir", button_type="danger")
-    btn_refresh   = pn.widgets.Button(name="Recarregar", button_type="light")
-    msg           = pn.pane.Markdown("", sizing_mode="stretch_width")
+    btn_excluir = pn.widgets.Button(name="Excluir", button_type="danger")
+    btn_refresh = pn.widgets.Button(name="Recarregar", button_type="light")
+    msg_pane = pn.pane.Markdown("")
 
-    # ---- loaders ----
-    def _load_grid(_=None):
+    def _load_grid(*events):
         try:
-            rows_v = depara_listar(engine, contexto="", tipo_origem="V")
-            rows_l = depara_listar(engine, contexto="", tipo_origem="L")
-            rows = (rows_v or []) + (rows_l or [])
-            grid.value = pd.DataFrame(rows) if rows else _empty_depara_df()
+            rows = depara_listar(engine)
+            grid.value = pd.DataFrame(rows).fillna("") if rows else _empty_depara_df()
             grid.selection = []
-            msg.object = ""
         except Exception as e:
-            grid.value = _empty_depara_df()
-            grid.selection = []
-            msg.object = "Tabela `depara_colunas` não encontrada ou erro ao carregar."
-            _notify("error", f"De-Para indisponível: {e}")
+            _notify("error", f"Erro ao carregar De-Para: {e}")
 
-    def _reload_selects_from_db(_=None):
-        nonlocal CONTEXTOS_VALIDOS, DESTINOS_VALIDOS
+    def _load_selects_from_db():
         try:
-            CONTEXTOS_VALIDOS = listar_contextos(engine) or CONTEXTOS_VALIDOS
-            contexto.options = CONTEXTOS_VALIDOS
-            if contexto.value not in contexto.options and contexto.options:
-                contexto.value = contexto.options[0]
-        except Exception:
-            pass
+            current_ctx = contexto_select.value
+            current_dst = destino_select.value
 
-        try:
-            DESTINOS_VALIDOS = listar_colunas_mapeaveis(engine) or DESTINOS_VALIDOS
-            destino.options = DESTINOS_VALIDOS
-            if destino.value not in destino.options and destino.options:
-                destino.value = destino.options[0]
-        except Exception:
-            pass
+            # Obter contextos da tabela de contextos (não apenas os usados em depara_colunas)
+            contextos = contextos_listar(engine)
+            contexto_select.options = ["padrao"] + [
+                c["nome"] for c in contextos if c["nome"] != "padrao"
+            ]
 
-    # ---- ler cabeçalho da amostra para popular ORIGEM ----
-    def on_ler_cabecalho(_=None):
-        if not amostra_file.value:
-            _notify("warning", "Selecione uma planilha de amostra.")
+            # Buscar apenas colunas mapeáveis da tabela depara_controle
+            import sqlalchemy
+
+            with engine.connect() as conn:
+                result = conn.execute(
+                    sqlalchemy.text(
+                        "SELECT nome_coluna FROM depara_controle WHERE mapeavel = 'mapeavel' ORDER BY id"
+                    )
+                )
+                destinos_mapeaveis = [row[0] for row in result]
+            destino_select.options = destinos_mapeaveis
+            if current_ctx in contexto_select.options:
+                contexto_select.value = current_ctx
+            if current_dst in destino_select.options:
+                destino_select.value = current_dst
+        except Exception as e:
+            _notify("error", f"Erro ao carregar listas do BD: {e}")
+
+    def on_selection(event):
+        if not event.new:
             return
-        name = amostra_file.filename or "amostra.xlsx"
-        suffix = ".xlsx" if name.lower().endswith((".xlsx", ".xls")) else ".csv"
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(amostra_file.value)
-            tmp.flush()
-            path = tmp.name
+        row = grid.value.iloc[event.new[0]].to_dict()
+
+        origem_input_widget[0].value = str(row.get("origem_nome", "") or "")
+        _ensure_option(destino_select, row.get("destino_nome", ""))
+        destino_select.value = row.get("destino_nome", "")
+        _ensure_option(contexto_select, row.get("contexto", ""))
+        contexto_select.value = row.get("contexto", "")
+        tipo_select.value = row.get("tipo_origem", "V")
+        ativo_check.value = bool(row.get("ativo", 1))
+        tipo_preenchimento_select.value = row.get("tipo_preenchimento", "importado")
+        valor_padrao_input.value = str(row.get("valor_padrao", "") or "")
+        msg_pane.object = f"Editando ID {row.get('id', '')}..."
+
+    grid.param.watch(on_selection, "selection")
+
+    def on_novo(*events):
+        grid.selection = []
+        origem_input_widget[0].value = ""
+        valor_padrao_input.value = ""
+        ativo_check.value = True
+        tipo_preenchimento_select.value = "importado"
+        msg_pane.object = "Preencha os campos para um novo registro."
+
+    btn_novo.on_click(on_novo)
+
+    def on_action(action_type):
         try:
-            if suffix in (".xlsx", ".xls"):
-                df_raw = pd.read_excel(path, header=None)
-            else:
-                df_raw = pd.read_csv(path, header=None, sep=None, engine="python")
-            idx_header = detectar_cabecalho(df_raw, min_preenchidos=10)
-            header = df_raw.iloc[idx_header].tolist()
-            cols = [str(x).strip() for x in header if str(x).strip()]
-            if cols:
-                origem.options = cols
-                origem.value = cols[0]
-                _notify("success", f"Cabeçalho lido (linha {idx_header}). {len(cols)} colunas carregadas.")
-            else:
-                _notify("warning", "Não foram encontradas colunas a partir da amostra.")
+            tipo_preenchimento = tipo_preenchimento_select.value
+
+            if not destino_select.value or not contexto_select.value:
+                return _notify("warning", "Contexto e Destino são obrigatórios.")
+            if tipo_preenchimento == "importado" and not origem_input_widget[0].value:
+                return _notify("warning", "Para 'importado', a Origem é obrigatória.")
+            if tipo_preenchimento == "padrão" and not valor_padrao_input.value:
+                return _notify(
+                    "warning", "Para 'padrão', o Valor Padrão é obrigatório."
+                )
+
+            params = {
+                "origem_nome": origem_input_widget[0].value or None,
+                "destino_nome": destino_select.value,
+                "contexto": contexto_select.value,
+                "tipo_origem": tipo_select.value,
+                "ativo": int(ativo_check.value),
+                "tipo_preenchimento": tipo_preenchimento,
+                "valor_padrao": valor_padrao_input.value or None,
+            }
+            if action_type == "insert":
+                params["criado_por"] = usuario_logado
+                depara_inserir(engine, **params)
+                _notify("success", "De-para inserido.")
+            elif action_type in ["update", "delete"]:
+                if not grid.selection:
+                    return _notify("warning", "Selecione um item.")
+                depara_id = int(grid.value.iloc[grid.selection[0]]["id"])
+                if action_type == "update":
+                    depara_atualizar(engine, depara_id, **params)
+                    _notify("success", "De-para atualizado.")
+                else:
+                    depara_deletar(engine, depara_id)
+                    _notify("success", "De-para excluído.")
+            _load_grid()
         except Exception as e:
-            _notify("error", f"Falha ao ler cabeçalho da planilha: {e}")
-        finally:
+            _notify("error", f"Falha na operação: {e}")
+
+    btn_inserir.on_click(lambda e: on_action("insert"))
+    btn_atualizar.on_click(lambda e: on_action("update"))
+    btn_excluir.on_click(lambda e: on_action("delete"))
+    btn_refresh.on_click(lambda e: (_load_selects_from_db(), _load_grid()))
+
+    def on_ler_cabecalho(*events):
+        progress_leitura.visible = True
+        progress_leitura.value = 10
+        if not amostra_file.value:
+            progress_leitura.visible = False
+            return _notify("warning", "Selecione um arquivo de amostra.")
+
+        import mimetypes
+        import os
+
+        filename = (
+            amostra_file.filename
+            if hasattr(amostra_file, "filename") and amostra_file.filename
+            else None
+        )
+        ext = os.path.splitext(filename)[-1] if filename else ".tmp"
+        if ext.lower() not in [".xlsx", ".xls", ".csv"]:
+            ext = ".tmp"
+        import base64
+
+        file_bytes = amostra_file.value
+        if isinstance(file_bytes, str):
             try:
-                os.unlink(path)
+                file_bytes = base64.b64decode(file_bytes)
             except Exception:
                 pass
-
-    # ---- seleção única no grid ----
-    def _on_selection(event):
-        sel = list(event.new or [])
-        if len(sel) > 1:
-            grid.selection = [sel[-1]]
-            return
-        if not sel:
-            return
-        idx = sel[0]
-        df = grid.value
-        if not isinstance(df, pd.DataFrame) or idx >= len(df):
-            return
-        row = df.iloc[idx].to_dict()
-
-        _ensure_option(origem, str(row.get("origem_nome", "") or ""))
-        origem.value  = str(row.get("origem_nome", "") or "")
-
-        _ensure_option(destino, str(row.get("destino_nome", "") or ""))
-        destino.value = str(row.get("destino_nome", "") or (destino.options[0] if destino.options else None))
-
-        _ensure_option(contexto, str(row.get("contexto", "") or ""))
-        contexto.value= str(row.get("contexto", "") or (contexto.options[0] if contexto.options else None))
-
-        tipo.value    = (str(row.get("tipo_origem", "V") or "V")).upper()
-        ativo.value   = bool(row.get("ativo", 1))
-        msg.object    = f"Editando ID {row.get('id','')}."
-
-    # ---- ações ----
-    def on_new(_=None):
-        origem.value  = None
-        if destino.options:
-            destino.value = destino.options[0]
-        if contexto.options:
-            contexto.value = contexto.options[0]
-        tipo.value    = "V"
-        ativo.value   = True
-        grid.selection = []
-        msg.object     = "Incluindo novo de-para."
-
-    def on_inserir(_=None):
-        src = (origem.value or "").strip()
-        dst = (destino.value or "").strip()
-        ctx = (contexto.value or "").strip()
-        tp  = (tipo.value or "V").strip().upper()
-        if not src or not dst:
-            _notify("warning", "Selecione a coluna de origem e o destino.")
-            return
-        if not ctx:
-            _notify("warning", "Selecione o Contexto.")
-            return
-        if tp not in ("V", "L"):
-            _notify("warning", "Tipo inválido (use V ou L).")
-            return
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext, mode="wb") as tmp:
+            tmp.write(file_bytes)
+            path = tmp.name
         try:
-            depara_inserir(
-                engine,
-                origem_nome=src,
-                destino_nome=dst,
-                contexto=ctx,
-                tipo_origem=tp,
-                ativo=1 if ativo.value else 0,
-                criado_por=usuario_logado,
+            progress_leitura.value = 30
+
+            # Importar as funções de multi-sheet
+            from proc.proc_importacao import (
+                is_multisheet_rede_file,
+                safe_read_multisheet_file,
             )
-            _notify("success", "De-para inserido.")
-            _load_grid()
+
+            # Verificar se é arquivo multi-sheet (independente de contexto)
+            if is_multisheet_rede_file(path):
+                print("[DEBUG] Detectado arquivo multi-planilhas, processando...")
+                multisheet_data = safe_read_multisheet_file(path, tipo_select.value)
+
+                # Coletar todas as colunas de todas as planilhas
+                all_headers = []
+                for sheet_name, sheet_info in multisheet_data.items():
+                    headers = sheet_info["headers"]
+                    all_headers.extend(headers)
+                    print(f"[DEBUG] {sheet_name}: {len(headers)} colunas")
+
+                header_cols = all_headers
+                print("[DEBUG] Total de colunas multi-sheet:", len(header_cols))
+
+            else:
+                print("[DEBUG] Arquivo single-sheet, usando safe_read_file...")
+                df_raw, _, header_cols = safe_read_file(path)
+
+            print("[DEBUG] DataFrame carregado com sucesso")
+            print("[DEBUG] Colunas detectadas:", header_cols)
+            progress_leitura.value = 70
+
+            header_values = list(header_cols)
+            cols = [""] + header_values  # Adiciona opção vazia no início
+
+            print("[DEBUG] Colunas para o select box:", cols)
+            if cols:
+                novo_select = pn.widgets.Select(
+                    name="Origem (Coluna no arquivo)", options=cols
+                )
+                form_layout_col2[1] = novo_select
+                origem_input_widget[0] = novo_select
+                _notify(
+                    "success", f"Cabeçalho lido. {len(cols) - 1} colunas carregadas."
+                )
+                progress_leitura.value = 100
+            else:
+                _notify("warning", "Não foram encontradas colunas na amostra.")
+                progress_leitura.value = 0
         except Exception as e:
-            _notify("error", f"Falha ao inserir: {e}")
+            progress_leitura.value = 0
+            msg = str(e)
+            if (
+                "binário ou corrompido" in msg.lower()
+                or "cannot convert float infinity to integer" in msg.lower()
+                or "excel" in msg.lower()
+            ):
+                _notify(
+                    "error",
+                    "Falha ao ler o arquivo: o arquivo pode estar corrompido. Abra e salve novamente no Excel antes de importar. Se necessário, utilize a função 'Salvar como' no Excel para gerar um novo arquivo .xlsx.\n\nErro técnico: "
+                    + msg,
+                )
+            else:
+                _notify("error", f"Falha ao ler o arquivo: {e}")
+        finally:
+            progress_leitura.visible = False
+            if os.path.exists(path):
+                os.unlink(path)
 
-    def on_atualizar(_=None):
-        sel = grid.selection or []
-        if not sel:
-            _notify("warning", "Selecione um registro para atualizar.")
-            return
-        src = (origem.value or "").strip()
-        dst = (destino.value or "").strip()
-        ctx = (contexto.value or "").strip()
-        tp  = (tipo.value or "V").strip().upper()
-        if not src or not dst:
-            _notify("warning", "Selecione a coluna de origem e o destino.")
-            return
-        if not ctx:
-            _notify("warning", "Selecione o Contexto.")
-            return
-        if tp not in ("V", "L"):
-            _notify("warning", "Tipo inválido (use V ou L).")
-            return
-        try:
-            df = grid.value
-            current_id = int(df.iloc[sel[0]]["id"])
+    btn_ler_cabecalho.on_click(on_ler_cabecalho)
 
-            # Evita colisão de UNIQUE com outro id
-            outro = depara_buscar_por_chave(engine, origem_nome=src, contexto=ctx, tipo_origem=tp)
-            if outro and int(outro["id"]) != current_id:
-                _notify("error", f"Já existe um de-para com essa chave (ID {outro['id']}). Altere a chave ou use esse registro.")
-                return
-
-            depara_atualizar(
-                engine, current_id,
-                origem_nome=src,
-                destino_nome=dst,
-                contexto=ctx,
-                tipo_origem=tp,
-                ativo=1 if ativo.value else 0,
-            )
-            _notify("success", "De-para atualizado.")
-            _load_grid()
-        except Exception as e:
-            _notify("error", f"Falha ao atualizar: {e}")
-
-    def on_delete(_=None):
-        sel = grid.selection
-        if not sel:
-            _notify("warning", "Selecione uma linha para excluir.")
-            return
-        try:
-            df = grid.value
-            depara_id = int(df.iloc[sel[0]]["id"])
-            depara_deletar(engine, depara_id)
-            _notify("success", "Registro excluído.")
-            _load_grid()
-        except Exception as e:
-            _notify("error", f"Falha ao excluir: {e}")
-
-    # ligações
-    grid.param.watch(_on_selection, "selection")
-    btn_ler_cab.on_click(on_ler_cabecalho)
-    btn_novo.on_click(on_new)
-    btn_inserir.on_click(on_inserir)
-    btn_atualizar.on_click(on_atualizar)
-    btn_excluir.on_click(on_delete)
-    btn_refresh.on_click(lambda _: (_reload_selects_from_db(), _load_grid()))
-
-    # carga inicial
-    _reload_selects_from_db()
+    _load_selects_from_db()
     _load_grid()
 
-    return pn.Column(
-        pn.pane.Markdown("### De-Para de Colunas"),
-        grid,
-        pn.layout.Divider(),
-        pn.pane.Markdown("#### Formulário (mapeamento de colunas)"),
-        pn.Row(
-            pn.Column(
-                pn.pane.Markdown("**1) Origem (arquivo):**"),
-                amostra_file,
-                pn.Row(btn_ler_cab),
-                origem,
-                sizing_mode="stretch_width",
-            ),
-            pn.Spacer(width=20),
-            pn.Column(
-                pn.pane.Markdown("**2) Destino (layout interno):**"),
-                destino,
-                sizing_mode="stretch_width",
-            ),
-            pn.Spacer(width=20),
-            pn.Column(
-                pn.pane.Markdown("**3) Contexto / Tipo:**"),
-                contexto,
-                tipo,
-                ativo,
-                sizing_mode="stretch_width",
-            ),
-            sizing_mode="stretch_width",
-        ),
-        pn.Row(btn_novo, btn_inserir, btn_atualizar, btn_excluir, btn_refresh),
-        msg,
+    form_layout_col2 = pn.Column(
+        tipo_preenchimento_select,
+        origem_input_widget[0],
+        valor_padrao_input,
+        progress_leitura,
         sizing_mode="stretch_width",
     )
 
+    form_layout = pn.Row(
+        pn.Column(
+            contexto_select, tipo_select, destino_select, sizing_mode="stretch_width"
+        ),
+        form_layout_col2,
+        pn.Column(
+            pn.layout.Spacer(height=25), ativo_check, sizing_mode="stretch_width"
+        ),
+    )
 
-# =========================
-# ABA: Importar (cliente/EC + gravar)
-# =========================
-def _make_tab_importar(engine: Engine, usuario_logado: Optional[str]) -> pn.viewable.Viewable:
-    # Contextos (de tabela contextos)
+    return pn.Column(
+        pn.pane.Markdown("### De-Para de Colunas"),
+        pn.Row(btn_refresh),
+        grid,
+        pn.layout.Divider(),
+        pn.pane.Markdown("#### Formulário de Mapeamento"),
+        pn.Row(amostra_file, btn_ler_cabecalho, align="end"),
+        form_layout,
+        pn.Row(btn_novo, btn_inserir, btn_atualizar, btn_excluir),
+        msg_pane,
+    )
+
+
+def _make_tab_importar(
+    engine: Engine, usuario_logado: Optional[str]
+) -> pn.viewable.Viewable:
+    # Botão para atualizar o selectbox de ProcessamentoID anterior
+    btn_atualizar_processamentoid = pn.widgets.Button(
+        name="🔄 Atualizar Processamentos", button_type="primary", width=180
+    )
+    # Tabulator de debug para mostrar o DataFrame bruto lido do arquivo
+    debug_tabulator = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=220,
+        sizing_mode="stretch_width",
+        show_index=False,
+        header_filters=True,
+        name="Debug DataFrame Bruto (SafeReadFile)",
+    )
+    btn_reset = pn.widgets.Button(
+        name="🧹 Limpar Importação", button_type="warning", width=180
+    )
+
+    def on_reset(_=None):
+        # Limpa todos os campos e estado da importação
+        file_input.value = None
+        file_input.filename = None
+        state["arquivos"] = []
+        state["idx_preview"] = 0
+        preview.value = pd.DataFrame()
+        arquivos_tabulator.value = pd.DataFrame(
+            columns=["#", "Arquivo", "Linhas", "Status"]
+        )
+        info.object = ""
+        resumo.object = ""
+        progress_importacao.value = 0
+        progress_importacao.visible = False
+        _notify("info", "Importação limpa. Pronto para novo upload.")
+
+    btn_reset.on_click(on_reset)
+    # CONTINUAR PROCESSAMENTOID
+    continuar_checkbox = pn.widgets.Checkbox(
+        name="✓ Continuar processamento anterior",
+        value=False,
+        width=250,
+        margin=(5, 10),
+    )
     try:
-        contextos = listar_contextos(engine)
-    except Exception:
-        contextos = ["CIELO", "REDE"]
+        ids = listar_processamentoids(engine)
+        print(f"[DEBUG] ProcessamentoIDs encontrados: {ids}")
+        processamentoid_select = pn.widgets.Select(
+            name="ProcessamentoID anterior",
+            options=ids or [],
+            visible=True,
+            width=250,
+            margin=(5, 10),
+        )
+    except Exception as e:
+        print(f"[DEBUG] Erro ao buscar IDs: {e}")
+        processamentoid_select = pn.widgets.Select(
+            name="ProcessamentoID anterior",
+            options=[],
+            visible=True,
+            width=250,
+            margin=(5, 10),
+        )
 
-    # Clientes -> options com rótulo "id - nome"
+    def atualizar_processamentoid_select(event=None):
+        try:
+            ids = listar_processamentoids(engine)
+            print(f"[DEBUG] Atualizando ProcessamentoIDs: {ids}")
+            processamentoid_select.options = ids or []
+            _notify("success", "Lista de ProcessamentoID atualizada.")
+        except Exception as e:
+            print(f"[DEBUG] Erro ao atualizar ProcessamentoIDs: {e}")
+            processamentoid_select.options = []
+            _notify("error", f"Erro ao atualizar ProcessamentoID: {e}")
+
+    btn_atualizar_processamentoid.on_click(atualizar_processamentoid_select)
+
+    progress_importacao = pn.widgets.Progress(
+        name="Processo de Importação", value=0, max=100, visible=False, width=300
+    )
+
+    try:
+        contextos_list = contextos_listar(engine)
+        contextos = ["padrao"] + [
+            c["nome"] for c in contextos_list if c["nome"] != "padrao"
+        ]
+    except Exception:
+        contextos = ["padrao", "CIELO", "REDE"]
+
     try:
         _clientes = clientes_listar(engine)
-        clientes_opts = {f"{c['cliente_id']} - {c.get('nome_fantasia') or c.get('razao_social') or 'Cliente'}": c["cliente_id"] for c in _clientes}
+        clientes_opts = {
+            f"{c['cliente_id']} - {c.get('nome_fantasia') or 'Cliente'}": c[
+                "cliente_id"
+            ]
+            for c in _clientes
+        }
     except Exception:
         clientes_opts = {}
 
-    cliente_select = pn.widgets.Select(name="Cliente", options=clientes_opts, value=(next(iter(clientes_opts.values())) if clientes_opts else None))
-    ec_select = pn.widgets.Select(name="EC", options=[], value=None)
+    cliente_select = pn.widgets.Select(name="Cliente", options=clientes_opts)
+    ec_select = pn.widgets.Select(name="EC", options=[])
 
-    def _load_ecs(_=None):
-        ec_opts: List[int] = []
+    def _load_ecs(*events):
         cid = cliente_select.value
-        if cid is not None:
-            try:
-                ec_opts = ecs_por_cliente(engine, int(cid))  # List[int]
-            except Exception:
-                ec_opts = []
-        ec_select.options = ec_opts
-        ec_select.value = ec_opts[0] if ec_opts else None
+        try:
+            ec_opts = ecs_por_cliente(engine, int(cid)) if cid else []
+            ec_select.options = ec_opts
+        except Exception:
+            ec_select.options = []
 
-    cliente_select.param.watch(_load_ecs, "value")
-    _load_ecs()
+    cliente_select.param.watch(_load_ecs, "value", onlychanged=True)
+    pn.state.onload(_load_ecs)
 
-    contexto_select = pn.widgets.Select(name="Contexto (Operadora)", options=[""] + contextos, value="")
-    tipo_select     = pn.widgets.Select(name="Tipo", options=TIPOS, value="V")
-    file_input      = pn.widgets.FileInput(accept=".xlsx,.xls,.csv", multiple=False)
-    sheet_input     = pn.widgets.TextInput(name="Planilha (opcional)", placeholder="Ex.: Plan1")
+    contexto_select = pn.widgets.Select(
+        name="Contexto (Layout)", options=[""] + contextos
+    )
+    tipo_select = pn.widgets.Select(
+        name="Tipo de Arquivo",
+        options={"Venda": "V", "Lançamento": "L", "Recebíveis": "R"},
+        value="V",
+    )
+    file_input = pn.widgets.FileInput(accept=".xlsx,.xls,.csv", multiple=True)
 
-    btn_processar   = pn.widgets.Button(name="Processar", button_type="primary")
-    btn_normalizar  = pn.widgets.Button(name="Normalizar preview", button_type="light")
-    btn_gravar      = pn.widgets.Button(name="Gravar", button_type="success")
+    btn_processar = pn.widgets.Button(
+        name="Processar e Normalizar", button_type="primary"
+    )
+    btn_gravar = pn.widgets.Button(name="Gravar no Banco", button_type="success")
 
-    info    = pn.pane.Markdown("", sizing_mode="stretch_width")
-    resumo  = pn.pane.Markdown("", sizing_mode="stretch_width")
-    preview = pn.widgets.Tabulator(pd.DataFrame(), height=320, sizing_mode="stretch_width", show_index=False)
-
-    state: Dict[str, Optional[pd.DataFrame]] = {"df": None, "arquivo": ""}
+    info = pn.pane.Markdown("", sizing_mode="stretch_width")
+    resumo = pn.pane.Markdown("", sizing_mode="stretch_width")
+    preview = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=320,
+        sizing_mode="stretch_width",
+        show_index=False,
+        header_filters=True,
+    )
+    arquivos_processados = []  # Lista de dicts: {arquivo, df, transf, idx}
+    state: Dict[str, Any] = {"arquivos": arquivos_processados, "idx_preview": 0}
 
     def on_process(_=None):
+        btn_processar.name = "Processando..."
+        btn_processar.button_type = "warning"
+        btn_processar.disabled = True
+        progress_importacao.visible = True
+        progress_importacao.value = 5
+        info.object = (
+            "[DEBUG] Botão 'Processar e Normalizar' clicado. Iniciando processamento."
+        )
+        _notify("info", "[DEBUG] Botão 'Processar e Normalizar' foi clicado.")
         if not file_input.value:
-            _notify("warning", "Selecione um arquivo.")
-            return
-        suffix = ".xlsx" if file_input.filename.lower().endswith((".xlsx", ".xls")) else ".csv"
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(file_input.value)
-            tmp.flush()
-            path = tmp.name
-        try:
-            df, transf, idx = preparar_dataframe_de_arquivo(
-                path=path,
-                engine=engine,
-                contexto=(contexto_select.value or ""),
-                tipo_origem=tipo_select.value,
-                sheet_name=(sheet_input.value or None),
-            )
-            state["df"] = df.copy()
-            state["arquivo"] = file_input.filename or os.path.basename(path)
-            header_info = f"- Linha de cabeçalho detectada: **{idx}** (0-based)"
-            if transf:
-                tr = "\n".join([f"- {k} → {v}" for k, v in transf.items()])
-                info.object = f"{header_info}\n- Transformações aplicadas:\n\n{tr}"
-            else:
-                info.object = f"{header_info}\n- Sem transformações (nenhum de-para correspondente)."
-            preview.value = df.head(200)
-            resumo.object = ""
-            _notify("success", "Arquivo processado.")
-        except Exception as e:
-            _notify("error", f"Falha ao processar: {e}")
-        finally:
-            try:
-                os.unlink(path)
-            except Exception:
-                pass
+            progress_importacao.visible = False
+            btn_processar.name = "Processar e Normalizar"
+            btn_processar.button_type = "primary"
+            btn_processar.disabled = False
+            return _notify("warning", "Selecione um ou mais arquivos.")
+        if not contexto_select.value:
+            progress_importacao.visible = False
+            btn_processar.name = "Processar e Normalizar"
+            btn_processar.button_type = "primary"
+            btn_processar.disabled = False
+            return _notify("warning", "Selecione um Contexto (Layout).")
 
-    def on_normalizar(_=None):
-        if state["df"] is None:
-            _notify("warning", "Processe um arquivo primeiro.")
+        files = (
+            file_input.value
+            if isinstance(file_input.value, list)
+            else [file_input.value]
+        )
+        filenames = (
+            file_input.filename
+            if isinstance(file_input.filename, list)
+            else [file_input.filename]
+        )
+        resultados = []
+        debug_tabulator.value = pd.DataFrame()  # Limpa debug
+        total_files = len(files)
+
+        # Gerar processamentoid único se não for continuar
+        processamentoid_novo = None
+        if continuar_checkbox.value and processamentoid_select.value:
+            state["processamentoid"] = processamentoid_select.value
+        else:
+            from conf.funcoesbd import processamento_gerar_novo_id, processamento_salvar
+            import datetime
+
+            now = datetime.datetime.now()
+            ec_id = ec_select.value  # ec_id agora é VARCHAR, não INT
+            cliente_id = int(cliente_select.value)
+            processamentoid_novo, data_proc = processamento_gerar_novo_id(
+                engine, ec_id, now
+            )
+            processamento_salvar(
+                engine,
+                ec_id,
+                cliente_id,
+                processamentoid_novo,
+                f"Processamento {now:%d/%m/%Y %H:%M}",
+                data_proc,
+            )
+            state["processamentoid"] = processamentoid_novo
+
+        for idx_file, (file_bytes, fname) in enumerate(zip(files, filenames)):
+            if file_bytes is None:
+                _notify(
+                    "warning",
+                    f"Arquivo '{fname}' está vazio ou não foi carregado corretamente. Ignorando.",
+                )
+                continue
+            ext = os.path.splitext(fname)[-1] if fname else ".tmp"
+            if ext.lower() not in [".xlsx", ".xls", ".csv"]:
+                ext = ".tmp"
+            import base64
+
+            if isinstance(file_bytes, str):
+                try:
+                    file_bytes = base64.b64decode(file_bytes)
+                except Exception:
+                    pass
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=ext, mode="wb"
+            ) as tmp:
+                tmp.write(file_bytes)
+                path = tmp.name
+            try:
+                # --- DEBUG: Mostra DataFrame bruto lido do arquivo ---
+                from proc.proc_importacao import safe_read_file
+
+                df_raw, header_idx, header_cols = safe_read_file(path)
+                debug_tabulator.value = df_raw.head(200)
+                # --- Fim debug ---
+
+                def progress_cb(val):
+                    # Progresso global: cada arquivo ocupa fatia igual
+                    base = int(100 * idx_file / max(1, total_files))
+                    span = int(100 / max(1, total_files))
+                    progress_importacao.value = min(100, base + int(val * span / 100))
+
+                def log_cb(msg):
+                    info.object = f"**{fname}:** {msg}"
+
+                from proc.proc_importacao import preparar_dataframe_de_arquivo
+
+                df_mapeado, transf, idx = preparar_dataframe_de_arquivo(
+                    path=path,
+                    engine=engine,
+                    contexto=contexto_select.value,
+                    tipo_origem=tipo_select.value,
+                    progress_callback=progress_cb,
+                    log_callback=log_cb,
+                )
+
+                # --- ALTERAÇÃO 2: Chamar a função correta baseada no tipo de arquivo ---
+                tipo_arquivo_selecionado = tipo_select.value
+
+                if tipo_arquivo_selecionado == "R":
+                    df_normalizado = normalizar_dataframe_recebiveis(
+                        df_mapeado,
+                        engine=engine,
+                        ec_id=ec_select.value,  # ec_id agora é VARCHAR, não INT
+                        contexto=contexto_select.value,
+                        usuario=usuario_logado,
+                    )
+                else:  # 'V' ou 'L'
+                    df_processadas, df_filtradas = normalizar_dataframe_vendas(
+                        df_mapeado,
+                        engine=engine,
+                        ec_id=ec_select.value,  # ec_id agora é VARCHAR, não INT
+                        contexto=contexto_select.value,
+                        usuario=usuario_logado,
+                        tipo_arquivo=tipo_arquivo_selecionado,
+                    )
+
+                    # Combinar processadas e filtradas em um único DataFrame
+                    if len(df_filtradas) > 0:
+                        df_normalizado = pd.concat(
+                            [df_processadas, df_filtradas], ignore_index=True
+                        )
+                    else:
+                        df_normalizado = df_processadas
+                # --- FIM DA ALTERAÇÃO ---
+
+                resultados.append(
+                    {
+                        "arquivo": fname,
+                        "df": df_normalizado.copy(),
+                        "transf": transf,
+                        "idx": idx,
+                        "processamentoid": state["processamentoid"],
+                    }
+                )
+            except Exception as e:
+                _notify("error", f"Falha ao processar {fname}: {e}")
+                info.object = f"**Erro em {fname}:** {e}"
+            finally:
+                if os.path.exists(path):
+                    try:
+                        # Tentar fechar qualquer handle aberto
+                        import gc
+
+                        gc.collect()
+                        # Pequena pausa para permitir que o sistema libere o arquivo
+                        import time
+
+                        time.sleep(0.1)
+                        os.unlink(path)
+                    except PermissionError as pe:
+                        print(
+                            f"[DEBUG] Não foi possível deletar arquivo temporário {path}: {pe}"
+                        )
+                        # Não falha o processamento por causa disso
+                    except Exception as e:
+                        print(f"[DEBUG] Erro ao deletar arquivo temporário {path}: {e}")
+                        # Não falha o processamento por causa disso
+        progress_importacao.value = 100
+        if resultados:
+            state["arquivos"] = resultados
+            state["idx_preview"] = 0
+            # Atualizar lista de arquivos no tabulator
+            atualizar_lista_arquivos()
+            atualizar_preview()
+            resumo.object = f"{len(resultados)} arquivo(s) processado(s) com sucesso."
+            _notify(
+                "success",
+                f"{len(resultados)} arquivo(s) processado(s) e normalizado(s).",
+            )
+        else:
+            state["arquivos"] = []
+            state["idx_preview"] = 0
+            preview.value = pd.DataFrame()
+            info.object = ""
+            resumo.object = "Nenhum arquivo processado com sucesso."
+        progress_importacao.visible = False
+        btn_processar.name = "Processar e Normalizar"
+        btn_processar.button_type = "primary"
+        btn_processar.disabled = False
+
+    def atualizar_preview(idx=None):
+        if idx is not None:
+            # Garantir que idx é um inteiro
+            try:
+                state["idx_preview"] = int(idx)
+            except (ValueError, TypeError):
+                state["idx_preview"] = 0
+        arquivos = state.get("arquivos", [])
+        if not arquivos:
+            preview.value = pd.DataFrame()
+            info.object = ""
             return
-        try:
-            df_norm = normalizar_dataframe_vendas(state["df"], usuario=usuario_logado or "desconhecido")
-            state["df"] = df_norm
-            preview.value = df_norm.head(200)
-            _notify("success", "Preview normalizado.")
-        except Exception as e:
-            _notify("error", f"Falha ao normalizar: {e}")
+        idx = state["idx_preview"]
+        if idx < 0 or idx >= len(arquivos):
+            idx = 0
+            state["idx_preview"] = idx
+        arq = arquivos[idx]
+        header_info = f"- Linha de cabeçalho detectada no arquivo: **{arq['idx']+1}**"
+        tr_list = [f"- **{k}** → **{v}**" for k, v in arq["transf"].items()]
+        info.object = (
+            f"**Arquivo:** `{arq['arquivo']}`\n{header_info}\n\n**Transformações Aplicadas:**\n"
+            + "\n".join(tr_list)
+        )
+        preview_df = preparar_para_tabulator(arq["df"])
+        preview.value = preview_df.head(200)
+
+    # Tabulator para mostrar todos os arquivos processados
+    arquivos_tabulator = pn.widgets.Tabulator(
+        value=pd.DataFrame(columns=["#", "Arquivo", "Linhas", "Status"]),
+        pagination="remote",
+        page_size=10,
+        sizing_mode="stretch_width",
+        height=150,
+        selection=[0] if state.get("arquivos") else [],
+        selectable="checkbox",
+    )
+
+    btn_refresh_preview = pn.widgets.Button(
+        name="🔄 Atualizar Preview", button_type="light", width=150
+    )
+
+    def atualizar_lista_arquivos():
+        """Atualiza o tabulator com a lista de arquivos processados"""
+        arquivos = state.get("arquivos", [])
+        if not arquivos:
+            arquivos_tabulator.value = pd.DataFrame(
+                columns=["#", "Arquivo", "Linhas", "Status"]
+            )
+            return
+
+        dados = []
+        for i, arq in enumerate(arquivos):
+            dados.append(
+                {
+                    "#": i + 1,
+                    "Arquivo": arq["arquivo"],
+                    "Linhas": len(arq["df"]),
+                    "Status": "Processado",
+                }
+            )
+
+        arquivos_df = pd.DataFrame(dados)
+        arquivos_tabulator.value = arquivos_df
+
+        # Selecionar o primeiro arquivo automaticamente
+        if not arquivos_tabulator.selection:
+            arquivos_tabulator.selection = [0]
+
+    def on_arquivo_selected(event):
+        """Quando selecionar um arquivo no tabulator"""
+        if event.new and len(event.new) > 0:
+            idx = event.new[0]  # Primeiro item selecionado
+            atualizar_preview(idx)
+
+    def on_refresh_preview(_):
+        """Força atualização do preview do arquivo selecionado"""
+        if arquivos_tabulator.selection:
+            idx = arquivos_tabulator.selection[0]
+            atualizar_preview(idx)
+        else:
+            _notify("warning", "Selecione um arquivo primeiro")
+
+    arquivos_tabulator.param.watch(on_arquivo_selected, "selection")
+    btn_refresh_preview.on_click(on_refresh_preview)
 
     def on_gravar(_=None):
-        if state["df"] is None:
-            _notify("warning", "Processe um arquivo primeiro.")
-            return
-        if cliente_select.value is None or ec_select.value is None:
-            _notify("warning", "Selecione Cliente e EC.")
-            return
-        try:
-            df_to_save = normalizar_dataframe_vendas(state["df"].copy(), usuario=usuario_logado or "desconhecido")
-            result = classificar_e_gravar_vendas(
-                engine,
-                df_to_save,
-                cliente_id=int(cliente_select.value),
-                ec_id=int(ec_select.value),
-                contexto=(contexto_select.value or ""),
-                usuario=usuario_logado or "desconhecido",
-                arquivo_origem=(state["arquivo"] or ""),
-                remover_duplicadas=True,
+        arquivos = state.get("arquivos", [])
+        if not arquivos:
+            return _notify("warning", "Processe um ou mais arquivos primeiro.")
+        if not cliente_select.value or not ec_select.value:
+            return _notify("warning", "Selecione Cliente e EC.")
+
+        print(f"[DEBUG] 📁 TOTAL DE ARQUIVOS A PROCESSAR: {len(arquivos)}")
+        for i, arq in enumerate(arquivos):
+            arquivo_nome = arq.get("arquivo", "sem_nome")
+            df_shape = (
+                arq["df"].shape
+                if "df" in arq and hasattr(arq["df"], "shape")
+                else "N/A"
             )
-            resumo.object = (
-                f"**Processamento:** `{result['processamentoid']}`  \n"
-                f"- Gravadas em **vendas_processadas**: **{result['processadas']}**  \n"
-                f"- Gravadas em **vendas_filtradas**: **{result['filtradas']}**  \n"
-                f"- **Total**: **{result['total']}**"
+            print(
+                f"[DEBUG] 📄 Arquivo {i+1}: {arquivo_nome} - DataFrame shape: {df_shape}"
             )
-            _notify("success", "Gravação concluída.")
-        except Exception as e:
-            _notify("error", f"Falha ao gravar: {e}")
+
+        resultados = []
+        processamentoid = state.get("processamentoid")
+        from proc.proc_importacao import classificar_e_gravar_recebiveis
+
+        tipo_arquivo = tipo_select.value
+        for arq in arquivos:
+            try:
+                if tipo_arquivo == "R":
+                    result = classificar_e_gravar_recebiveis(
+                        engine,
+                        arq["df"],
+                        cliente_id=int(cliente_select.value),
+                        ec_id=ec_select.value,  # ec_id agora é VARCHAR, não INT
+                        contexto=(contexto_select.value or ""),
+                        usuario=usuario_logado or "desconhecido",
+                        arquivo_origem=(arq["arquivo"] or ""),
+                        processamentoid=arq.get("processamentoid", processamentoid),
+                    )
+                else:
+                    result = classificar_e_gravar_vendas(
+                        engine,
+                        arq["df"],
+                        cliente_id=int(cliente_select.value),
+                        ec_id=ec_select.value,  # ec_id agora é VARCHAR, não INT
+                        contexto=(contexto_select.value or ""),
+                        usuario=usuario_logado or "desconhecido",
+                        arquivo_origem=(arq["arquivo"] or ""),
+                        processamentoid=arq.get("processamentoid", processamentoid),
+                    )
+                resultados.append((arq["arquivo"], result, None))
+            except Exception as e:
+                resultados.append((arq["arquivo"], None, str(e)))
+        # Monta resumo
+        resumo_txt = ""
+        for fname, result, err in resultados:
+            if err:
+                resumo_txt += f"\n**{fname}**: Erro ao gravar: {err}"
+            else:
+                diversas_info = (
+                    f" | Diversas: {result.get('diversas', 0)}"
+                    if result.get("diversas", 0) > 0
+                    else ""
+                )
+                resumo_txt += (
+                    f"\n**{fname}**: Processamento ID `{result['processamentoid']}`\n"
+                    f"- Processadas: {result['processadas']} | Filtradas: {result['filtradas']}{diversas_info} | Total: {result['total']}"
+                )
+        resumo.object = resumo_txt.strip()
+        _notify("success", f"Gravação concluída para {len(arquivos)} arquivo(s).")
 
     btn_processar.on_click(on_process)
-    btn_normalizar.on_click(on_normalizar)
     btn_gravar.on_click(on_gravar)
 
     return pn.Column(
-        pn.pane.Markdown("### Importar Arquivo (detectar cabeçalho, aplicar de-para e gravar)"),
+        pn.pane.Markdown("### Importar Arquivo"),
         pn.Row(cliente_select, ec_select, contexto_select, tipo_select),
-        pn.Row(file_input, sheet_input, btn_processar, btn_normalizar, btn_gravar),
         pn.layout.Divider(),
+        pn.pane.Markdown("**Opções de Processamento:**"),
+        pn.Row(
+            continuar_checkbox, processamentoid_select, btn_atualizar_processamentoid
+        ),
+        pn.layout.Divider(),
+        pn.Row(file_input, btn_processar, btn_gravar, btn_reset, align="end"),
+        progress_importacao,
+        pn.layout.Divider(),
+        pn.pane.Markdown("**Arquivos Processados:**"),
+        arquivos_tabulator,
+        pn.Row(btn_refresh_preview, align="end"),
         info,
         preview,
         pn.layout.Divider(),
         pn.pane.Markdown("### Resultado da Gravação"),
         resumo,
-        sizing_mode="stretch_width",
     )
 
 
-# =========================
-# ABA: Controle de Colunas (vendas_colunas_controle)
-# =========================
-def _make_tab_controle_colunas(engine: Engine) -> pn.viewable.Viewable:
-    grid = pn.widgets.Tabulator(
-        _empty_controle_df(),
-        height=420,
+def _make_tab_gestao_processamentos(
+    engine: Engine, usuario_logado: Optional[str]
+) -> pn.viewable.Viewable:
+    """Aba para gestão de processamentos - listar e deletar"""
+
+    # Tabulator para mostrar processamentos
+    processamentos_tabulator = pn.widgets.Tabulator(
+        value=pd.DataFrame(),
+        pagination="remote",
+        page_size=15,
         sizing_mode="stretch_width",
-        pagination="local",
-        page_size=25,
-        show_index=False,
-        header_filters=True,
+        height=400,
+        selection=[],
         selectable="checkbox",
     )
 
-    campo         = pn.widgets.TextInput(name="Campo (nome da coluna)")
-    preenchimento = pn.widgets.Select(name="Preenchimento", options=["importado", "calculado", "sistema"], value="importado")
-    mapeavel      = pn.widgets.Checkbox(name="Mapeável", value=True)
-    ativo         = pn.widgets.Checkbox(name="Ativo", value=True)
+    # Botões de ação
+    btn_atualizar = pn.widgets.Button(
+        name="🔄 Atualizar Lista", button_type="primary", width=150
+    )
 
-    btn_novo     = pn.widgets.Button(name="Novo", button_type="light")
-    btn_inserir  = pn.widgets.Button(name="Inserir", button_type="primary")
-    btn_atualizar= pn.widgets.Button(name="Atualizar", button_type="success")
-    btn_excluir  = pn.widgets.Button(name="Excluir", button_type="danger")
-    btn_sync     = pn.widgets.Button(name="Sincronizar com tabela real", button_type="warning")
-    btn_refresh  = pn.widgets.Button(name="Recarregar", button_type="light")
-    msg          = pn.pane.Markdown("", sizing_mode="stretch_width")
+    btn_deletar = pn.widgets.Button(
+        name="🗑️ Deletar Selecionado", button_type="danger", width=180
+    )
 
-    def _load(_=None):
+    # Painel de status
+    status_pane = pn.pane.Markdown(
+        "Clique em **Atualizar Lista** para carregar os processamentos."
+    )
+
+    def carregar_processamentos():
+        """Carrega a lista de processamentos com detalhes"""
         try:
-            rows = colunas_controle_listar(engine)
-            grid.value = pd.DataFrame(rows) if rows else _empty_controle_df()
-            grid.selection = []
-            msg.object = ""
+            dados = listar_processamentos_detalhado(engine)
+
+            if not dados:
+                processamentos_tabulator.value = pd.DataFrame(
+                    columns=[
+                        "ProcessamentoID",
+                        "Processadas",
+                        "Filtradas",
+                        "Total",
+                        "Primeira Data",
+                        "Última Data",
+                    ]
+                )
+                status_pane.object = "⚠️ **Nenhum processamento encontrado.**"
+                return
+
+            # Preparar DataFrame
+            df_dados = []
+            for item in dados:
+                df_dados.append(
+                    {
+                        "ProcessamentoID": item["processamentoid"],
+                        "Processadas": item["qtd_processadas"],
+                        "Filtradas": item["qtd_filtradas"],
+                        "Total": item["total_linhas"],
+                        "Primeira Data": (
+                            item["primeira_data"].strftime("%d/%m/%Y %H:%M")
+                            if item["primeira_data"]
+                            else "-"
+                        ),
+                        "Última Data": (
+                            item["ultima_data"].strftime("%d/%m/%Y %H:%M")
+                            if item["ultima_data"]
+                            else "-"
+                        ),
+                    }
+                )
+
+            processamentos_df = pd.DataFrame(df_dados)
+            processamentos_tabulator.value = processamentos_df
+
+            total_processamentos = len(dados)
+            total_linhas = sum(item["total_linhas"] for item in dados)
+            status_pane.object = f"✅ **{total_processamentos} processamento(s)** carregado(s). **Total de {total_linhas:,} linha(s)** no banco."
+
         except Exception as e:
-            grid.value = _empty_controle_df()
-            grid.selection = []
-            msg.object = "Erro ao carregar controle de colunas."
-            _notify("error", f"Controle indisponível: {e}")
+            status_pane.object = f"❌ **Erro ao carregar processamentos:** {e}"
+            _notify("error", f"Erro ao carregar: {e}")
 
-    def _on_selection(event):
-        sel = list(event.new or [])
-        if len(sel) > 1:
-            grid.selection = [sel[-1]]
+    def deletar_processamento_selecionado():
+        """Deleta o processamento selecionado"""
+        if not processamentos_tabulator.selection:
+            _notify("warning", "Selecione um ou mais processamentos.")
             return
-        if not sel:
-            return
-        idx = sel[0]
-        df = grid.value
-        if not isinstance(df, pd.DataFrame) or idx >= len(df):
-            return
-        row = df.iloc[idx].to_dict()
 
-        campo.value         = str(row.get("campo", "") or "")
-        preenchimento.value = str(row.get("preenchimento", "importado") or "importado")
-        mapeavel.value      = bool(row.get("mapeavel", 1))
-        ativo.value         = bool(row.get("ativo", 1))
-        msg.object          = f"Editando ID {row.get('id','')}."
-
-    def on_new(_=None):
-        campo.value         = ""
-        preenchimento.value = "importado"
-        mapeavel.value      = True
-        ativo.value         = True
-        grid.selection      = []
-        msg.object          = "Incluindo novo campo."
-
-    def on_inserir(_=None):
-        c = (campo.value or "").strip()
-        if not c:
-            _notify("warning", "Informe o nome do campo.")
-            return
         try:
-            colunas_controle_inserir(
-                engine,
-                campo=c,
-                preenchimento=preenchimento.value,
-                mapeavel=1 if mapeavel.value else 0,
-                ativo=1 if ativo.value else 0,
+            df = processamentos_tabulator.value
+            idxs = processamentos_tabulator.selection
+            ids_linhas = [
+                (df.iloc[idx]["ProcessamentoID"], df.iloc[idx]["Total"]) for idx in idxs
+            ]
+
+            # Confirmação em lote
+            if not hasattr(pn.state, "_confirm_delete"):
+                ids_str = ", ".join(str(pid) for pid, _ in ids_linhas)
+                total_linhas = sum(tot for _, tot in ids_linhas)
+                status_pane.object = f"⚠️ **ATENÇÃO:** Vai deletar ProcessamentoID(s) **{ids_str}** (total {total_linhas} linhas). Clique **Deletar** novamente para confirmar."
+                pn.state._confirm_delete = set(pid for pid, _ in ids_linhas)
+                return
+
+            # Se já confirmou, executar deleção em lote
+            confirmados = pn.state._confirm_delete
+            total_deletadas = 0
+            detalhes = []
+            for processamentoid, _ in ids_linhas:
+                if processamentoid in confirmados:
+                    resultado = deletar_processamento(engine, processamentoid)
+                    total = (
+                        resultado["vendas_processadas"] + resultado["vendas_filtradas"]
+                    )
+                    total_deletadas += total
+                    detalhes.append(
+                        f"{processamentoid}: {total} linhas ({resultado['vendas_processadas']} processadas + {resultado['vendas_filtradas']} filtradas)"
+                    )
+            delattr(pn.state, "_confirm_delete")
+            status_pane.object = (
+                f"✅ **ProcessamentoID(s) deletado(s)!** {total_deletadas} linha(s) removidas.\n"
+                + "\n".join(detalhes)
             )
-            _notify("success", "Campo inserido.")
-            _load()
+            _notify("success", f"Processamento(s) deletado(s) com sucesso!")
+            carregar_processamentos()
+
         except Exception as e:
-            _notify("error", f"Falha ao inserir: {e}")
+            if hasattr(pn.state, "_confirm_delete"):
+                delattr(pn.state, "_confirm_delete")
+            status_pane.object = f"❌ **Erro ao deletar:** {e}"
+            _notify("error", f"Erro ao deletar: {e}")
 
-    def on_atualizar(_=None):
-        sel = grid.selection or []
-        if not sel:
-            _notify("warning", "Selecione um registro para atualizar.")
-            return
-        try:
-            df = grid.value
-            col_id = int(df.iloc[sel[0]]["id"])
-            colunas_controle_atualizar(
-                engine, col_id,
-                campo=(campo.value or "").strip(),
-                preenchimento=preenchimento.value,
-                mapeavel=1 if mapeavel.value else 0,
-                ativo=1 if ativo.value else 0,
-            )
-            _notify("success", "Campo atualizado.")
-            _load()
-        except Exception as e:
-            _notify("error", f"Falha ao atualizar: {e}")
+    # Eventos dos botões
+    btn_atualizar.on_click(lambda _: carregar_processamentos())
+    btn_deletar.on_click(lambda _: deletar_processamento_selecionado())
 
-    def on_delete(_=None):
-        sel = grid.selection
-        if not sel:
-            _notify("warning", "Selecione um registro para excluir.")
-            return
-        try:
-            df = grid.value
-            col_id = int(df.iloc[sel[0]]["id"])
-            colunas_controle_deletar(engine, col_id)
-            _notify("success", "Registro excluído.")
-            _load()
-        except Exception as e:
-            _notify("error", f"Falha ao excluir: {e}")
-
-    def on_sync(_=None):
-        try:
-            result = colunas_controle_sincronizar(engine)
-            _notify("success", f"Sincronizado. Inseridos: {result.get('inseridos', 0)}.")
-            _load()
-        except Exception as e:
-            _notify("error", f"Falha ao sincronizar: {e}")
-
-    grid.param.watch(_on_selection, "selection")
-    btn_novo.on_click(on_new)
-    btn_inserir.on_click(on_inserir)
-    btn_atualizar.on_click(on_atualizar)
-    btn_excluir.on_click(on_delete)
-    btn_sync.on_click(on_sync)
-    btn_refresh.on_click(_load)
-
-    _load()
-
+    # Layout da aba
     return pn.Column(
-        pn.pane.Markdown("### Controle de Colunas (vendas_colunas_controle)"),
-        grid,
+        pn.pane.Markdown("### Gestão de Processamentos"),
+        pn.pane.Markdown(
+            "**Instruções:** Selecione um processamento na tabela e clique em **Deletar** para remover todas as vendas associadas."
+        ),
         pn.layout.Divider(),
-        pn.pane.Markdown("#### Formulário"),
-        pn.Row(campo, preenchimento, mapeavel, ativo),
-        pn.Row(btn_novo, btn_inserir, btn_atualizar, btn_excluir, btn_sync, btn_refresh),
-        msg,
+        pn.Row(btn_atualizar, btn_deletar, align="start"),
+        status_pane,
+        pn.layout.Divider(),
+        processamentos_tabulator,
         sizing_mode="stretch_width",
     )
 
 
-# =========================
-# View pública (Tabs)
-# =========================
-def make_importacao_view(engine: Engine, usuario_logado: Optional[str]) -> pn.viewable.Viewable:
-    aba_importar = _make_tab_importar(engine, usuario_logado)
-    aba_depara   = _make_tab_depara(engine, usuario_logado)
-    aba_ctrl     = _make_tab_controle_colunas(engine)
+def make_importacao_view(
+    engine: Engine, usuario_logado: Optional[str]
+) -> pn.viewable.Viewable:
     return pn.Tabs(
-        ("Importar Arquivo", aba_importar),
-        ("De-Para de Colunas", aba_depara),
-        ("Controle de Colunas", aba_ctrl),
+        ("Importar Arquivo", _make_tab_importar(engine, usuario_logado)),
+        ("De-Para de Colunas", _make_tab_depara(engine, usuario_logado)),
+        (
+            "Gestão de Processamentos",
+            _make_tab_gestao_processamentos(engine, usuario_logado),
+        ),
         tabs_location="above",
         sizing_mode="stretch_both",
     )
