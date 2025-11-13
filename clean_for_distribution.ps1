@@ -36,6 +36,7 @@ function Remove-ItemSafe {
 Write-Host ""
 Write-Host "[1/8] Removendo ambientes virtuais..." -ForegroundColor Cyan
 Remove-ItemSafe ".venv" "Ambiente virtual (.venv)"
+Remove-ItemSafe ".venv_test" "Ambiente virtual de teste (.venv_test)"
 Remove-ItemSafe "venv" "Ambiente virtual (venv)"
 Remove-ItemSafe "venv2" "Ambiente virtual (venv2)"
 Remove-ItemSafe "env" "Ambiente virtual (env)"
@@ -118,6 +119,14 @@ Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "CRIANDO ZIP DE DISTRIBUICAO" -ForegroundColor White
 Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+
+# Remover ZIPs antigos primeiro
+Write-Host "[INFO] Removendo ZIPs antigos..." -ForegroundColor Cyan
+Get-ChildItem -Filter "Concilie_v2.0_Distribuicao_*.zip" -ErrorAction SilentlyContinue | ForEach-Object {
+    Remove-Item $_.FullName -Force
+    Write-Host "  [OK] Removido: $($_.Name)" -ForegroundColor Green
+}
 Write-Host ""
 
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
