@@ -117,7 +117,7 @@ except subprocess.CalledProcessError as e:
             "panel", "pandas", "sqlalchemy", "plotly", "openpyxl",
             "pymysql", "cryptography", "bokeh", "numpy", "matplotlib",
             "pillow", "python-dotenv", "pdfkit", "xlsxwriter",
-            "jinja2", "markdown"
+            "jinja2", "markdown", "psutil"
         ]
         
         subprocess.check_call(
