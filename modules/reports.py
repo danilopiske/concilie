@@ -19,7 +19,24 @@ from conf.funcoesbd import (
     fetch_one,
     listar_processamentoids,
     listar_processamentos_detalhado,
+    _is_sqlite,  # Helper para detectar SQLite
 )
+
+
+def _convert_placeholders(engine: Engine, sql: str) -> str:
+    """
+    Converte placeholders SQL de MySQL (%s) para SQLite (?) quando necessário.
+
+    Args:
+        engine: Engine do banco de dados
+        sql: Query SQL com placeholders %s
+
+    Returns:
+        Query com placeholders corretos para o banco em uso
+    """
+    if _is_sqlite(engine):
+        return sql.replace("%s", "?")
+    return sql
 
 
 def format_currency_br(value: float) -> str:
@@ -401,6 +418,7 @@ def calcular_periodo_completo(
             vendas_sql += " AND adquirente = %s"
             params_vendas.append(adquirente)
 
+        vendas_sql = _convert_placeholders(engine, vendas_sql)
         df_vendas = pd.read_sql(vendas_sql, engine, params=tuple(params_vendas))
         if not df_vendas.empty and "Data_da_venda" in df_vendas.columns:
             datas_vendas = pd.to_datetime(
@@ -420,6 +438,7 @@ def calcular_periodo_completo(
             filtradas_sql += " AND adquirente = %s"
             params_filtradas.append(adquirente)
 
+        filtradas_sql = _convert_placeholders(engine, filtradas_sql)
         df_filtradas = pd.read_sql(
             filtradas_sql, engine, params=tuple(params_filtradas)
         )
@@ -434,6 +453,7 @@ def calcular_periodo_completo(
 
         # 3. Datas dos recebíveis processados
         rec_proc_sql = "SELECT data_recebivel FROM recebiveis_processados WHERE processamentoid = %s"
+        rec_proc_sql = _convert_placeholders(engine, rec_proc_sql)
         df_rec_proc = pd.read_sql(rec_proc_sql, engine, params=(processamento_id,))
         if not df_rec_proc.empty and "data_recebivel" in df_rec_proc.columns:
             datas_rec_proc = pd.to_datetime(
@@ -447,6 +467,7 @@ def calcular_periodo_completo(
         # 4. Datas dos recebíveis filtrados (se existir a tabela)
         try:
             rec_filt_sql = "SELECT data_recebivel FROM recebiveis_filtrados WHERE processamentoid = %s"
+            rec_filt_sql = _convert_placeholders(engine, rec_filt_sql)
             df_rec_filt = pd.read_sql(rec_filt_sql, engine, params=(processamento_id,))
             if not df_rec_filt.empty and "data_recebivel" in df_rec_filt.columns:
                 datas_rec_filt = pd.to_datetime(
@@ -503,23 +524,40 @@ def obter_adquirentes_distintos_processamento(
 
     try:
         with engine.connect() as conn:
-            # Query otimizada - JOIN por id_venda (abordagem que funcionou)
-            join_query = """
-                SELECT DISTINCT vp.adquirente
-                FROM vendas_processadas vp
-                INNER JOIN vendas_calculos vc ON vp.id = vc.id_venda
-                WHERE vc.calc_id = %(calc_id)s 
-                AND vp.adquirente IS NOT NULL 
-                AND vp.adquirente != ''
-                ORDER BY vp.adquirente
-            """
+            # Query otimizada - JOIN por id_venda
+            # SQLite usa :param, MySQL usa %(param)s
+            if _is_sqlite(engine):
+                join_query = """
+                    SELECT DISTINCT vp.adquirente
+                    FROM vendas_processadas vp
+                    INNER JOIN vendas_calculos vc ON vp.id = vc.id_venda
+                    WHERE vc.calc_id = :calc_id 
+                    AND vp.adquirente IS NOT NULL 
+                    AND vp.adquirente != ''
+                    ORDER BY vp.adquirente
+                """
+            else:
+                join_query = """
+                    SELECT DISTINCT vp.adquirente
+                    FROM vendas_processadas vp
+                    INNER JOIN vendas_calculos vc ON vp.id = vc.id_venda
+                    WHERE vc.calc_id = %(calc_id)s 
+                    AND vp.adquirente IS NOT NULL 
+                    AND vp.adquirente != ''
+                    ORDER BY vp.adquirente
+                """
 
             result = pd.read_sql(join_query, conn, params={"calc_id": processamento_id})
 
             if not result.empty:
+                # SQLite retorna 'Adquirente' (preserva case do schema)
+                # MySQL retorna 'adquirente' (case-insensitive)
+                # Usar o nome real da primeira coluna para compatibilidade
+                col_name = result.columns[0]
+
                 adquirentes = [
                     str(adq).strip()
-                    for adq in result["adquirente"].unique()
+                    for adq in result[col_name].unique()
                     if adq
                     and str(adq).strip()
                     and str(adq).strip().lower() not in ["none", "null", ""]
@@ -830,6 +868,7 @@ def calcular_contagem_taxas_agrupado(df_merged: pd.DataFrame) -> pd.DataFrame:
 def calcular_sumario_recebiveis(engine: Engine, processamento_id: str) -> pd.DataFrame:
     """Busca e sumariza os recebíveis processados para o relatório."""
     sql = "SELECT * FROM recebiveis_processados WHERE processamentoid = %s"
+    sql = _convert_placeholders(engine, sql)
     try:
         df = pd.read_sql(sql, engine, params=(processamento_id,))
     except Exception as e:
@@ -927,6 +966,7 @@ def calcular_tabela_consolidada_mensal(
         FROM recebiveis_processados 
         WHERE processamentoid = %s
         """
+        sql_recebiveis = _convert_placeholders(engine, sql_recebiveis)
         df_rec_proc = pd.read_sql(sql_recebiveis, engine, params=(processamento_id,))
 
         if not df_rec_proc.empty:
@@ -1127,6 +1167,7 @@ def obter_dados_bancarios_distintos(
             AND conta != '-'
         ORDER BY banco, agencia, conta
     """
+    sql = _convert_placeholders(engine, sql)
 
     try:
         df = pd.read_sql(sql, engine, params=(processamento_id,))
@@ -1178,13 +1219,20 @@ def obter_dados_processamento(
                 nome = f"{nome} ({cnpj})"
             metadados["cliente_nome"] = nome
 
+    sql_processadas = (
+        "SELECT * FROM vendas_processadas WHERE processamentoid = %s LIMIT %s"
+    )
+    sql_processadas = _convert_placeholders(engine, sql_processadas)
     df_processadas = pd.read_sql(
-        "SELECT * FROM vendas_processadas WHERE processamentoid = %s LIMIT %s",
+        sql_processadas,
         engine,
         params=(processamento_id, max_rows),
     )
+
+    sql_filtradas = "SELECT * FROM vendas_filtradas WHERE processamentoid = %s LIMIT %s"
+    sql_filtradas = _convert_placeholders(engine, sql_filtradas)
     df_filtradas = pd.read_sql(
-        "SELECT * FROM vendas_filtradas WHERE processamentoid = %s LIMIT %s",
+        sql_filtradas,
         engine,
         params=(processamento_id, max_rows),
     )
@@ -1399,6 +1447,14 @@ def criar_tabela_sumario(
                 f"{', '.join(ecs_distintos[:5])} e mais {len(ecs_distintos) - 5} ECs"
             )
 
+    # Garantir que data_processamento seja datetime
+    data_proc = metadados.get("data_processamento", datetime.now())
+    if isinstance(data_proc, str):
+        try:
+            data_proc = pd.to_datetime(data_proc)
+        except:
+            data_proc = datetime.now()
+
     cabecalho = {
         "ID Processamento": metadados.get("id_processamento"),
         "Cliente": metadados.get("cliente_nome"),
@@ -1408,9 +1464,7 @@ def criar_tabela_sumario(
         "Adquirente": metadados.get("adquirente", "Não informado"),
         "Período das Transações": periodo_str,
         "Período (Dias)": periodo_dias_str,
-        "Data Processamento": metadados.get(
-            "data_processamento", datetime.now()
-        ).strftime("%d/%m/%Y %H:%M:%S"),
+        "Data Processamento": data_proc.strftime("%d/%m/%Y %H:%M:%S"),
     }
 
     estatisticas = {
@@ -1803,6 +1857,7 @@ def gerar_demonstrativo_vendas_filtradas(
         GROUP BY status_da_venda, Bandeira, Forma_de_pagamento
         ORDER BY status_da_venda, Bandeira, Forma_de_pagamento
         """
+        sql = _convert_placeholders(engine, sql)
 
         df_demonstrativo = pd.read_sql(sql, engine, params=(processamento_id,))
 
@@ -1841,9 +1896,13 @@ def gerar_demonstrativo_vendas_filtradas(
         FROM vendas_filtradas 
         WHERE processamentoid = %s
         """
+        sql_total = _convert_placeholders(engine, sql_total)
         total_valor_df = pd.read_sql(sql_total, engine, params=(processamento_id,))
+        # Case-insensitive: usar nome real da coluna
         total_valor = (
-            total_valor_df.iloc[0]["total_valor"] if not total_valor_df.empty else 0
+            total_valor_df.iloc[0][total_valor_df.columns[0]]
+            if not total_valor_df.empty
+            else 0
         )
 
         linha_total = pd.DataFrame(
@@ -1908,11 +1967,15 @@ def gerar_demonstrativo_recebiveis_filtrados(
         FROM recebiveis_filtrados 
         WHERE processamentoid = %s
         """
+        verificacao_sql = _convert_placeholders(engine, verificacao_sql)
         df_verificacao = pd.read_sql(
             verificacao_sql, engine, params=(processamento_id,)
         )
+        # Case-insensitive: usar nome real da coluna
         total_registros = (
-            df_verificacao.iloc[0]["total_registros"] if not df_verificacao.empty else 0
+            df_verificacao.iloc[0][df_verificacao.columns[0]]
+            if not df_verificacao.empty
+            else 0
         )
 
         print(
@@ -1944,6 +2007,7 @@ def gerar_demonstrativo_recebiveis_filtrados(
         GROUP BY lancamento
         ORDER BY lancamento
         """
+        sql = _convert_placeholders(engine, sql)
 
         df_demonstrativo = pd.read_sql(sql, engine, params=(processamento_id,))
 
@@ -1986,11 +2050,14 @@ def gerar_demonstrativo_recebiveis_filtrados(
         FROM recebiveis_filtrados 
         WHERE processamentoid = %s
         """
+        sql_total = _convert_placeholders(engine, sql_total)
         total_valor_df = pd.read_sql(sql_total, engine, params=(processamento_id,))
 
         if not total_valor_df.empty:
-            total_valor_recebivel = total_valor_df.iloc[0]["total_valor_recebivel"]
-            total_valor_liquido = total_valor_df.iloc[0]["total_valor_liquido"]
+            # Case-insensitive: usar índice das colunas
+            cols = total_valor_df.columns.tolist()
+            total_valor_recebivel = total_valor_df.iloc[0][cols[0]]
+            total_valor_liquido = total_valor_df.iloc[0][cols[1]]
         else:
             total_valor_recebivel = 0
             total_valor_liquido = 0
@@ -2111,6 +2178,10 @@ def gerar_relatorio_html(
     # Adiciona filtro de adquirente se fornecido
     if adquirente:
         join_sql += " AND vp.adquirente = %s"
+
+    join_sql = _convert_placeholders(engine, join_sql)
+
+    if adquirente:
         params = (processamento_id, calc_tipo, adquirente)
     else:
         params = (processamento_id, calc_tipo)
@@ -2177,12 +2248,22 @@ def gerar_relatorio_html(
     tipos_lancamentos_distintos = 0
     try:
         recebiveis_sql = "SELECT DISTINCT lancamento FROM recebiveis_processados WHERE processamentoid = %s AND lancamento IS NOT NULL AND lancamento != ''"
+        recebiveis_sql = _convert_placeholders(engine, recebiveis_sql)
         recebiveis_result = pd.read_sql(
             recebiveis_sql, engine, params=(processamento_id,)
         )
+
+        # SQLite pode retornar 'Lancamento' (case preservado do schema)
+        # MySQL retorna 'lancamento' (case-insensitive)
+        col_lancamento = (
+            recebiveis_result.columns[0]
+            if not recebiveis_result.empty
+            else "lancamento"
+        )
+
         inconsistencias = [
             str(l).strip().capitalize()
-            for l in recebiveis_result["lancamento"].unique()
+            for l in recebiveis_result[col_lancamento].unique()
             if l and str(l).strip()
         ]
 
@@ -2215,6 +2296,7 @@ def gerar_relatorio_html(
                     WHERE vc.calc_id = %s AND vc.perda IS NOT NULL AND vc.perda != 0
                     AND vp.adquirente = %s
                 """
+                perdas_sql = _convert_placeholders(engine, perdas_sql)
                 perdas_result = pd.read_sql(
                     perdas_sql, engine, params=(processamento_id, adquirente)
                 )
@@ -2225,12 +2307,17 @@ def gerar_relatorio_html(
                     FROM vendas_calculos 
                     WHERE calc_id = %s AND perda IS NOT NULL AND perda != 0
                 """
+                perdas_sql = _convert_placeholders(engine, perdas_sql)
                 perdas_result = pd.read_sql(
                     perdas_sql, engine, params=(processamento_id,)
                 )
 
+            # SQLite pode retornar 'Total_perdas' ou 'total_perdas' dependendo do alias
+            # Usar acesso seguro à primeira coluna
             total_perdas = (
-                perdas_result.iloc[0]["total_perdas"] if not perdas_result.empty else 0
+                perdas_result.iloc[0][perdas_result.columns[0]]
+                if not perdas_result.empty
+                else 0
             )
 
             if total_perdas > 0:
@@ -2262,21 +2349,31 @@ def gerar_relatorio_html(
 
     if primeira_venda is not None:
         try:
-            primeira_venda_str = pd.to_datetime(primeira_venda).strftime("%d/%m/%Y")
-            print(f"[DEBUG] primeira_venda formatada: {primeira_venda_str}")
+            # Verificar se já é string ou precisa converter
+            if isinstance(primeira_venda, str):
+                primeira_venda_str = primeira_venda
+                print(f"[DEBUG] primeira_venda já é string: {primeira_venda_str}")
+            else:
+                primeira_venda_str = pd.to_datetime(primeira_venda).strftime("%d/%m/%Y")
+                print(f"[DEBUG] primeira_venda formatada: {primeira_venda_str}")
         except Exception as e:
             print(f"[DEBUG] Erro ao formatar primeira_venda: {e}")
-            primeira_venda_str = None
+            primeira_venda_str = str(primeira_venda) if primeira_venda else None
     else:
         print("[DEBUG] primeira_venda é None - mantendo como None")
 
     if ultima_venda is not None:
         try:
-            ultima_venda_str = pd.to_datetime(ultima_venda).strftime("%d/%m/%Y")
-            print(f"[DEBUG] ultima_venda formatada: {ultima_venda_str}")
+            # Verificar se já é string ou precisa converter
+            if isinstance(ultima_venda, str):
+                ultima_venda_str = ultima_venda
+                print(f"[DEBUG] ultima_venda já é string: {ultima_venda_str}")
+            else:
+                ultima_venda_str = pd.to_datetime(ultima_venda).strftime("%d/%m/%Y")
+                print(f"[DEBUG] ultima_venda formatada: {ultima_venda_str}")
         except Exception as e:
             print(f"[DEBUG] Erro ao formatar ultima_venda: {e}")
-            ultima_venda_str = None
+            ultima_venda_str = str(ultima_venda) if ultima_venda else None
     else:
         print("[DEBUG] ultima_venda é None - mantendo como None")
 
@@ -2319,6 +2416,7 @@ def gerar_relatorio_html(
     FROM vendas_processadas 
     WHERE processamentoid = %s
     """
+    sql_vendas_processadas = _convert_placeholders(engine, sql_vendas_processadas)
     df_vendas_proc = pd.read_sql(
         sql_vendas_processadas, engine, params=(processamento_id,)
     )
@@ -2328,6 +2426,7 @@ def gerar_relatorio_html(
     FROM vendas_calculos 
     WHERE calc_id = %s AND calc_tipo = %s
     """
+    sql_vendas_calculos = _convert_placeholders(engine, sql_vendas_calculos)
     df_vendas_calc = pd.read_sql(
         sql_vendas_calculos, engine, params=(processamento_id, calc_tipo)
     )
@@ -2557,10 +2656,16 @@ def gerar_relatorio_html(
         if adquirente:
             sql_perdas += " AND vp.adquirente = %s"
 
+        sql_perdas = _convert_placeholders(engine, sql_perdas)
+
         df_perdas = pd.read_sql(sql_perdas, engine, params=params_perdas)
         if not df_perdas.empty:
-            total_perdas = df_perdas.iloc[0]["total_perdas_mdr"] or 0
-            total_perdas_rr = df_perdas.iloc[0]["total_perdas_rr"] or 0
+            # Case-insensitive: pegar os nomes reais das colunas
+            cols = df_perdas.columns.tolist()
+            col_mdr = cols[0] if len(cols) > 0 else "total_perdas_mdr"
+            col_rr = cols[1] if len(cols) > 1 else "total_perdas_rr"
+            total_perdas = df_perdas.iloc[0][col_mdr] or 0
+            total_perdas_rr = df_perdas.iloc[0][col_rr] or 0
 
         total_perdas = total_perdas if not pd.isna(total_perdas) else 0
         total_perdas_rr = total_perdas_rr if not pd.isna(total_perdas_rr) else 0
@@ -2580,6 +2685,7 @@ def gerar_relatorio_html(
         FROM recebiveis_processados 
         WHERE processamentoid = %s
         """
+        sql_recebiveis = _convert_placeholders(engine, sql_recebiveis)
         df_recebiveis = pd.read_sql(sql_recebiveis, engine, params=(processamento_id,))
         total_recebiveis = (
             df_recebiveis.iloc[0]["total_recebiveis"] if not df_recebiveis.empty else 0
@@ -2712,6 +2818,8 @@ def ler_view(
     if data_inicio and data_fim and date_column:
         sql += f" AND {date_column} BETWEEN %s AND %s"
         params = params + (data_inicio, data_fim)
+
+    sql = _convert_placeholders(engine, sql)
 
     try:
         resultado = pd.read_sql(sql, engine, params=params)
@@ -2880,9 +2988,11 @@ def obter_ecs_distintos_processamento(
         # Busca ECs distintos nas vendas processadas
         if adquirente:
             query = "SELECT DISTINCT ec_id FROM vendas_processadas WHERE processamentoid = %s AND ec_id IS NOT NULL AND adquirente = %s"
+            query = _convert_placeholders(engine, query)
             df_ecs = pd.read_sql(query, engine, params=(processamento_id, adquirente))
         else:
             query = "SELECT DISTINCT ec_id FROM vendas_processadas WHERE processamentoid = %s AND ec_id IS NOT NULL"
+            query = _convert_placeholders(engine, query)
             df_ecs = pd.read_sql(query, engine, params=(processamento_id,))
 
         if df_ecs.empty:
@@ -3129,6 +3239,7 @@ def gerar_relatorio_mensal_html(
     else:
         params = (processamento_id, calc_tipo)
 
+    join_sql = _convert_placeholders(engine, join_sql)
     df_join = pd.read_sql(join_sql, engine, params=params)
     df_join = filtrar_valores_rede_depara(df_join)
     df_join = calcular_previsao_pagamento_rede(df_join)
@@ -3222,6 +3333,7 @@ def gerar_relatorio_mensal_html(
         GROUP BY lancamento
         ORDER BY total DESC
         """
+        sql_recebiveis = _convert_placeholders(engine, sql_recebiveis)
         df_recebiveis_mat = pd.read_sql(
             sql_recebiveis, engine, params=(processamento_id,)
         )
@@ -3288,7 +3400,11 @@ def gerar_relatorio_mensal_html(
         # Usar primeira_venda para determinar o mês de referência (período das transações)
         if primeira_venda:
             try:
-                data_ref = pd.to_datetime(primeira_venda)
+                # primeira_venda pode ser string ou datetime
+                if isinstance(primeira_venda, str):
+                    data_ref = pd.to_datetime(primeira_venda)
+                else:
+                    data_ref = primeira_venda
                 mes_nome = meses_pt.get(data_ref.month, data_ref.strftime("%B"))
                 mes_referencia = f"{mes_nome}/{data_ref.year}"
                 print(
@@ -3395,6 +3511,27 @@ def gerar_relatorio_mensal_html(
     # Buscar dados bancários
     df_dados_bancarios = obter_dados_bancarios_distintos(engine, processamento_id)
 
+    # Garantir que primeira_venda e ultima_venda sejam datetime
+    primeira_venda_str = ""
+    if primeira_venda:
+        if isinstance(primeira_venda, str):
+            try:
+                primeira_venda_str = pd.to_datetime(primeira_venda).strftime("%d/%m/%Y")
+            except:
+                primeira_venda_str = primeira_venda
+        else:
+            primeira_venda_str = primeira_venda.strftime("%d/%m/%Y")
+
+    ultima_venda_str = ""
+    if ultima_venda:
+        if isinstance(ultima_venda, str):
+            try:
+                ultima_venda_str = pd.to_datetime(ultima_venda).strftime("%d/%m/%Y")
+            except:
+                ultima_venda_str = ultima_venda
+        else:
+            ultima_venda_str = ultima_venda.strftime("%d/%m/%Y")
+
     tabela_sumario_html = criar_tabela_sumario(
         {
             "quantidade": total_transacoes,
@@ -3403,10 +3540,8 @@ def gerar_relatorio_mensal_html(
             "valor_min": valor_min,
             "valor_max": valor_max,
             "valor_liquido": valor_liquido,
-            "primeira_venda": (
-                primeira_venda.strftime("%d/%m/%Y") if primeira_venda else ""
-            ),
-            "ultima_venda": ultima_venda.strftime("%d/%m/%Y") if ultima_venda else "",
+            "primeira_venda": primeira_venda_str,
+            "ultima_venda": ultima_venda_str,
             "periodo_dias": periodo_dias,
         },
         metadados,

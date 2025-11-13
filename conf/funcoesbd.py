@@ -4,6 +4,82 @@ from sqlalchemy.engine import Engine
 from sqlalchemy import text
 from datetime import datetime
 
+
+# ==============================
+# Helper para compatibilidade MySQL/SQLite
+# ==============================
+
+
+def _is_sqlite(engine: Engine) -> bool:
+    """Verifica se a engine é SQLite"""
+    return engine.dialect.name == "sqlite"
+
+
+def _date_format_sql(engine: Engine, column: str, format_str: str) -> str:
+    """Retorna SQL de formatação de data compatível com MySQL e SQLite
+
+    Args:
+        column: Nome da coluna de data
+        format_str: Formato MySQL (ex: '%Y-%m-%d', '%Y-%m')
+
+    Returns:
+        SQL formatado para o banco correto
+    """
+    if _is_sqlite(engine):
+        # SQLite usa strftime
+        # Converter formato MySQL para SQLite:
+        # %Y-%m-%d -> %Y-%m-%d (mesmo)
+        # %Y-%m -> %Y-%m (mesmo)
+        sqlite_format = format_str  # A maioria dos formatos é compatível
+        return f"strftime('{sqlite_format}', {column})"
+    else:
+        # MySQL usa DATE_FORMAT
+        return f"DATE_FORMAT({column}, '{format_str}')"
+
+
+def _concat_sql(engine: Engine, *args: str) -> str:
+    """Retorna SQL de concatenação compatível com MySQL e SQLite
+
+    Args:
+        *args: Expressões SQL a concatenar
+
+    Returns:
+        SQL de concatenação para o banco correto
+    """
+    if _is_sqlite(engine):
+        # SQLite usa || para concatenação
+        return " || ".join(args)
+    else:
+        # MySQL usa CONCAT()
+        return f"CONCAT({', '.join(args)})"
+
+
+def _insert_ignore_sql(engine: Engine, table: str, columns: str, values: str) -> str:
+    """Retorna SQL de INSERT IGNORE compatível com MySQL e SQLite"""
+    if _is_sqlite(engine):
+        return f"INSERT OR IGNORE INTO {table} ({columns}) VALUES ({values})"
+    else:
+        return f"INSERT IGNORE INTO {table} ({columns}) VALUES ({values})"
+
+
+def _upsert_sql(
+    engine: Engine, table: str, columns: List[str], update_columns: List[str]
+) -> str:
+    """Retorna SQL de UPSERT (INSERT ... ON DUPLICATE KEY UPDATE) compatível"""
+    cols_str = ", ".join(columns)
+    placeholders = ", ".join([f":{col}" for col in columns])
+
+    if _is_sqlite(engine):
+        # SQLite usa INSERT OR REPLACE ou INSERT ... ON CONFLICT
+        # Para ON CONFLICT precisamos saber as colunas únicas
+        # Vamos usar a estratégia mais simples: INSERT OR REPLACE
+        return f"INSERT OR REPLACE INTO {table} ({cols_str}) VALUES ({placeholders})"
+    else:
+        # MySQL: INSERT ... ON DUPLICATE KEY UPDATE
+        updates = ", ".join([f"{col}=VALUES({col})" for col in update_columns])
+        return f"INSERT INTO {table} ({cols_str}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {updates}"
+
+
 # ==============================
 # Recebíveis - Processados e Filtrados
 # ==============================
@@ -408,24 +484,41 @@ def cliente_salvar(engine: Engine, dados: Dict[str, Any], is_update: bool = Fals
                 ),
                 cliente_data,
             )
-            conn.execute(
-                text(
-                    "INSERT INTO enderecos (cliente_id, logradouro, numero, complemento, bairro, cidade, uf_id) VALUES (:cliente_id, :logradouro, :numero, :complemento, :bairro, :cidade, :uf_id) ON DUPLICATE KEY UPDATE logradouro=VALUES(logradouro), numero=VALUES(numero), complemento=VALUES(complemento), bairro=VALUES(bairro), cidade=VALUES(cidade), uf_id=VALUES(uf_id)"
-                ),
-                endereco_data,
+
+            # Endereços - UPSERT compatível
+            sql_endereco = _upsert_sql(
+                engine,
+                "enderecos",
+                [
+                    "cliente_id",
+                    "logradouro",
+                    "numero",
+                    "complemento",
+                    "bairro",
+                    "cidade",
+                    "uf_id",
+                ],
+                ["logradouro", "numero", "complemento", "bairro", "cidade", "uf_id"],
             )
-            conn.execute(
-                text(
-                    "INSERT INTO contatos (cliente_id, telefone1, email1) VALUES (:cliente_id, :telefone1, :email1) ON DUPLICATE KEY UPDATE telefone1=VALUES(telefone1), email1=VALUES(email1)"
-                ),
-                contatos_data,
+            conn.execute(text(sql_endereco), endereco_data)
+
+            # Contatos - UPSERT compatível
+            sql_contatos = _upsert_sql(
+                engine,
+                "contatos",
+                ["cliente_id", "telefone1", "email1"],
+                ["telefone1", "email1"],
             )
-            conn.execute(
-                text(
-                    "INSERT INTO dados_bancarios (cliente_id, banco, agencia, conta) VALUES (:cliente_id, :banco, :agencia, :conta) ON DUPLICATE KEY UPDATE banco=VALUES(banco), agencia=VALUES(agencia), conta=VALUES(conta)"
-                ),
-                bancario_data,
+            conn.execute(text(sql_contatos), contatos_data)
+
+            # Dados bancários - UPSERT compatível
+            sql_bancario = _upsert_sql(
+                engine,
+                "dados_bancarios",
+                ["cliente_id", "banco", "agencia", "conta"],
+                ["banco", "agencia", "conta"],
             )
+            conn.execute(text(sql_bancario), bancario_data)
         else:
             conn.execute(
                 text(
@@ -456,9 +549,8 @@ def cliente_salvar(engine: Engine, dados: Dict[str, Any], is_update: bool = Fals
         ecs_desejados = set(dados.get("ecs", []))
 
         for ec in ecs_desejados - ecs_atuais:
-            conn.execute(
-                text("INSERT IGNORE INTO ecs (ec_id) VALUES (:ec_id)"), {"ec_id": ec}
-            )
+            sql_ec = _insert_ignore_sql(engine, "ecs", "ec_id", ":ec_id")
+            conn.execute(text(sql_ec), {"ec_id": ec})
             conn.execute(
                 text(
                     "INSERT INTO ecs_cliente (cliente_id, ec_id) VALUES (:cliente_id, :ec_id)"
@@ -507,10 +599,14 @@ def bandeiras_salvar_para_ec(
 ) -> None:
     with get_conn(engine) as conn:
         for bandeira, ativo in bandeiras.items():
+            sql_bandeira = _upsert_sql(
+                engine,
+                "bandeiras_cliente",
+                ["ec", "bandeira", "ativo", "contexto"],
+                ["ativo"],
+            )
             conn.execute(
-                text(
-                    "INSERT INTO bandeiras_cliente (ec, bandeira, ativo, contexto) VALUES (:ec, :bandeira, :ativo, :contexto) ON DUPLICATE KEY UPDATE ativo = VALUES(ativo)"
-                ),
+                text(sql_bandeira),
                 {"ec": ec, "bandeira": bandeira, "ativo": ativo, "contexto": contexto},
             )
 
@@ -548,9 +644,15 @@ def termos_listar(
 def termo_adicionar(
     engine: Engine, ec: str, termo: str, contexto: str = "padrao", tipo: str = "v"
 ) -> None:
+    sql = _insert_ignore_sql(
+        engine,
+        "termos_filtraveis",
+        "ec, termo, contexto, tipo",
+        ":ec, :termo, :contexto, :tipo",
+    )
     exec_sql(
         engine,
-        "INSERT IGNORE INTO termos_filtraveis (ec, termo, contexto, tipo) VALUES (:ec, :termo, :contexto, :tipo)",
+        sql,
         {"ec": ec, "termo": termo.strip().lower(), "contexto": contexto, "tipo": tipo},
     )
 
@@ -835,15 +937,24 @@ def listar_contextos(engine: Engine) -> List[str]:
 
 
 def listar_colunas_vendas_processadas(engine: Engine) -> List[str]:
-    rows = fetch_all(
-        engine,
-        """
-        SELECT COLUMN_NAME AS coluna FROM INFORMATION_SCHEMA.COLUMNS
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vendas_processadas'
-         ORDER BY ORDINAL_POSITION
-        """,
-    )
-    return [r["coluna"] for r in rows]
+    if _is_sqlite(engine):
+        # SQLite: usa PRAGMA table_info
+        rows = fetch_all(
+            engine,
+            "PRAGMA table_info(vendas_processadas)",
+        )
+        return [r["name"] for r in rows]
+    else:
+        # MySQL: usa INFORMATION_SCHEMA
+        rows = fetch_all(
+            engine,
+            """
+            SELECT COLUMN_NAME AS coluna FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vendas_processadas'
+             ORDER BY ORDINAL_POSITION
+            """,
+        )
+        return [r["coluna"] for r in rows]
 
 
 def colunas_controle_deletar(engine: Engine, col_id: int) -> None:
@@ -963,16 +1074,27 @@ def colunas_controle_sincronizar(
             "Contexto e Tipo de Arquivo são obrigatórios para sincronização."
         )
 
-    cols_real = {
-        str(r["coluna"])
-        for r in fetch_all(
-            engine,
-            """
-        SELECT COLUMN_NAME AS coluna FROM INFORMATION_SCHEMA.COLUMNS
-         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vendas_processadas'
-    """,
-        )
-    }
+    if _is_sqlite(engine):
+        # SQLite: usa PRAGMA table_info
+        cols_real = {
+            str(r["name"])
+            for r in fetch_all(
+                engine,
+                "PRAGMA table_info(vendas_processadas)",
+            )
+        }
+    else:
+        # MySQL: usa INFORMATION_SCHEMA
+        cols_real = {
+            str(r["coluna"])
+            for r in fetch_all(
+                engine,
+                """
+            SELECT COLUMN_NAME AS coluna FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vendas_processadas'
+        """,
+            )
+        }
 
     cadastradas = {
         str(r["campo"])

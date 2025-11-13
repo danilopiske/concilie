@@ -1,37 +1,231 @@
+# ===================================
+# CONCILIE - .gitignore
+# Sistema de Conciliação Financeira
+# ===================================
+
+# ==================
+# Python
+# ==================
+# Ambientes virtuais
 .venv/
+venv/
+venv2/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Cache Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+
+# Distribuição / Packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# ==================
+# Banco de Dados
+# ==================
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# MySQL dumps
+*.sql
+*.dump
+
+# Schemas temporários
+mysql_schema.json
+sqlite_schema.json
+schema_differences.json
+
+# ==================
+# Dados e Arquivos de Trabalho
+# ==================
+# Planilhas Excel
 *.xlsx
 *.xls
-.DS_Store
-# Arquivos de ambiente virtual
-venv/
-env/
-.venv/
-.env
+*.xlsm
+*.xlsb
 
-# Arquivos de cache do Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# CSVs com dados sensíveis
+data/*.csv
+arquivos_processados/*.csv
 
-# Arquivos de configuração do editor/IDE
+# Relatórios gerados (exceto template)
+relatorios/*.html
+!relatorios/template_relatorio.html
+relatorios/*.png
+relatorios/*.pdf
+
+# Diretórios de dados locais
+data/concilie.db*
+data/arquivos_processados/*
+data/lancamento_planilhas/*.xlsx
+data/lancamento_planilhas/*.xls
+data/venda_planilhas/*.xlsx
+data/venda_planilhas/*.xls
+
+# Arquivos processados
+arquivos_processados/*
+!arquivos_processados/.gitkeep
+
+# Planilhas de lançamento e venda
+lancamento_planilhas/*.xlsx
+lancamento_planilhas/*.xls
+venda_planilhas/*.xlsx
+venda_planilhas/*.xls
+
+# ==================
+# Logs e Debug
+# ==================
+*.log
+debug.txt
+*.debug
+logs/
+*.bak
+
+# ==================
+# IDEs e Editores
+# ==================
+# VS Code
 .vscode/
+*.code-workspace
+
+# PyCharm
 .idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
 *.swp
+*.swo
+*~
+.vim/
 
-# Arquivos de build/distribuição
-build/
-dist/
-*.egg-info
+# Emacs
+*~
+\#*\#
+.\#*
 
-# Arquivos de sistema operacional
+# ==================
+# Sistema Operacional
+# ==================
+# macOS
 .DS_Store
-Thumbs.db
+.AppleDouble
+.LSOverride
+._*
 
-# ARQUIVOS SENSÍVEIS (Exemplo!)
-# Se você tiver um arquivo com senhas, NUNCA o envie.
-# Ex: local_settings.py, config.ini, etc.
-# *.ini
-# *.json  # Cuidado com este, pois pode conter dados sensíveis
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+# ==================
+# Específico do Projeto
+# ==================
+# Diretórios não relacionados (devem ser removidos)
+spotify_downloader/
+bd_structures/
+docs/
+scripts/
+
+# Arquivos de teste
+test_*.py
+*_test.py
+tests/
+
+# Configurações locais (senhas, etc)
+local_settings.py
+.env
+.env.local
+.env.*.local
+conf/local_*.py
+
+# Temporários
+temp/
+tmp/
+*.tmp
+
+# Backups
+backup/
+*.backup
+
+# ==================
+# Mantidos no Repositório
+# ==================
+# Estrutura de diretórios vazios (usar .gitkeep)
+!data/.gitkeep
+!relatorios/.gitkeep
+!temp/.gitkeep
+!arquivos_processados/.gitkeep
+
+# Assets essenciais (imagens do sistema)
+!assets/*.png
+!assets/*.jpg
+!assets/*.jpeg
+
+# Documentação
+!*.md
+!README.md
+!CHANGELOG.md
+
+# Templates
+!relatorios/template_relatorio.html

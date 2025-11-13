@@ -1,5 +1,6 @@
 import pandas as pd
 from sqlalchemy.engine import Engine
+from conf.funcoesbd import _is_sqlite
 
 
 def get_vendas_por_bandeira(engine: Engine) -> pd.DataFrame:
@@ -28,15 +29,24 @@ def get_vendas_pizza_forma_pagamento(engine: Engine) -> pd.DataFrame:
 
 def get_vendas_por_mes(engine: Engine) -> pd.DataFrame:
     # View agregada: vendas por mês
-    return pd.read_sql(
+    if _is_sqlite(engine):
+        # SQLite
+        query = """
+            SELECT strftime('%Y-%m', Data_da_venda) as MesAno, COUNT(*) as Quantidade
+            FROM vendas_processadas
+            GROUP BY MesAno
+            ORDER BY MesAno
         """
-        SELECT DATE_FORMAT(Data_da_venda, '%Y-%m') as MesAno, COUNT(*) as Quantidade
-        FROM vendas_processadas
-        GROUP BY MesAno
-        ORDER BY MesAno
-    """,
-        engine,
-    )
+    else:
+        # MySQL
+        query = """
+            SELECT DATE_FORMAT(Data_da_venda, '%Y-%m') as MesAno, COUNT(*) as Quantidade
+            FROM vendas_processadas
+            GROUP BY MesAno
+            ORDER BY MesAno
+        """
+
+    return pd.read_sql(query, engine)
 
 
 def get_valor_medio_por_bandeira(engine: Engine) -> pd.DataFrame:

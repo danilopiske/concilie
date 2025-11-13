@@ -1,7 +1,7 @@
 import panel as pn
 import pandas as pd
-from conf.funcoesbd import fetch_all
-import panel as pn
+from datetime import datetime
+from conf.funcoesbd import fetch_all, _is_sqlite
 
 
 # Painel de seleção de processamento e tipo de taxa
@@ -16,6 +16,17 @@ def make_calculos_view(engine):
         
         """,
     )
+
+    # Converter data_processamento para datetime se for string
+    for p in processamentos:
+        if isinstance(p["data_processamento"], str):
+            try:
+                p["data_processamento"] = pd.to_datetime(p["data_processamento"])
+            except:
+                from datetime import datetime
+
+                p["data_processamento"] = datetime.now()
+
     proc_opts = {
         f"{p['id_processamento']} - {p['descricao']} ({p['data_processamento']:%d/%m/%Y})": p[
             "id_processamento"
@@ -352,21 +363,47 @@ def make_calculos_view(engine):
                     )
                 else:
                     # Lógica para tipos log: aplicar menor taxa das vendas_calculos do período
-                    if tipo_taxa == "log_mensal":
-                        periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-%m-01')"
-                        periodo_fim_sql = "LAST_DAY(vp.Data_da_venda)"
-                    elif tipo_taxa == "log_trimestral":
-                        periodo_ini_sql = "DATE_FORMAT(DATE_SUB(vp.Data_da_venda, INTERVAL (MONTH(vp.Data_da_venda)-1)%3 MONTH), '%Y-%m-01')"
-                        periodo_fim_sql = "LAST_DAY(DATE_ADD(DATE_SUB(vp.Data_da_venda, INTERVAL (MONTH(vp.Data_da_venda)-1)%3 MONTH), INTERVAL 2 MONTH))"
-                    elif tipo_taxa == "log_semestral":
-                        periodo_ini_sql = "CASE WHEN MONTH(vp.Data_da_venda) <= 6 THEN CONCAT(YEAR(vp.Data_da_venda), '-01-01') ELSE CONCAT(YEAR(vp.Data_da_venda), '-07-01') END"
-                        periodo_fim_sql = "CASE WHEN MONTH(vp.Data_da_venda) <= 6 THEN CONCAT(YEAR(vp.Data_da_venda), '-06-30') ELSE CONCAT(YEAR(vp.Data_da_venda), '-12-31') END"
-                    elif tipo_taxa == "log_anual":
-                        periodo_ini_sql = "CONCAT(YEAR(vp.Data_da_venda), '-01-01')"
-                        periodo_fim_sql = "CONCAT(YEAR(vp.Data_da_venda), '-12-31')"
+                    # Compatibilidade MySQL/SQLite
+                    if _is_sqlite(engine):
+                        # SQLite - usar strftime
+                        if tipo_taxa == "log_mensal":
+                            periodo_ini_sql = "strftime('%Y-%m-01', vp.Data_da_venda)"
+                            periodo_fim_sql = "date(vp.Data_da_venda, 'start of month', '+1 month', '-1 day')"
+                        elif tipo_taxa == "log_trimestral":
+                            periodo_ini_sql = "date(vp.Data_da_venda, 'start of month', '-' || (CAST(strftime('%m', vp.Data_da_venda) AS INTEGER) - 1) % 3 || ' months')"
+                            periodo_fim_sql = "date(vp.Data_da_venda, 'start of month', '-' || (CAST(strftime('%m', vp.Data_da_venda) AS INTEGER) - 1) % 3 || ' months', '+3 months', '-1 day')"
+                        elif tipo_taxa == "log_semestral":
+                            periodo_ini_sql = "CASE WHEN CAST(strftime('%m', vp.Data_da_venda) AS INTEGER) <= 6 THEN strftime('%Y', vp.Data_da_venda) || '-01-01' ELSE strftime('%Y', vp.Data_da_venda) || '-07-01' END"
+                            periodo_fim_sql = "CASE WHEN CAST(strftime('%m', vp.Data_da_venda) AS INTEGER) <= 6 THEN strftime('%Y', vp.Data_da_venda) || '-06-30' ELSE strftime('%Y', vp.Data_da_venda) || '-12-31' END"
+                        elif tipo_taxa == "log_anual":
+                            periodo_ini_sql = (
+                                "strftime('%Y', vp.Data_da_venda) || '-01-01'"
+                            )
+                            periodo_fim_sql = (
+                                "strftime('%Y', vp.Data_da_venda) || '-12-31'"
+                            )
+                        else:
+                            periodo_ini_sql = "vp.Data_da_venda"
+                            periodo_fim_sql = "vp.Data_da_venda"
                     else:
-                        periodo_ini_sql = "vp.Data_da_venda"
-                        periodo_fim_sql = "vp.Data_da_venda"
+                        # MySQL - usar DATE_FORMAT e CONCAT
+                        if tipo_taxa == "log_mensal":
+                            periodo_ini_sql = (
+                                "DATE_FORMAT(vp.Data_da_venda, '%Y-%m-01')"
+                            )
+                            periodo_fim_sql = "LAST_DAY(vp.Data_da_venda)"
+                        elif tipo_taxa == "log_trimestral":
+                            periodo_ini_sql = "DATE_FORMAT(DATE_SUB(vp.Data_da_venda, INTERVAL (MONTH(vp.Data_da_venda)-1)%3 MONTH), '%Y-%m-01')"
+                            periodo_fim_sql = "LAST_DAY(DATE_ADD(DATE_SUB(vp.Data_da_venda, INTERVAL (MONTH(vp.Data_da_venda)-1)%3 MONTH), INTERVAL 2 MONTH))"
+                        elif tipo_taxa == "log_semestral":
+                            periodo_ini_sql = "CASE WHEN MONTH(vp.Data_da_venda) <= 6 THEN CONCAT(YEAR(vp.Data_da_venda), '-01-01') ELSE CONCAT(YEAR(vp.Data_da_venda), '-07-01') END"
+                            periodo_fim_sql = "CASE WHEN MONTH(vp.Data_da_venda) <= 6 THEN CONCAT(YEAR(vp.Data_da_venda), '-06-30') ELSE CONCAT(YEAR(vp.Data_da_venda), '-12-31') END"
+                        elif tipo_taxa == "log_anual":
+                            periodo_ini_sql = "CONCAT(YEAR(vp.Data_da_venda), '-01-01')"
+                            periodo_fim_sql = "CONCAT(YEAR(vp.Data_da_venda), '-12-31')"
+                        else:
+                            periodo_ini_sql = "vp.Data_da_venda"
+                            periodo_fim_sql = "vp.Data_da_venda"
 
                     # Primeiro UPDATE: preenche tx_calc com a menor tx_venda do período, usando derived table para evitar erro 1093
                     # Ajuste: usar vp2.data_processamento no subselect para periodo_ini

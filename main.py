@@ -4,8 +4,11 @@ from datetime import datetime
 import psutil
 import socket
 import sys
+import argparse
 
-from conf.conf_bd import get_engine
+# Gerenciador de banco de dados híbrido
+from conf.db_manager import set_db_mode, get_engine, get_db_mode
+
 from modules.ui_importacao import make_importacao_view
 from modules.ui_gestao import make_gestao_view  # <-- IMPORTAÇÃO DA NOVA VIEW
 from modules.reports import criar_interface_relatorio  # <-- IMPORTAÇÃO PARA RELATÓRIOS
@@ -53,7 +56,7 @@ def _notify_warning(msg: str):
             pass
 
 
-def _notify_info(msg: str):
+def _notify_warning(msg: str):
     n = getattr(pn.state, "notifications", None)
     if n:
         try:
@@ -62,7 +65,11 @@ def _notify_info(msg: str):
             pass
 
 
-engine = get_engine()
+# Engine será obtida de forma lazy após set_db_mode() ser chamado
+def _get_engine():
+    """Retorna a engine do db_manager (lazy loading)"""
+    return get_engine()
+
 
 # -------------------------
 # Sessão (escopo por sessão)
@@ -119,7 +126,7 @@ def topbar(user):
         # Volta para a tela de login
         main_area.clear()
         main_area.append(login_view())
-        _notify_info("Sessão encerrada.")
+        _notify_warning("Sessão encerrada.")  # Usar função definida
 
     btn_logout.on_click(_logout)
     return pn.Row(lbl, btn_logout, sizing_mode="stretch_width")
@@ -138,6 +145,8 @@ def render_view(route: str | None = None):
     user = get_session_user()
     if not user:
         return login_view()
+
+    engine = _get_engine()  # Obtém engine do db_manager
 
     if route == "Importar":
         return make_importacao_view(engine, usuario_logado=user.get("usuario"))
@@ -206,6 +215,7 @@ def do_login(_=None):
         _notify_error("Informe usuário e senha.")
         return
 
+    engine = _get_engine()  # Obtém engine do db_manager
     user = get_user_by_credentials(engine, usuario, senha)
     if not user:
         _notify_error("Usuário ou senha inválidos.")
@@ -324,7 +334,38 @@ def find_free_port(start_port=8500, max_attempts=10):
 
 
 if __name__ == "__main__":
-    import sys
+    # Parse argumentos da linha de comando
+    parser = argparse.ArgumentParser(
+        description="Financial Checker - Sistema de Conciliação",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exemplos de uso:
+  python main.py                    # Modo deploy (MySQL)
+  python main.py --mode singleuser  # Modo singleuser (SQLite)
+  python main.py --mode deploy      # Modo deploy (MySQL) - explícito
+        """,
+    )
+
+    parser.add_argument(
+        "--mode",
+        choices=["deploy", "singleuser"],
+        default="deploy",
+        help="Modo de operação: 'deploy' (MySQL multiusuário) ou 'singleuser' (SQLite local)",
+    )
+
+    args = parser.parse_args()
+
+    # Define o modo de banco antes de iniciar
+    db_mode = "mysql" if args.mode == "deploy" else "sqlite"
+    set_db_mode(db_mode)
+
+    print("=" * 80)
+    print("FINANCIAL CHECKER - SISTEMA DE CONCILIAÇÃO")
+    print("=" * 80)
+    print(f"Modo: {args.mode.upper()}")
+    print(f"Banco de dados: {db_mode.upper()}")
+    print("=" * 80)
+
     import psutil
 
     # Mata processos Python anteriores que possam estar bloqueando as portas
@@ -359,5 +400,3 @@ if __name__ == "__main__":
         print(f"\nErro ao iniciar o servidor: {e}")
         print("\nPressione qualquer tecla para sair...")
         input()
-        sys.exit(1)
-    # ===== FIM DA CORREÇÃO =====
