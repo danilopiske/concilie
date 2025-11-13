@@ -34,10 +34,18 @@ DATA_DIR = BASE_DIR / "data"
 ASSETS_DIR = BASE_DIR / "assets"
 RELATORIOS_DIR = BASE_DIR / "relatorios"
 TEMP_DIR = BASE_DIR / "temp"
+CONF_DIR = BASE_DIR / "conf"
+MODULES_DIR = BASE_DIR / "modules"
+PROC_DIR = BASE_DIR / "proc"
 
 # Criar estrutura de diretórios
 print("[2/7] Criando estrutura de diretórios...")
 directories = [
+    # Diretórios de código (essenciais para imports)
+    CONF_DIR,
+    MODULES_DIR,
+    PROC_DIR,
+    # Diretórios de dados
     DATA_DIR,
     DATA_DIR / "arquivos_processados",
     DATA_DIR / "lancamento_planilhas",
