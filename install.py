@@ -63,6 +63,7 @@ if not requirements_file.exists():
 
 # Primeiro, atualizar pip
 print("  Atualizando pip...")
+print("  " + "=" * 60)
 try:
     subprocess.check_call(
         [
@@ -72,18 +73,21 @@ try:
             "install",
             "--upgrade",
             "pip",
-            "--quiet",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        ]
     )
+    print("  " + "=" * 60)
     print("  ✅ pip atualizado")
 except subprocess.CalledProcessError as e:
     print(f"  ⚠️  Aviso: Não foi possível atualizar o pip: {e}")
     print("  Continuando com a versão atual...")
 
 # Instalar dependências
-print("  Instalando pacotes Python (isso pode levar alguns minutos)...")
+print()
+print("  Instalando pacotes Python...")
+print("  " + "=" * 60)
+print("  📦 Instalando 73 dependências (Panel, Pandas, SQLAlchemy, etc.)")
+print("  ⏱️  Tempo estimado: 2-5 minutos")
+print("  " + "=" * 60)
 try:
     subprocess.check_call(
         [
@@ -93,11 +97,9 @@ try:
             "install",
             "-r",
             str(requirements_file),
-            "--quiet",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+        ]
     )
+    print("  " + "=" * 60)
     print("✅ Dependências instaladas com sucesso")
 except subprocess.CalledProcessError as e:
     print(f"❌ Erro ao instalar dependências: {e}")
