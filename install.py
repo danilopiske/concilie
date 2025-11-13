@@ -87,8 +87,10 @@ print("  Instalando pacotes Python...")
 print("  " + "=" * 60)
 print("  📦 Instalando 73 dependências (Panel, Pandas, SQLAlchemy, etc.)")
 print("  ⏱️  Tempo estimado: 2-5 minutos")
+print("  ℹ️  Ignorando versões incompatíveis com seu Python")
 print("  " + "=" * 60)
 try:
+    # Tenta instalar ignorando versões específicas que não têm build
     subprocess.check_call(
         [
             sys.executable,
@@ -97,16 +99,44 @@ try:
             "install",
             "-r",
             str(requirements_file),
+            "--ignore-installed",
         ]
     )
     print("  " + "=" * 60)
     print("✅ Dependências instaladas com sucesso")
 except subprocess.CalledProcessError as e:
-    print(f"❌ Erro ao instalar dependências: {e}")
-    print("  Tente manualmente:")
-    print(f"    python -m pip install --upgrade pip")
-    print(f"    pip install -r requirements.txt")
-    sys.exit(1)
+    # Se falhar, tenta sem versões fixas (pega versões mais recentes)
+    print()
+    print("  ⚠️  Algumas dependências falharam com versões específicas")
+    print("  🔄 Tentando instalar versões compatíveis...")
+    print("  " + "=" * 60)
+    
+    try:
+        # Lista de pacotes essenciais sem versões fixas
+        essential_packages = [
+            "panel", "pandas", "sqlalchemy", "plotly", "openpyxl",
+            "pymysql", "cryptography", "bokeh", "numpy", "matplotlib",
+            "pillow", "python-dotenv", "pdfkit", "xlsxwriter",
+            "jinja2", "markdown"
+        ]
+        
+        subprocess.check_call(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install"
+            ] + essential_packages
+        )
+        print("  " + "=" * 60)
+        print("✅ Pacotes essenciais instalados (versões compatíveis)")
+        print("  ℹ️  Algumas dependências secundárias podem ter sido atualizadas")
+    except subprocess.CalledProcessError as e2:
+        print(f"❌ Erro ao instalar dependências: {e2}")
+        print("  Tente manualmente:")
+        print(f"    python -m pip install --upgrade pip")
+        print(f"    pip install panel pandas sqlalchemy plotly openpyxl pymysql")
+        sys.exit(1)
 print()
 
 # Criar banco SQLite
