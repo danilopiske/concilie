@@ -131,25 +131,85 @@ Write-Host ""
 
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $zipName = "Concilie_v2.0_Distribuicao_$timestamp.zip"
+$tempDist = ".dist_temp"
 
-Write-Host "[INFO] Selecionando arquivos..." -ForegroundColor Cyan
-$files = Get-ChildItem -Recurse | Where-Object { 
-    $_.FullName -notlike "*\.venv\*" -and 
-    $_.FullName -notlike "*\.venv_backup_*\*" -and 
-    $_.Name -notlike "*.db" -and 
-    $_.Name -notlike "*.db-shm" -and 
-    $_.Name -notlike "*.db-wal" -and 
-    $_.Name -notlike "*.zip" -and 
-    $_.PSIsContainer -eq $false 
+Write-Host "[INFO] Preparando estrutura de distribuicao..." -ForegroundColor Cyan
+
+# Remover pasta temp se existir
+if (Test-Path $tempDist) {
+    Remove-Item $tempDist -Recurse -Force
 }
 
-$fileCount = $files.Count
-Write-Host "  Arquivos selecionados: $fileCount" -ForegroundColor Gray
+# Criar pasta temporaria
+New-Item -ItemType Directory -Path $tempDist -Force | Out-Null
+
+# Copiar arquivos mantendo estrutura
+Write-Host "[INFO] Copiando arquivos essenciais..." -ForegroundColor Cyan
+
+# Arquivos raiz
+$rootFiles = @(
+    "main.py", "install.py", "requirements.txt", "README.md", "README_NEW.md",
+    ".gitignore", "backup_restore_venv.ps1", "clean_for_distribution.ps1",
+    "INSTALL_QUICK.md", "REQUISITOS_INSTALACAO.md", "RESUMO_DISTRIBUICAO.md",
+    "ESTRUTURA_DISTRIBUICAO.md", "GUIA_INSTALACAO_DISTRIBUICAO.md",
+    "COMPATIBILIDADE_SQL.md", "ANALISE_COMPLETA_SISTEMA.md",
+    "compare_schemas.py", "migrate_mysql_to_sqlite.py"
+)
+
+foreach ($file in $rootFiles) {
+    if (Test-Path $file) {
+        Copy-Item $file -Destination $tempDist -Force
+    }
+}
+
+# Copiar pastas inteiras (com estrutura)
+$folders = @("conf", "modules", "proc", "assets")
+foreach ($folder in $folders) {
+    if (Test-Path $folder) {
+        # Copiar apenas arquivos .py e imagens
+        $destFolder = Join-Path $tempDist $folder
+        New-Item -ItemType Directory -Path $destFolder -Force | Out-Null
+        
+        Get-ChildItem -Path $folder -Filter "*.py" -File | ForEach-Object {
+            Copy-Item $_.FullName -Destination $destFolder -Force
+        }
+        
+        # Copiar imagens da pasta assets
+        if ($folder -eq "assets") {
+            Get-ChildItem -Path $folder -Include "*.png","*.jpg","*.jpeg" -Recurse -File | ForEach-Object {
+                Copy-Item $_.FullName -Destination $destFolder -Force
+            }
+        }
+    }
+}
+
+# Criar estrutura de diretórios vazios com .gitkeep
+@("data", "relatorios", "temp") | ForEach-Object {
+    $dir = Join-Path $tempDist $_
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    New-Item -ItemType File -Path (Join-Path $dir ".gitkeep") -Force | Out-Null
+}
+
+# Copiar template de relatório se existir
+if (Test-Path "relatorios\template_relatorio.html") {
+    Copy-Item "relatorios\template_relatorio.html" -Destination (Join-Path $tempDist "relatorios") -Force
+}
+if (Test-Path "relatorios\README.md") {
+    Copy-Item "relatorios\README.md" -Destination (Join-Path $tempDist "relatorios") -Force
+}
+
+# Contar arquivos
+$fileCount = (Get-ChildItem $tempDist -Recurse -File).Count
+Write-Host "  Arquivos preparados: $fileCount" -ForegroundColor Gray
 Write-Host ""
 
-Write-Host "[INFO] Compactando arquivos..." -ForegroundColor Cyan
+Write-Host "[INFO] Compactando distribuicao..." -ForegroundColor Cyan
 try {
-    Compress-Archive -Path $files.FullName -DestinationPath $zipName -Force -CompressionLevel Optimal
+    # Compactar a pasta temp inteira
+    Compress-Archive -Path "$tempDist\*" -DestinationPath $zipName -Force -CompressionLevel Optimal
+    
+    # Remover pasta temp
+    Remove-Item $tempDist -Recurse -Force
     
     $zipSize = [math]::Round((Get-Item $zipName).Length / 1MB, 2)
     
@@ -163,6 +223,10 @@ try {
     Write-Host ""
     Write-Host "[ERRO] Falha ao criar ZIP: $_" -ForegroundColor Red
     Write-Host ""
+    # Limpar pasta temp em caso de erro
+    if (Test-Path $tempDist) {
+        Remove-Item $tempDist -Recurse -Force
+    }
 }
 
 Write-Host "========================================" -ForegroundColor Cyan
