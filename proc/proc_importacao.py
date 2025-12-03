@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import unicodedata
 import re
+import os
 from datetime import datetime
 from pathlib import Path
 from sqlalchemy.engine import Engine
@@ -320,18 +321,22 @@ def normalizar_dataframe_recebiveis(
         df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
 
     print(f"[DEBUG] ✅ Colunas convertidas para datetime: {colunas_data}")
-    
+
     # Debug: Mostrar primeiros valores de data_recebivel após conversão
     if "data_recebivel" in df.columns and len(df) > 0:
         print(f"[DEBUG] 📅 Primeiros valores de data_recebivel após conversão:")
         for idx in df.head(3).index:
             valor_original = df.loc[idx, "data_recebivel"]
-            print(f"[DEBUG]   Linha {idx}: {valor_original} (tipo: {type(valor_original).__name__})")
+            print(
+                f"[DEBUG]   Linha {idx}: {valor_original} (tipo: {type(valor_original).__name__})"
+            )
     if "data_pagamento" in df.columns and len(df) > 0:
         print(f"[DEBUG] 📅 Primeiros valores de data_pagamento após conversão:")
         for idx in df.head(3).index:
             valor_original = df.loc[idx, "data_pagamento"]
-            print(f"[DEBUG]   Linha {idx}: {valor_original} (tipo: {type(valor_original).__name__})")
+            print(
+                f"[DEBUG]   Linha {idx}: {valor_original} (tipo: {type(valor_original).__name__})"
+            )
 
     # Conversão explícita de colunas numéricas/monetárias
     colunas_numericas_candidatas = [
@@ -453,7 +458,9 @@ def normalizar_dataframe_recebiveis(
     # IMPORTANTE: Após o De-Para, "motivo_ajuste" foi renomeado para "lancamento"
     # Esta validação acontece ANTES da filtragem por termos
     if contexto and contexto.upper() == "CIELO":
-        print(f"[DEBUG] 🔍 Validação CIELO: Verificando coluna 'lancamento' (ex-motivo_ajuste)...")
+        print(
+            f"[DEBUG] 🔍 Validação CIELO: Verificando coluna 'lancamento' (ex-motivo_ajuste)..."
+        )
 
         # Procurar coluna lancamento (que é o destino do De-Para de motivo_ajuste)
         lancamento_col_validacao = None
@@ -462,7 +469,9 @@ def normalizar_dataframe_recebiveis(
             # Procurar por "lancamento" que é como motivo_ajuste foi renomeado
             if col_lower == "lancamento":
                 lancamento_col_validacao = col
-                print(f"[DEBUG] ✅ Coluna 'lancamento' encontrada: '{lancamento_col_validacao}'")
+                print(
+                    f"[DEBUG] ✅ Coluna 'lancamento' encontrada: '{lancamento_col_validacao}'"
+                )
                 break
 
         if lancamento_col_validacao:
@@ -486,16 +495,16 @@ def normalizar_dataframe_recebiveis(
 
                 # Debug: mostrar exemplos
                 exemplos = df[mask_vazio].head(5)
-                print(f"[DEBUG] 📋 Exemplos de linhas filtradas por lancamento vazio (primeiras 5):")
+                print(
+                    f"[DEBUG] 📋 Exemplos de linhas filtradas por lancamento vazio (primeiras 5):"
+                )
                 for idx in exemplos.index:
                     valor_lancamento = df.loc[idx, lancamento_col_validacao]
                     print(
                         f"[DEBUG]   - Linha {idx}: lancamento = '{valor_lancamento}' (tipo: {type(valor_lancamento).__name__})"
                     )
             else:
-                print(
-                    f"[DEBUG] ✅ Todas as linhas têm 'lancamento' preenchido"
-                )
+                print(f"[DEBUG] ✅ Todas as linhas têm 'lancamento' preenchido")
         else:
             print(
                 f"[DEBUG] ⚠️  Coluna 'lancamento' NÃO encontrada! Colunas disponíveis: {list(df.columns)}"
@@ -549,14 +558,16 @@ def normalizar_dataframe_recebiveis(
     print(f"[DEBUG] - Total de linhas: {len(df)}")
     print(f"[DEBUG] - Linhas para PROCESSAR: {total_processado}")
     print(f"[DEBUG] - Linhas para FILTRAR: {total_filtrado}")
-    
+
     # Debug detalhado: mostrar valores da coluna lancamento
     if "lancamento" in df.columns:
         print(f"[DEBUG] � Análise da coluna 'lancamento':")
         print(f"[DEBUG] - Valores únicos: {df['lancamento'].nunique()}")
         print(f"[DEBUG] - Nulos: {df['lancamento'].isnull().sum()}")
-        print(f"[DEBUG] - Vazios: {(df['lancamento'].astype(str).str.strip() == '').sum()}")
-        valores_exemplo = df['lancamento'].head(10).tolist()
+        print(
+            f"[DEBUG] - Vazios: {(df['lancamento'].astype(str).str.strip() == '').sum()}"
+        )
+        valores_exemplo = df["lancamento"].head(10).tolist()
         print(f"[DEBUG] - Primeiros 10 valores: {valores_exemplo}")
 
     print(f"[DEBUG] ✅ FINALIZANDO normalizar_dataframe_recebiveis")
@@ -1558,6 +1569,37 @@ def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
     ext = Path(path).suffix.lower()
     print(f"[DEBUG] Lendo arquivo: {path} (extensão: {ext})")
 
+    # 🔥 VALIDAÇÃO INICIAL: Verificar se arquivo existe e tem tamanho válido
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Arquivo não encontrado: {path}")
+
+    file_size = os.path.getsize(path)
+    print(f"[DEBUG] Tamanho do arquivo: {file_size:,} bytes")
+
+    if file_size == 0:
+        raise ValueError("Arquivo está vazio (0 bytes)")
+
+    # 🔥 VALIDAÇÃO: Verificar assinatura do arquivo Excel
+    if ext in (".xlsx", ".xlsm", ".xltx", ".xltm"):
+        with open(path, "rb") as f:
+            magic = f.read(4)
+            # Excel moderno (ZIP format) deve começar com PK\x03\x04
+            if magic[:2] != b"PK":
+                raise ValueError(
+                    f"Arquivo Excel corrompido ou inválido. Assinatura esperada: 'PK', encontrada: {magic[:2].hex()}"
+                )
+            print(f"[DEBUG] ✓ Assinatura válida de arquivo ZIP/Excel: {magic[:2]}")
+
+    elif ext == ".xls":
+        with open(path, "rb") as f:
+            magic = f.read(8)
+            # Excel antigo (.xls) deve começar com \xD0\xCF\x11\xA0
+            if magic[:4] not in [b"\xd0\xcf\x11\xa0", b"\x09\x08\x10\x00"]:
+                raise ValueError(
+                    f"Arquivo Excel antigo (.xls) corrompido. Assinatura esperada: 'D0CF11A0', encontrada: {magic[:4].hex()}"
+                )
+            print(f"[DEBUG] ✓ Assinatura válida de arquivo Excel antigo (.xls)")
+
     # Detecta se é arquivo binário (possível .tmp ou corrompido)
     def is_binary_string(bytes_data):
         textchars = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(0x20, 0x100)))
@@ -1941,168 +1983,194 @@ def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
                     # ...não faz sentido usar sep aqui, removido bloco inválido...
             except Exception as e:
                 print(f"[DEBUG] Falha na leitura forçada via zipfile/xml: {e}")
-                continue
+                # 🔥 SE É EXCEL VÁLIDO MAS TODAS AS TENTATIVAS FALHARAM, NÃO TENTE LER COMO TEXTO
+                if ext in (".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"):
+                    raise ValueError(
+                        f"Arquivo Excel válido mas não foi possível ler o conteúdo. "
+                        f"Possíveis causas:\n"
+                        f"1. Arquivo protegido por senha\n"
+                        f"2. Formato Excel corrompido internamente\n"
+                        f"3. Arquivo muito grande ou complexo\n"
+                        f"\nTente:\n"
+                        f"- Abrir no Excel e Salvar Como novo arquivo .xlsx\n"
+                        f"- Exportar como CSV\n"
+                        f"- Remover proteção/senha se houver\n"
+                        f"\nErro técnico: {e}"
+                    )
 
-    # 3) Tenta ler como texto puro (último recurso)
-    try:
-        print("\n[DEBUG] Iniciando leitura de arquivo texto...", flush=True)
-        with open(path, "rb") as f:
-            raw = f.read()
-            print(f"[DEBUG] Bytes lidos: {len(raw)}", flush=True)
+    # 3) Tenta ler como texto puro (último recurso - APENAS PARA CSV/TXT)
+    if ext not in (".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"):
+        try:
+            print("\n[DEBUG] Iniciando leitura de arquivo texto...", flush=True)
+            with open(path, "rb") as f:
+                raw = f.read()
+                print(f"[DEBUG] Bytes lidos: {len(raw)}", flush=True)
 
-        text = raw.decode("utf-8", errors="replace")
-        linhas = [l.strip() for l in text.splitlines() if l.strip()]
+            text = raw.decode("utf-8", errors="replace")
+            text = raw.decode("utf-8", errors="replace")
+            linhas = [l.strip() for l in text.splitlines() if l.strip()]
 
-        print("\n[DEBUG] === ANÁLISE DE TEXTO PURO ===", flush=True)
-        print(f"[DEBUG] Total de linhas não vazias: {len(linhas)}", flush=True)
-        print("\n[DEBUG] Primeiras 5 linhas do arquivo:", flush=True)
+            print("\n[DEBUG] === ANÁLISE DE TEXTO PURO ===", flush=True)
+            print(f"[DEBUG] Total de linhas não vazias: {len(linhas)}", flush=True)
+            print("\n[DEBUG] Primeiras 5 linhas do arquivo:", flush=True)
 
-        # Vamos examinar cada byte das primeiras linhas
-        for i, l in enumerate(linhas[:5]):
-            print(f"\n[DEBUG] Linha {i}:", flush=True)
-            print(f"Conteúdo (ASCII): {l[:150]}", flush=True)
-            print(
-                f"Bytes (hex): {' '.join(hex(ord(c))[2:] for c in l[:50])}", flush=True
-            )  # Palavras-chave críticas que indicam uma linha de cabeçalho
-        header_indicators = {
-            "cpf": ["cpf", "cnpj"],
-            "venda": ["valor", "venda", "transacao", "transação"],
-            "ec": ["estabelecimento", "ec", "loja", "número do ec"],
-        }
-        print("\n[DEBUG] Procurando por palavras-chave no texto:", flush=True)
-        for categoria, palavras in header_indicators.items():
-            print(f"- {categoria}: {', '.join(palavras)}", flush=True)
-
-        # Tenta identificar o delimitador mais provável nas primeiras linhas
-        for sep in [";", ",", "\t", "|"]:
-            print(f"\n[DEBUG] === Testando separador: '{sep}' ===", flush=True)
-            # Analisa apenas as primeiras 20 linhas
-            for i, linha in enumerate(linhas[:20]):
-                if not linha:
-                    print(f"[DEBUG] Linha {i}: vazia, pulando...", flush=True)
-                    continue
-
-                # Divide a linha pelo separador
-                valores = linha.split(sep)
+            # Vamos examinar cada byte das primeiras linhas
+            for i, l in enumerate(linhas[:5]):
+                print(f"\n[DEBUG] Linha {i}:", flush=True)
+                print(f"Conteúdo (ASCII): {l[:150]}", flush=True)
                 print(
-                    f"\n[DEBUG] Linha {i}: encontradas {len(valores)} colunas",
+                    f"Bytes (hex): {' '.join(hex(ord(c))[2:] for c in l[:50])}",
                     flush=True,
-                )
+                )  # Palavras-chave críticas que indicam uma linha de cabeçalho
+            header_indicators = {
+                "cpf": ["cpf", "cnpj"],
+                "venda": ["valor", "venda", "transacao", "transação"],
+                "ec": ["estabelecimento", "ec", "loja", "número do ec"],
+            }
+            print("\n[DEBUG] Procurando por palavras-chave no texto:", flush=True)
+            for categoria, palavras in header_indicators.items():
+                print(f"- {categoria}: {', '.join(palavras)}", flush=True)
 
-                if len(valores) <= 1:
-                    print("[DEBUG] Insuficiente (precisa > 1), pulando...", flush=True)
-                    continue
+            # Tenta identificar o delimitador mais provável nas primeiras linhas
+            for sep in [";", ",", "\t", "|"]:
+                print(f"\n[DEBUG] === Testando separador: '{sep}' ===", flush=True)
+                # Analisa apenas as primeiras 20 linhas
+                for i, linha in enumerate(linhas[:20]):
+                    if not linha:
+                        print(f"[DEBUG] Linha {i}: vazia, pulando...", flush=True)
+                        continue
 
-                # Verifica se tem células suficientes e indicadores de cabeçalho
-                if len(valores) >= 5:  # Mínimo de 5 colunas para ser considerado
+                    # Divide a linha pelo separador
+                    valores = linha.split(sep)
                     print(
-                        f"\n[DEBUG] >>> Linha {i} é candidata (tem {len(valores)} colunas):",
+                        f"\n[DEBUG] Linha {i}: encontradas {len(valores)} colunas",
                         flush=True,
                     )
-                    for j, val in enumerate(valores[:5]):
-                        print(f"   Col {j}: {val}", flush=True)
 
-                    texto_linha = " ".join(str(v).lower() for v in valores)
-                    print(
-                        "[DEBUG] Texto da linha (primeiros 150 caracteres):",
-                        texto_linha[:150],
-                    )
-
-                    matches = {
-                        key: any(kw in texto_linha for kw in keywords)
-                        for key, keywords in header_indicators.items()
-                    }
-                    matches_count = sum(matches.values())
-                    print(
-                        f"\n[DEBUG] Quantidade de matches encontrados: {matches_count}/3",
-                        flush=True,
-                    )
-                    print(f"[DEBUG] Detalhe dos matches: {matches}", flush=True)
-
-                    if matches_count >= 2:
+                    if len(valores) <= 1:
                         print(
-                            f"\n[DEBUG] >>>>>>> CABEÇALHO ENCONTRADO NA LINHA {i} <<<<<<<",
+                            "[DEBUG] Insuficiente (precisa > 1), pulando...", flush=True
+                        )
+                        continue
+
+                    # Verifica se tem células suficientes e indicadores de cabeçalho
+                    if len(valores) >= 5:  # Mínimo de 5 colunas para ser considerado
+                        print(
+                            f"\n[DEBUG] >>> Linha {i} é candidata (tem {len(valores)} colunas):",
                             flush=True,
                         )
-                        print("\n[DEBUG] Detalhamento do cabeçalho:", flush=True)
-                        for j, v in enumerate(valores):
-                            print(f"   Coluna {j}: '{v}'", flush=True)
+                        for j, val in enumerate(valores[:5]):
+                            print(f"   Col {j}: {val}", flush=True)
 
-                        # Usa esta linha como cabeçalho
-                        header = valores
-                        # Pega as linhas seguintes como dados
+                        texto_linha = " ".join(str(v).lower() for v in valores)
                         print(
-                            "\n[DEBUG] Iniciando processamento das linhas de dados...",
-                            flush=True,
-                        )
-                        data = [linha.split(sep) for linha in linhas[i + 1 :]]
-                        print(
-                            f"[DEBUG] Total de {len(data)} linhas de dados encontradas",
-                            flush=True,
+                            "[DEBUG] Texto da linha (primeiros 150 caracteres):",
+                            texto_linha[:150],
                         )
 
-                        if data:
+                        matches = {
+                            key: any(kw in texto_linha for kw in keywords)
+                            for key, keywords in header_indicators.items()
+                        }
+                        matches_count = sum(matches.values())
+                        print(
+                            f"\n[DEBUG] Quantidade de matches encontrados: {matches_count}/3",
+                            flush=True,
+                        )
+                        print(f"[DEBUG] Detalhe dos matches: {matches}", flush=True)
+
+                        if matches_count >= 2:
                             print(
-                                "\n[DEBUG] Amostra da primeira linha de dados:",
+                                f"\n[DEBUG] >>>>>>> CABEÇALHO ENCONTRADO NA LINHA {i} <<<<<<<",
                                 flush=True,
                             )
-                            primeira_linha = data[0]
-                            for j, v in enumerate(primeira_linha[:5]):
-                                print(f"   Col {j}: '{v}'", flush=True)
-                        # Normaliza número de colunas
-                        max_cols = len(header)
-                        data = [
-                            (
-                                row[:max_cols]
-                                if len(row) > max_cols
-                                else row + [""] * (max_cols - len(row))
-                            )
-                            for row in data
-                        ]
-                        df = pd.DataFrame(data, columns=header)
-                        df = df.loc[:, ~df.columns.isin([None, "", "None"])]
-                        df = df.dropna(how="all", axis=1)
-                        return df.fillna(""), i, header
-        # Se não encontrou nenhum padrão com separadores conhecidos
-        print(
-            "\n[DEBUG] Nenhum separador comum encontrado, tentando divisão por espaços..."
-        )
-        # Tenta usar a primeira linha não vazia como cabeçalho
-        for i, linha in enumerate(linhas):
-            valores = linha.split()  # divide por espaços
-            if len(valores) >= 5:  # se tiver pelo menos 5 colunas
-                print(
-                    f"\n[DEBUG] Encontrada linha {i} com {len(valores)} colunas usando espaços como separador"
-                )
-                print("[DEBUG] Conteúdo da linha:", valores)
-                header = valores
-                data = [l.split() for l in linhas[i + 1 :]]
-                max_cols = len(header)
-                print(
-                    f"[DEBUG] Encontradas {len(data)} linhas de dados após esta linha"
-                )
-                data = [
-                    (
-                        row[:max_cols]
-                        if len(row) > max_cols
-                        else row + [""] * (max_cols - len(row))
-                    )
-                    for row in data
-                ]
-                df = pd.DataFrame(data, columns=header)
-                df = df.loc[:, ~df.columns.isin([None, "", "None"])]
-                df = df.dropna(how="all", axis=1)
-                return df.fillna(""), i, header
+                            print("\n[DEBUG] Detalhamento do cabeçalho:", flush=True)
+                            for j, v in enumerate(valores):
+                                print(f"   Coluna {j}: '{v}'", flush=True)
 
-        # Se não encontrou estrutura tabular, retorna DataFrame vazio e header vazio
-        print(
-            "[DEBUG] Não foi possível identificar estrutura tabular no arquivo. Retornando DataFrame vazio."
-        )
-        return pd.DataFrame(), 0, []
-    except Exception as e:
-        print(f"[DEBUG] Falha ao ler como texto puro: {e}")
-        # Sempre retorna 3 valores mesmo em erro
-        return pd.DataFrame(), 0, []
+                            # Usa esta linha como cabeçalho
+                            header = valores
+                            # Pega as linhas seguintes como dados
+                            print(
+                                "\n[DEBUG] Iniciando processamento das linhas de dados...",
+                                flush=True,
+                            )
+                            data = [linha.split(sep) for linha in linhas[i + 1 :]]
+                            print(
+                                f"[DEBUG] Total de {len(data)} linhas de dados encontradas",
+                                flush=True,
+                            )
+
+                            if data:
+                                print(
+                                    "\n[DEBUG] Amostra da primeira linha de dados:",
+                                    flush=True,
+                                )
+                                primeira_linha = data[0]
+                                for j, v in enumerate(primeira_linha[:5]):
+                                    print(f"   Col {j}: '{v}'", flush=True)
+                            # Normaliza número de colunas
+                            max_cols = len(header)
+                            data = [
+                                (
+                                    row[:max_cols]
+                                    if len(row) > max_cols
+                                    else row + [""] * (max_cols - len(row))
+                                )
+                                for row in data
+                            ]
+                            df = pd.DataFrame(data, columns=header)
+                            df = df.loc[:, ~df.columns.isin([None, "", "None"])]
+                            df = df.dropna(how="all", axis=1)
+                            return df.fillna(""), i, header
+            # Se não encontrou nenhum padrão com separadores conhecidos
+            print(
+                "\n[DEBUG] Nenhum separador comum encontrado, tentando divisão por espaços..."
+            )
+            # Tenta usar a primeira linha não vazia como cabeçalho
+            for i, linha in enumerate(linhas):
+                valores = linha.split()  # divide por espaços
+                if len(valores) >= 5:  # se tiver pelo menos 5 colunas
+                    print(
+                        f"\n[DEBUG] Encontrada linha {i} com {len(valores)} colunas usando espaços como separador"
+                    )
+                    print("[DEBUG] Conteúdo da linha:", valores)
+                    header = valores
+                    data = [l.split() for l in linhas[i + 1 :]]
+                    max_cols = len(header)
+                    print(
+                        f"[DEBUG] Encontradas {len(data)} linhas de dados após esta linha"
+                    )
+                    data = [
+                        (
+                            row[:max_cols]
+                            if len(row) > max_cols
+                            else row + [""] * (max_cols - len(row))
+                        )
+                        for row in data
+                    ]
+                    df = pd.DataFrame(data, columns=header)
+                    df = df.loc[:, ~df.columns.isin([None, "", "None"])]
+                    df = df.dropna(how="all", axis=1)
+                    return df.fillna(""), i, header
+
+            # Se não encontrou estrutura tabular, retorna DataFrame vazio e header vazio
+            print(
+                "[DEBUG] Não foi possível identificar estrutura tabular no arquivo. Retornando DataFrame vazio."
+            )
+            return pd.DataFrame(), 0, []
+        except Exception as e:
+            print(f"[DEBUG] Falha ao ler como texto puro: {e}")
+            # Sempre retorna 3 valores mesmo em erro
+            return pd.DataFrame(), 0, []
+
+    # Se chegou aqui e o arquivo era Excel, já teria dado raise acima
+    # Este ponto só é alcançado para arquivos não-Excel que falharam em tudo
+    raise ValueError(
+        f"Não foi possível ler o arquivo. Formato não reconhecido ou arquivo corrompido.\n"
+        f"Extensão: {ext}\n"
+        f"Tente converter para CSV ou .xlsx válido."
+    )
 
 
 def _to_datetime_pt(s: pd.Series) -> pd.Series:
@@ -2600,8 +2668,17 @@ def preparar_dataframe_de_arquivo(
                 )
 
                 # Aplicar regras de de/para para esta planilha
+                print(
+                    f"[DEBUG][MULTISHEET] {sheet_name} - Carregando regras de de/para..."
+                )
+                print(
+                    f"[DEBUG][MULTISHEET] {sheet_name} - Parâmetros: contexto='{contexto}', tipo_origem='{tipo_origem}'"
+                )
                 regras = depara_carregar_mapa_completo(
                     engine, contexto=(contexto or ""), tipo_origem=tipo_origem
+                )
+                print(
+                    f"[DEBUG][MULTISHEET] {sheet_name} - Total de regras carregadas: {len(regras)}"
                 )
 
                 if df_sheet is not None and not df_sheet.empty:
@@ -2914,6 +2991,10 @@ def preparar_dataframe_de_arquivo(
                 print(f"[DEBUG][PROCESSAR] Usando resultado do safe_read_file.")
 
             # aplica de/para para arquivo single-sheet
+            print(f"[DEBUG][PROCESSAR] Carregando regras de de/para...")
+            print(
+                f"[DEBUG][PROCESSAR] - Parâmetros: contexto='{contexto}', tipo_origem='{tipo_origem}'"
+            )
             regras = depara_carregar_mapa_completo(
                 engine, contexto=(contexto or ""), tipo_origem=tipo_origem
             )
@@ -2921,6 +3002,7 @@ def preparar_dataframe_de_arquivo(
             log(
                 f"Processando arquivo (10/10): Aplicando regras de de/para ({len(regras)} regras)..."
             )
+            print(f"[DEBUG][PROCESSAR] Total de regras carregadas: {len(regras)}")
             print(f"[DEBUG][PROCESSAR] Aplicando {len(regras)} regras de de/para...")
             df_final, transformacoes = aplicar_regras_depara(df_norm, regras)
 
@@ -3046,11 +3128,13 @@ def preparar_dataframe_de_arquivo(
     print(f"[DEBUG][PROCESSAR] Colunas finais: {list(df_final.columns)}")
     print(f"[DEBUG][PROCESSAR] Primeiras 3 linhas finais:\n{df_final.head(3)}")
     print(f"[DEBUG][PROCESSAR] Transformações aplicadas: {transformacoes}")
-    
+
     # --- NORMALIZAÇÃO FINAL DE FORMA_DE_PAGAMENTO ---
     if "Forma_de_pagamento" in df_final.columns:
-        print("[DEBUG][PROCESSAR] Aplicando normalização final em Forma_de_pagamento (pré-pago → à vista)")
-        
+        print(
+            "[DEBUG][PROCESSAR] Aplicando normalização final em Forma_de_pagamento (pré-pago → à vista)"
+        )
+
         def normalizar_forma_pagamento_final(valor):
             if pd.isna(valor):
                 return valor
@@ -3069,19 +3153,25 @@ def preparar_dataframe_de_arquivo(
                 .replace("Ç", "C")
             )
             # Normalizar pré-pago para à vista
-            if ("PRE PAGO" in v or "PREPAGO" in v or "PRE-PAGO" in v or "PRE PAGO" in v) and "CREDITO" in v:
+            if (
+                "PRE PAGO" in v or "PREPAGO" in v or "PRE-PAGO" in v or "PRE PAGO" in v
+            ) and "CREDITO" in v:
                 return "CREDITO A VISTA"
-            if ("PRE PAGO" in v or "PREPAGO" in v or "PRE-PAGO" in v or "PRE PAGO" in v) and "DEBITO" in v:
+            if (
+                "PRE PAGO" in v or "PREPAGO" in v or "PRE-PAGO" in v or "PRE PAGO" in v
+            ) and "DEBITO" in v:
                 return "DEBITO A VISTA"
             return valor
-        
+
         valores_antes = df_final["Forma_de_pagamento"].unique()
-        df_final["Forma_de_pagamento"] = df_final["Forma_de_pagamento"].apply(normalizar_forma_pagamento_final)
+        df_final["Forma_de_pagamento"] = df_final["Forma_de_pagamento"].apply(
+            normalizar_forma_pagamento_final
+        )
         valores_depois = df_final["Forma_de_pagamento"].unique()
-        
+
         print(f"[DEBUG][PROCESSAR] Valores antes: {valores_antes}")
         print(f"[DEBUG][PROCESSAR] Valores depois: {valores_depois}")
-    
+
     update_progress(80)
     # Pequena pausa para garantir atualização visual
     import time
@@ -3462,9 +3552,11 @@ def aplicar_regras_depara(
 
                 # 🔥 NORMALIZAR FORMA DE PAGAMENTO
                 # Verificar se tem PRE PAGO (todas as variações: "PRE PAGO", "PRE-PAGO", "PREPAGO")
-                tem_pre_pago = ("PRE PAGO" in resto_norm 
-                                or "PREPAGO" in resto_norm 
-                                or ("PRE" in resto_norm and "PAGO" in resto_norm))
+                tem_pre_pago = (
+                    "PRE PAGO" in resto_norm
+                    or "PREPAGO" in resto_norm
+                    or ("PRE" in resto_norm and "PAGO" in resto_norm)
+                )
 
                 if tem_pre_pago and "CREDITO" in resto_norm:
                     # CREDITO PRE PAGO → CREDITO A VISTA
@@ -3496,9 +3588,11 @@ def aplicar_regras_depara(
                     bandeira = "MASTERCARD"
 
                 # 🔥 NORMALIZAR FORMA DE PAGAMENTO
-                tem_pre_pago = ("PRE PAGO" in resto_norm 
-                                or "PREPAGO" in resto_norm 
-                                or ("PRE" in resto_norm and "PAGO" in resto_norm))
+                tem_pre_pago = (
+                    "PRE PAGO" in resto_norm
+                    or "PREPAGO" in resto_norm
+                    or ("PRE" in resto_norm and "PAGO" in resto_norm)
+                )
 
                 if tem_pre_pago and "CREDITO" in resto_norm:
                     forma = "CREDITO A VISTA"
@@ -3572,8 +3666,13 @@ def aplicar_regras_depara(
                 # Copiar dados da origem para cada destino (comportamento normal)
                 for destino in destinos:
                     # Não sobrescrever Forma_de_pagamento se já foi gerada pela divisão especial
-                    if destino == "Forma_de_pagamento" and "Forma_de_pagamento" in df_resultado.columns:
-                        print(f"[DEBUG][aplicar_regras_depara]    '{origem}' → '{destino}' ignorado (já normalizado pela divisão especial)")
+                    if (
+                        destino == "Forma_de_pagamento"
+                        and "Forma_de_pagamento" in df_resultado.columns
+                    ):
+                        print(
+                            f"[DEBUG][aplicar_regras_depara]    '{origem}' → '{destino}' ignorado (já normalizado pela divisão especial)"
+                        )
                         continue
                     df_resultado[destino] = df_limpo[origem].copy()
                     print(
@@ -4021,7 +4120,7 @@ def normalizar_dataframe_vendas(
 
     # 🔥 FILTRAR POR FORMA DE PAGAMENTO (termos na coluna Forma_de_pagamento)
     mask_termo_forma_pagamento = pd.Series([False] * len(df), index=df.index)
-    
+
     # Procurar coluna Forma_de_pagamento
     forma_pagamento_col = None
     for col in df.columns:
@@ -4033,24 +4132,30 @@ def normalizar_dataframe_vendas(
         ]:
             forma_pagamento_col = col
             break
-    
+
     if forma_pagamento_col and padrao_termos:
         print(f"[DEBUG][FORMA_PAGAMENTO] Coluna encontrada: {forma_pagamento_col}")
-        print(f"[DEBUG][FORMA_PAGAMENTO] Valores únicos: {df[forma_pagamento_col].unique()}")
-        
+        print(
+            f"[DEBUG][FORMA_PAGAMENTO] Valores únicos: {df[forma_pagamento_col].unique()}"
+        )
+
         mask_termo_forma_pagamento = (
             df[forma_pagamento_col]
             .astype(str)
             .apply(lambda x: bool(padrao_termos.search(norm(x))))
         )
-        
+
         if mask_termo_forma_pagamento.any():
-            print(f"[DEBUG][FORMA_PAGAMENTO] ⚠️ {mask_termo_forma_pagamento.sum()} registros filtrados por forma de pagamento")
-            print(f"[DEBUG][FORMA_PAGAMENTO] Exemplos: {df[mask_termo_forma_pagamento][forma_pagamento_col].unique()[:5]}")
-    
+            print(
+                f"[DEBUG][FORMA_PAGAMENTO] ⚠️ {mask_termo_forma_pagamento.sum()} registros filtrados por forma de pagamento"
+            )
+            print(
+                f"[DEBUG][FORMA_PAGAMENTO] Exemplos: {df[mask_termo_forma_pagamento][forma_pagamento_col].unique()[:5]}"
+            )
+
     # Combinar todas as máscaras de termos
     mask_termo = mask_termo_lancamento | mask_termo_forma_pagamento
-    
+
     # Combinar máscaras: filtradas = (termos OU status filtrável) E não vazio
     mask_filt = (~mask_vazio) & (mask_termo | mask_status_filtravel)
     mask_proc = (~mask_vazio) & (~mask_termo) & (~mask_status_filtravel)
@@ -4062,8 +4167,12 @@ def normalizar_dataframe_vendas(
     print(f"[DEBUG][SEPARAÇÃO] Total original: {len(df)}")
     print(f"[DEBUG][SEPARAÇÃO] Processadas (aprovadas): {len(df_proc)}")
     print(f"[DEBUG][SEPARAÇÃO] Filtradas (termos + status): {len(df_filt)}")
-    print(f"[DEBUG][SEPARAÇÃO] Filtradas por termos no lançamento: {mask_termo_lancamento.sum()}")
-    print(f"[DEBUG][SEPARAÇÃO] Filtradas por termos na forma_de_pagamento: {mask_termo_forma_pagamento.sum()}")
+    print(
+        f"[DEBUG][SEPARAÇÃO] Filtradas por termos no lançamento: {mask_termo_lancamento.sum()}"
+    )
+    print(
+        f"[DEBUG][SEPARAÇÃO] Filtradas por termos na forma_de_pagamento: {mask_termo_forma_pagamento.sum()}"
+    )
     print(f"[DEBUG][SEPARAÇÃO] Filtradas por termos (total): {mask_termo.sum()}")
     print(
         f"[DEBUG][SEPARAÇÃO] Filtradas por status (tabela termos): {mask_status_filtravel.sum()}"

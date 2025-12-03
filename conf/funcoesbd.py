@@ -15,6 +15,43 @@ def _is_sqlite(engine: Engine) -> bool:
     return engine.dialect.name == "sqlite"
 
 
+# Busca detalhes de um processamento específico por id
+def listar_processamentos_detalhado_por_id(
+    engine: Engine, processamentoid: str
+) -> list:
+    sql = """
+        SELECT
+            id_processamento as processamentoid,
+            cliente_id,
+            ec_id,
+            descricao,
+            data_processamento
+        FROM controle_processamentos
+        WHERE id_processamento = :processamentoid
+        ORDER BY data_processamento DESC, id_processamento DESC
+    """
+    return fetch_all(engine, sql, {"processamentoid": processamentoid})
+
+
+def _normalize_text_compare(engine: Engine, column: str, param: str) -> str:
+    """Retorna SQL para comparação case-insensitive de texto
+
+    Args:
+        engine: Engine do banco de dados
+        column: Nome da coluna a comparar
+        param: Nome do parâmetro (ex: 'ctx')
+
+    Returns:
+        SQL compatível com SQLite/MySQL para comparação case-insensitive
+    """
+    if _is_sqlite(engine):
+        # SQLite: usar UPPER() para case-insensitive
+        return f"UPPER({column}) = UPPER(:{param})"
+    else:
+        # MySQL: já é case-insensitive por padrão
+        return f"{column} = :{param}"
+
+
 def _date_format_sql(engine: Engine, column: str, format_str: str) -> str:
     """Retorna SQL de formatação de data compatível com MySQL e SQLite
 
@@ -322,7 +359,7 @@ def depara_listar(
     filters = []
     params = {}
     if contexto:
-        filters.append("contexto = :ctx")
+        filters.append(_normalize_text_compare(engine, "contexto", "ctx"))
         params["ctx"] = contexto
     if tipo_origem:
         filters.append("tipo_origem = :tipo")
@@ -347,13 +384,18 @@ def depara_inserir(
     valor_padrao: Optional[str] = None,
 ) -> None:
     sql = "INSERT INTO depara_colunas (origem_nome, destino_nome, contexto, tipo_origem, ativo, criado_por, tipo_preenchimento, valor_padrao) VALUES (:origem, :destino, :contexto, :tipo, :ativo, :criado_por, :tipo_preenchimento, :valor_padrao)"
+    # Normalizar contexto para uppercase se for SQLite
+    contexto_norm = (contexto or "").strip()
+    if _is_sqlite(engine):
+        contexto_norm = contexto_norm.upper()
+
     exec_sql(
         engine,
         sql,
         {
             "origem": (origem_nome or "").strip() if origem_nome else None,
             "destino": (destino_nome or "").strip(),
-            "contexto": (contexto or "").strip(),
+            "contexto": contexto_norm,
             "tipo": (tipo_origem or "V"),
             "ativo": int(ativo),
             "criado_por": criado_por,
@@ -376,6 +418,11 @@ def depara_atualizar(
     valor_padrao: Optional[str] = None,
 ) -> None:
     sql = "UPDATE depara_colunas SET origem_nome = :origem, destino_nome = :destino, contexto = :contexto, tipo_origem = :tipo, ativo = :ativo, tipo_preenchimento = :tipo_preenchimento, valor_padrao = :valor_padrao WHERE id = :id"
+    # Normalizar contexto para uppercase se for SQLite
+    contexto_norm = (contexto or "").strip()
+    if _is_sqlite(engine):
+        contexto_norm = contexto_norm.upper()
+
     exec_sql(
         engine,
         sql,
@@ -383,7 +430,7 @@ def depara_atualizar(
             "id": depara_id,
             "origem": (origem_nome or "").strip() if origem_nome else None,
             "destino": (destino_nome or "").strip(),
-            "contexto": (contexto or "").strip(),
+            "contexto": contexto_norm,
             "tipo": (tipo_origem or "V"),
             "ativo": int(ativo),
             "tipo_preenchimento": tipo_preenchimento,
@@ -399,7 +446,7 @@ def depara_deletar(engine: Engine, depara_id: int) -> None:
 def depara_buscar_por_chave(
     engine: Engine, *, origem_nome: str, contexto: str = "", tipo_origem: str = "V"
 ) -> Optional[Dict[str, Any]]:
-    sql = "SELECT id, origem_nome, destino_nome, contexto, tipo_origem, ativo FROM depara_colunas WHERE origem_nome = :origem AND contexto = :contexto AND tipo_origem = :tipo LIMIT 1"
+    sql = f"SELECT id, origem_nome, destino_nome, contexto, tipo_origem, ativo FROM depara_colunas WHERE origem_nome = :origem AND {_normalize_text_compare(engine, 'contexto', 'contexto')} AND tipo_origem = :tipo LIMIT 1"
     return fetch_one(
         engine,
         sql,
@@ -417,7 +464,8 @@ def depara_carregar_mapa_completo(
     sql = "SELECT origem_nome, destino_nome, tipo_preenchimento, valor_padrao, ativo FROM depara_colunas WHERE ativo = 1"
     params = {}
     if contexto:
-        sql += " AND contexto = :ctx"
+        # Usar comparação case-insensitive
+        sql += f" AND {_normalize_text_compare(engine, 'contexto', 'ctx')}"
         params["ctx"] = contexto
     if tipo_origem:
         sql += " AND tipo_origem = :tipo"
@@ -577,15 +625,57 @@ def bandeiras_disponiveis_listar(engine: Engine) -> List[Dict[str, Any]]:
     return fetch_all(engine, sql)
 
 
+def bandeira_disponivel_inserir(engine: Engine, nome: str, padrao: int = 0) -> bool:
+    """Insere uma nova bandeira na tabela bandeiras_disponiveis."""
+    sql = "INSERT INTO bandeiras_disponiveis (nome, padrao) VALUES (:nome, :padrao)"
+    try:
+        exec_sql(engine, sql, {"nome": nome.strip().upper(), "padrao": int(padrao)})
+        return True
+    except Exception as e:
+        print(f"Erro ao inserir bandeira: {e}")
+        return False
+
+
+def bandeira_disponivel_atualizar(
+    engine: Engine, nome_antigo: str, nome_novo: str, padrao: int = 0
+) -> bool:
+    """Atualiza uma bandeira na tabela bandeiras_disponiveis."""
+    sql = "UPDATE bandeiras_disponiveis SET nome = :nome_novo, padrao = :padrao WHERE nome = :nome_antigo"
+    try:
+        exec_sql(
+            engine,
+            sql,
+            {
+                "nome_antigo": nome_antigo.strip().upper(),
+                "nome_novo": nome_novo.strip().upper(),
+                "padrao": int(padrao),
+            },
+        )
+        return True
+    except Exception as e:
+        print(f"Erro ao atualizar bandeira: {e}")
+        return False
+
+
+def bandeira_disponivel_deletar(engine: Engine, nome: str) -> bool:
+    """Deleta uma bandeira da tabela bandeiras_disponiveis."""
+    sql = "DELETE FROM bandeiras_disponiveis WHERE nome = :nome"
+    try:
+        exec_sql(engine, sql, {"nome": nome.strip().upper()})
+        return True
+    except Exception as e:
+        print(f"Erro ao deletar bandeira: {e}")
+        return False
+
+
 def bandeiras_por_ec(
     engine: Engine, ec: str, contexto: str = "padrao"
 ) -> Dict[str, int]:
     with get_conn(engine) as conn:
+        sql = f"SELECT bandeira, ativo FROM bandeiras_cliente WHERE ec = :ec AND {_normalize_text_compare(engine, 'contexto', 'contexto')}"
         rows = (
             conn.execute(
-                text(
-                    "SELECT bandeira, ativo FROM bandeiras_cliente WHERE ec = :ec AND contexto = :contexto"
-                ),
+                text(sql),
                 {"ec": ec, "contexto": contexto},
             )
             .mappings()
@@ -597,6 +687,11 @@ def bandeiras_por_ec(
 def bandeiras_salvar_para_ec(
     engine: Engine, ec: str, bandeiras: Dict[str, int], contexto: str = "padrao"
 ) -> None:
+    # Normalizar contexto para uppercase se for SQLite
+    contexto_norm = contexto
+    if _is_sqlite(engine):
+        contexto_norm = contexto.upper()
+
     with get_conn(engine) as conn:
         for bandeira, ativo in bandeiras.items():
             sql_bandeira = _upsert_sql(
@@ -607,7 +702,12 @@ def bandeiras_salvar_para_ec(
             )
             conn.execute(
                 text(sql_bandeira),
-                {"ec": ec, "bandeira": bandeira, "ativo": ativo, "contexto": contexto},
+                {
+                    "ec": ec,
+                    "bandeira": bandeira,
+                    "ativo": ativo,
+                    "contexto": contexto_norm,
+                },
             )
 
 
@@ -620,7 +720,7 @@ def termos_listar(
     engine: Engine, ec: str, contexto: str = "padrao", tipo: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     with get_conn(engine) as conn:
-        sql = "SELECT termo, tipo FROM termos_filtraveis WHERE ec = :ec AND contexto = :contexto"
+        sql = f"SELECT termo, tipo FROM termos_filtraveis WHERE ec = :ec AND {_normalize_text_compare(engine, 'contexto', 'contexto')}"
         params = {"ec": ec, "contexto": contexto}
 
         if tipo:
@@ -685,9 +785,10 @@ def termo_excluir(
             )
     else:
         # fallback: tenta exclusão padrão
+        sql = f"DELETE FROM termos_filtraveis WHERE ec = :ec AND termo = :termo AND {_normalize_text_compare(engine, 'contexto', 'contexto')}"
         exec_sql(
             engine,
-            "DELETE FROM termos_filtraveis WHERE ec = :ec AND termo = :termo AND contexto = :contexto",
+            sql,
             {"ec": ec, "termo": termo.strip().lower(), "contexto": contexto},
         )
 
@@ -1053,13 +1154,14 @@ def listar_colunas_mapeaveis(
     """Lista colunas mapeáveis, agora filtrando por contexto E tipo de arquivo."""
     if not contexto or not tipo_arquivo:
         return []
+    sql = f"""
+        SELECT campo FROM vendas_colunas_controle
+         WHERE ativo = 1 AND mapeavel = 1 AND {_normalize_text_compare(engine, 'contexto', 'contexto')} AND tipo_arquivo = :tipo_arquivo
+         ORDER BY campo
+    """
     rows = fetch_all(
         engine,
-        """
-        SELECT campo FROM vendas_colunas_controle
-         WHERE ativo = 1 AND mapeavel = 1 AND contexto = :contexto AND tipo_arquivo = :tipo_arquivo
-         ORDER BY campo
-    """,
+        sql,
         {"contexto": contexto, "tipo_arquivo": tipo_arquivo},
     )
     return [r["campo"] for r in rows]
@@ -1100,7 +1202,7 @@ def colunas_controle_sincronizar(
         str(r["campo"])
         for r in fetch_all(
             engine,
-            "SELECT campo FROM vendas_colunas_controle WHERE contexto = :ctx AND tipo_arquivo = :tipo",
+            f"SELECT campo FROM vendas_colunas_controle WHERE {_normalize_text_compare(engine, 'contexto', 'ctx')} AND tipo_arquivo = :tipo",
             {"ctx": contexto, "tipo": tipo_arquivo},
         )
     }
@@ -1188,11 +1290,11 @@ def taxa_excluir(engine: Engine, taxa_id: int) -> bool:
 def taxas_por_ec(
     engine: Engine, ec: str, contexto: str = "padrao"
 ) -> List[Dict[str, Any]]:
-    sql = """
+    sql = f"""
     SELECT id, ec, bandeira, forma_pagamento, parcelado,
            parcelas_ini, parcelas_fim, data_ini, data_fim, taxa, contexto
       FROM taxas
-     WHERE ec = :ec AND contexto = :contexto
+     WHERE ec = :ec AND {_normalize_text_compare(engine, 'contexto', 'contexto')}
      ORDER BY bandeira, forma_pagamento, parcelas_ini
     """
     return fetch_all(engine, sql, {"ec": ec, "contexto": contexto})
@@ -1311,6 +1413,300 @@ def contexto_atualizar(
 
 
 def contexto_deletar(engine: Engine, contexto_id: int) -> bool:
+    """Deleta um contexto se não houver de-para associado."""
+    if not contexto_pode_deletar(engine, contexto_id):
+        return False
+    sql = "DELETE FROM contextos WHERE id = :id"
+    try:
+        exec_sql(engine, sql, {"id": contexto_id})
+        return True
+    except Exception as e:
+        print(f"Erro ao deletar contexto: {e}")
+        return False
+
+
+# ==============================
+# Análises
+# ==============================
+
+
+def analise_criar(
+    engine: Engine,
+    nome_analise: str,
+    descricao: Optional[str] = None,
+    usuario_criador: Optional[str] = None,
+) -> int:
+    """Cria uma nova análise e retorna o ID."""
+    sql = """
+    INSERT INTO analises (nome_analise, descricao, usuario_criador, status)
+    VALUES (:nome_analise, :descricao, :usuario_criador, 'em_andamento')
+    """
+    if _is_sqlite(engine):
+        sql = sql.replace("AUTO_INCREMENT", "AUTOINCREMENT")
+
+    with get_conn(engine) as conn:
+        result = conn.execute(
+            text(sql),
+            {
+                "nome_analise": nome_analise.strip(),
+                "descricao": descricao.strip() if descricao else None,
+                "usuario_criador": usuario_criador,
+            },
+        )
+        if _is_sqlite(engine):
+            return result.lastrowid
+        else:
+            return result.lastrowid
+
+
+def analise_listar(
+    engine: Engine, usuario: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Lista todas as análises, opcionalmente filtradas por usuário."""
+    sql = "SELECT * FROM analises WHERE 1=1"
+    params = {}
+    if usuario:
+        sql += " AND usuario_criador = :usuario"
+        params["usuario"] = usuario
+    sql += " ORDER BY data_criacao DESC"
+    return fetch_all(engine, sql, params)
+
+
+def analise_buscar_por_id(engine: Engine, analise_id: int) -> Optional[Dict[str, Any]]:
+    """Busca uma análise por ID."""
+    sql = "SELECT * FROM analises WHERE id = :id"
+    return fetch_one(engine, sql, {"id": analise_id})
+
+
+def analise_atualizar(
+    engine: Engine,
+    analise_id: int,
+    nome_analise: Optional[str] = None,
+    descricao: Optional[str] = None,
+    status: Optional[str] = None,
+    total_arquivos: Optional[int] = None,
+    total_registros: Optional[int] = None,
+    observacoes: Optional[str] = None,
+) -> bool:
+    """Atualiza uma análise existente."""
+    updates = []
+    params = {"id": analise_id}
+
+    if nome_analise is not None:
+        updates.append("nome_analise = :nome_analise")
+        params["nome_analise"] = nome_analise.strip()
+    if descricao is not None:
+        updates.append("descricao = :descricao")
+        params["descricao"] = descricao.strip()
+    if status is not None:
+        updates.append("status = :status")
+        params["status"] = status
+    if total_arquivos is not None:
+        updates.append("total_arquivos = :total_arquivos")
+        params["total_arquivos"] = total_arquivos
+    if total_registros is not None:
+        updates.append("total_registros = :total_registros")
+        params["total_registros"] = total_registros
+    if observacoes is not None:
+        updates.append("observacoes = :observacoes")
+        params["observacoes"] = observacoes.strip()
+
+    if not updates:
+        return False
+
+    if _is_sqlite(engine):
+        updates.append("data_atualizacao = CURRENT_TIMESTAMP")
+    else:
+        updates.append("data_atualizacao = NOW()")
+
+    sql = f"UPDATE analises SET {', '.join(updates)} WHERE id = :id"
+    try:
+        exec_sql(engine, sql, params)
+        return True
+    except Exception as e:
+        print(f"Erro ao atualizar análise: {e}")
+        return False
+
+
+def analise_deletar(engine: Engine, analise_id: int) -> bool:
+    """Deleta uma análise e todos os dados relacionados (CASCADE)."""
+    sql = "DELETE FROM analises WHERE id = :id"
+    try:
+        exec_sql(engine, sql, {"id": analise_id})
+        return True
+    except Exception as e:
+        print(f"Erro ao deletar análise: {e}")
+        return False
+
+
+def analise_adicionar_arquivo(
+    engine: Engine,
+    analise_id: int,
+    nome_arquivo: str,
+    caminho_arquivo: Optional[str] = None,
+    tipo_arquivo: Optional[str] = None,
+    contexto: Optional[str] = None,
+    total_registros: int = 0,
+) -> int:
+    """Adiciona um arquivo à análise."""
+    sql = """
+    INSERT INTO analises_arquivos 
+    (analise_id, nome_arquivo, caminho_arquivo, tipo_arquivo, contexto, total_registros)
+    VALUES (:analise_id, :nome_arquivo, :caminho_arquivo, :tipo_arquivo, :contexto, :total_registros)
+    """
+    with get_conn(engine) as conn:
+        result = conn.execute(
+            text(sql),
+            {
+                "analise_id": analise_id,
+                "nome_arquivo": nome_arquivo,
+                "caminho_arquivo": caminho_arquivo,
+                "tipo_arquivo": tipo_arquivo,
+                "contexto": contexto,
+                "total_registros": total_registros,
+            },
+        )
+        return result.lastrowid
+
+
+def analise_salvar_bandeiras(
+    engine: Engine, analise_id: int, bandeiras: List[Dict[str, Any]]
+) -> None:
+    """Salva os resultados de bandeiras da análise."""
+    sql_delete = "DELETE FROM analises_bandeiras WHERE analise_id = :analise_id"
+    exec_sql(engine, sql_delete, {"analise_id": analise_id})
+
+    if not bandeiras:
+        return
+
+    sql_insert = """
+    INSERT INTO analises_bandeiras (analise_id, bandeira, quantidade, valor_total)
+    VALUES (:analise_id, :bandeira, :quantidade, :valor_total)
+    """
+    for b in bandeiras:
+        exec_sql(
+            engine,
+            sql_insert,
+            {
+                "analise_id": analise_id,
+                "bandeira": b["bandeira"],
+                "quantidade": b.get("quantidade", 0),
+                "valor_total": b.get("valor_total", 0.0),
+            },
+        )
+
+
+def analise_salvar_formas_pagamento(
+    engine: Engine, analise_id: int, formas: List[Dict[str, Any]]
+) -> None:
+    """Salva os resultados de formas de pagamento da análise."""
+    sql_delete = "DELETE FROM analises_formas_pagamento WHERE analise_id = :analise_id"
+    exec_sql(engine, sql_delete, {"analise_id": analise_id})
+
+    if not formas:
+        return
+
+    sql_insert = """
+    INSERT INTO analises_formas_pagamento (analise_id, forma_pagamento, quantidade, valor_total)
+    VALUES (:analise_id, :forma_pagamento, :quantidade, :valor_total)
+    """
+    for f in formas:
+        exec_sql(
+            engine,
+            sql_insert,
+            {
+                "analise_id": analise_id,
+                "forma_pagamento": f["forma_pagamento"],
+                "quantidade": f.get("quantidade", 0),
+                "valor_total": f.get("valor_total", 0.0),
+            },
+        )
+
+
+def analise_salvar_tipos_recebiveis(
+    engine: Engine, analise_id: int, tipos: List[Dict[str, Any]]
+) -> None:
+    """Salva os resultados de tipos de recebíveis da análise."""
+    sql_delete = "DELETE FROM analises_tipos_recebiveis WHERE analise_id = :analise_id"
+    exec_sql(engine, sql_delete, {"analise_id": analise_id})
+
+    if not tipos:
+        return
+
+    sql_insert = """
+    INSERT INTO analises_tipos_recebiveis (analise_id, tipo_recebivel, quantidade, valor_total)
+    VALUES (:analise_id, :tipo_recebivel, :quantidade, :valor_total)
+    """
+    for t in tipos:
+        exec_sql(
+            engine,
+            sql_insert,
+            {
+                "analise_id": analise_id,
+                "tipo_recebivel": t["tipo_recebivel"],
+                "quantidade": t.get("quantidade", 0),
+                "valor_total": t.get("valor_total", 0.0),
+            },
+        )
+
+
+def analise_salvar_periodos(
+    engine: Engine, analise_id: int, periodos: List[Dict[str, Any]]
+) -> None:
+    """Salva os resultados agregados por período da análise."""
+    sql_delete = "DELETE FROM analises_periodos WHERE analise_id = :analise_id"
+    exec_sql(engine, sql_delete, {"analise_id": analise_id})
+
+    if not periodos:
+        return
+
+    sql_insert = """
+    INSERT INTO analises_periodos (analise_id, tipo_periodo, periodo, quantidade, valor_total)
+    VALUES (:analise_id, :tipo_periodo, :periodo, :quantidade, :valor_total)
+    """
+    for p in periodos:
+        exec_sql(
+            engine,
+            sql_insert,
+            {
+                "analise_id": analise_id,
+                "tipo_periodo": p["tipo_periodo"],
+                "periodo": p["periodo"],
+                "quantidade": p.get("quantidade", 0),
+                "valor_total": p.get("valor_total", 0.0),
+            },
+        )
+
+
+def analise_obter_resultados(engine: Engine, analise_id: int) -> Dict[str, Any]:
+    """Obtém todos os resultados de uma análise."""
+    return {
+        "bandeiras": fetch_all(
+            engine,
+            "SELECT * FROM analises_bandeiras WHERE analise_id = :id ORDER BY valor_total DESC",
+            {"id": analise_id},
+        ),
+        "formas_pagamento": fetch_all(
+            engine,
+            "SELECT * FROM analises_formas_pagamento WHERE analise_id = :id ORDER BY valor_total DESC",
+            {"id": analise_id},
+        ),
+        "tipos_recebiveis": fetch_all(
+            engine,
+            "SELECT * FROM analises_tipos_recebiveis WHERE analise_id = :id ORDER BY valor_total DESC",
+            {"id": analise_id},
+        ),
+        "periodos": fetch_all(
+            engine,
+            "SELECT * FROM analises_periodos WHERE analise_id = :id ORDER BY periodo",
+            {"id": analise_id},
+        ),
+        "arquivos": fetch_all(
+            engine,
+            "SELECT * FROM analises_arquivos WHERE analise_id = :id ORDER BY data_upload",
+            {"id": analise_id},
+        ),
+    }
     """Deleta um contexto se não houver dependências."""
     # Primeiro verifica se há depara_colunas usando este contexto
     sql = "SELECT COUNT(*) as total FROM depara_colunas WHERE contexto = (SELECT nome FROM contextos WHERE id = :id)"
@@ -1329,3 +1725,291 @@ def contexto_pode_deletar(engine: Engine, contexto_id: int) -> bool:
     sql = "SELECT COUNT(*) as total FROM depara_colunas WHERE contexto = (SELECT nome FROM contextos WHERE id = :id)"
     result = fetch_one(engine, sql, {"id": contexto_id})
     return result["total"] == 0 if result else True
+
+
+# ==============================
+# Agregações Otimizadas para Analista
+# ==============================
+
+
+def agregar_bandeiras_db(engine: Engine, processamentoid: str) -> List[Dict[str, Any]]:
+    """Agrega dados de bandeiras diretamente no banco de dados (muito mais rápido)"""
+    print(
+        f"[DEBUG agregar_bandeiras_db] Iniciando agregação para processamento: {processamentoid}"
+    )
+    print(
+        f"[DEBUG agregar_bandeiras_db] Tipo do banco: {'SQLite' if _is_sqlite(engine) else 'MySQL'}"
+    )
+
+    sql = """
+        SELECT 
+            Bandeira as bandeira,
+            COUNT(*) as quantidade,
+            SUM(Valor_da_venda) as valor_total,
+            AVG(Valor_da_venda) as valor_medio,
+            MIN(Valor_da_venda) as valor_min,
+            MAX(Valor_da_venda) as valor_max,
+            AVG(Taxas_Perc) as taxa_perc_media,
+            MIN(Taxas_Perc) as taxa_perc_min,
+            MAX(Taxas_Perc) as taxa_perc_max,
+            SUM(Valor_descontado) as taxa_valor_total,
+            AVG(Valor_descontado) as taxa_valor_media,
+            MIN(Valor_descontado) as taxa_valor_min,
+            MAX(Valor_descontado) as taxa_valor_max
+        FROM vendas_processadas
+        WHERE processamentoid = :pid
+        GROUP BY Bandeira
+        ORDER BY valor_total DESC
+    """
+
+    print(f"[DEBUG agregar_bandeiras_db] Executando SQL...")
+    try:
+        resultado = fetch_all(engine, sql, {"pid": processamentoid})
+        print(
+            f"[DEBUG agregar_bandeiras_db] Resultado obtido: {len(resultado)} registros"
+        )
+        return resultado
+    except Exception as e:
+        print(f"[ERROR agregar_bandeiras_db] Erro ao executar SQL: {e}")
+        print(f"[ERROR agregar_bandeiras_db] SQL: {sql}")
+        print(f"[ERROR agregar_bandeiras_db] Params: {{'pid': {processamentoid}}}")
+        raise
+
+
+def agregar_formas_pagamento_db(
+    engine: Engine, processamentoid: str
+) -> List[Dict[str, Any]]:
+    """Agrega dados de formas de pagamento diretamente no banco de dados"""
+    print(
+        f"[DEBUG agregar_formas_pagamento_db] Iniciando agregação para processamento: {processamentoid}"
+    )
+
+    sql = """
+        SELECT 
+            Forma_de_pagamento as forma_pagamento,
+            COUNT(*) as quantidade,
+            SUM(Valor_da_venda) as valor_total,
+            AVG(Valor_da_venda) as valor_medio,
+            MIN(Valor_da_venda) as valor_min,
+            MAX(Valor_da_venda) as valor_max,
+            AVG(Taxas_Perc) as taxa_perc_media,
+            MIN(Taxas_Perc) as taxa_perc_min,
+            MAX(Taxas_Perc) as taxa_perc_max,
+            SUM(Valor_descontado) as taxa_valor_total,
+            AVG(Valor_descontado) as taxa_valor_media,
+            MIN(Valor_descontado) as taxa_valor_min,
+            MAX(Valor_descontado) as taxa_valor_max
+        FROM vendas_processadas
+        WHERE processamentoid = :pid
+        GROUP BY Forma_de_pagamento
+        ORDER BY valor_total DESC
+    """
+
+    print(f"[DEBUG agregar_formas_pagamento_db] Executando SQL...")
+    try:
+        resultado = fetch_all(engine, sql, {"pid": processamentoid})
+        print(
+            f"[DEBUG agregar_formas_pagamento_db] Resultado obtido: {len(resultado)} registros"
+        )
+        return resultado
+    except Exception as e:
+        print(f"[ERROR agregar_formas_pagamento_db] Erro ao executar SQL: {e}")
+        print(f"[ERROR agregar_formas_pagamento_db] SQL: {sql}")
+        raise
+
+
+def agregar_periodos_db(engine: Engine, processamentoid: str) -> List[Dict[str, Any]]:
+    """Agrega dados por períodos (mês, trimestre, semestre, ano) diretamente no banco"""
+    print(
+        f"[DEBUG agregar_periodos_db] Iniciando agregação para processamento: {processamentoid}"
+    )
+    print(
+        f"[DEBUG agregar_periodos_db] Tipo do banco: {'SQLite' if _is_sqlite(engine) else 'MySQL'}"
+    )
+
+    if _is_sqlite(engine):
+        # SQLite
+        sql_mes = """
+            SELECT 
+                'mes' as tipo_periodo,
+                strftime('%Y-%m', Data_da_venda) as periodo,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+            GROUP BY strftime('%Y-%m', Data_da_venda)
+        """
+
+        sql_trimestre = """
+            SELECT 
+                'trimestre' as tipo_periodo,
+                strftime('%Y', Data_da_venda) || '-Q' || 
+                CASE 
+                    WHEN CAST(strftime('%m', Data_da_venda) AS INTEGER) <= 3 THEN '1'
+                    WHEN CAST(strftime('%m', Data_da_venda) AS INTEGER) <= 6 THEN '2'
+                    WHEN CAST(strftime('%m', Data_da_venda) AS INTEGER) <= 9 THEN '3'
+                    ELSE '4'
+                END as periodo,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+            GROUP BY periodo
+        """
+
+        sql_semestre = """
+            SELECT 
+                'semestre' as tipo_periodo,
+                strftime('%Y', Data_da_venda) || '-S' || 
+                CASE 
+                    WHEN CAST(strftime('%m', Data_da_venda) AS INTEGER) <= 6 THEN '1'
+                    ELSE '2'
+                END as periodo,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+            GROUP BY periodo
+        """
+
+        sql_ano = """
+            SELECT 
+                'ano' as tipo_periodo,
+                strftime('%Y', Data_da_venda) as periodo,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+            GROUP BY strftime('%Y', Data_da_venda)
+        """
+    else:
+        # MySQL
+        sql_mes = """
+            SELECT 
+                'mes' as tipo_periodo,
+                DATE_FORMAT(Data_da_venda, '%Y-%m') as periodo,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+            GROUP BY DATE_FORMAT(Data_da_venda, '%Y-%m')
+        """
+
+        sql_trimestre = """
+            SELECT 
+                'trimestre' as tipo_periodo,
+                CONCAT(YEAR(Data_da_venda), '-Q', QUARTER(Data_da_venda)) as periodo,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+            GROUP BY CONCAT(YEAR(Data_da_venda), '-Q', QUARTER(Data_da_venda))
+        """
+
+        sql_semestre = """
+            SELECT 
+                'semestre' as tipo_periodo,
+                CONCAT(YEAR(Data_da_venda), '-S', IF(MONTH(Data_da_venda) <= 6, '1', '2')) as periodo,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+            GROUP BY CONCAT(YEAR(Data_da_venda), '-S', IF(MONTH(Data_da_venda) <= 6, '1', '2'))
+        """
+
+        sql_ano = """
+            SELECT 
+                'ano' as tipo_periodo,
+                YEAR(Data_da_venda) as periodo,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+            GROUP BY YEAR(Data_da_venda)
+        """
+
+    # Executar todas as queries e combinar resultados
+    params = {"pid": processamentoid}
+    resultados = []
+
+    print(f"[DEBUG agregar_periodos_db] Executando agregação por MÊS...")
+    try:
+        res_mes = fetch_all(engine, sql_mes, params)
+        print(f"[DEBUG agregar_periodos_db] Mês: {len(res_mes)} registros")
+        resultados.extend(res_mes)
+    except Exception as e:
+        print(f"[ERROR agregar_periodos_db] Erro ao agregar por mês: {e}")
+
+    print(f"[DEBUG agregar_periodos_db] Executando agregação por TRIMESTRE...")
+    try:
+        res_trim = fetch_all(engine, sql_trimestre, params)
+        print(f"[DEBUG agregar_periodos_db] Trimestre: {len(res_trim)} registros")
+        resultados.extend(res_trim)
+    except Exception as e:
+        print(f"[ERROR agregar_periodos_db] Erro ao agregar por trimestre: {e}")
+
+    print(f"[DEBUG agregar_periodos_db] Executando agregação por SEMESTRE...")
+    try:
+        res_sem = fetch_all(engine, sql_semestre, params)
+        print(f"[DEBUG agregar_periodos_db] Semestre: {len(res_sem)} registros")
+        resultados.extend(res_sem)
+    except Exception as e:
+        print(f"[ERROR agregar_periodos_db] Erro ao agregar por semestre: {e}")
+
+    print(f"[DEBUG agregar_periodos_db] Executando agregação por ANO...")
+    try:
+        res_ano = fetch_all(engine, sql_ano, params)
+        print(f"[DEBUG agregar_periodos_db] Ano: {len(res_ano)} registros")
+        resultados.extend(res_ano)
+    except Exception as e:
+        print(f"[ERROR agregar_periodos_db] Erro ao agregar por ano: {e}")
+
+    print(f"[DEBUG agregar_periodos_db] Total de períodos agregados: {len(resultados)}")
+    return resultados
+
+
+def obter_total_registros_processamento(engine: Engine, processamentoid: str) -> int:
+    """Obtém o total de registros de um processamento de forma otimizada"""
+    print(
+        f"[DEBUG obter_total_registros_processamento] Contando registros para: {processamentoid}"
+    )
+
+    sql = (
+        "SELECT COUNT(*) as total FROM vendas_processadas WHERE processamentoid = :pid"
+    )
+
+    try:
+        result = fetch_one(engine, sql, {"pid": processamentoid})
+        total = result["total"] if result else 0
+        print(
+            f"[DEBUG obter_total_registros_processamento] Total encontrado: {total:,}"
+        )
+        return total
+    except Exception as e:
+        print(f"[ERROR obter_total_registros_processamento] Erro ao contar: {e}")
+        print(f"[ERROR obter_total_registros_processamento] SQL: {sql}")
+        raise

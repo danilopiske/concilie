@@ -15,6 +15,9 @@ from conf.funcoesbd import (
     bandeiras_por_ec,
     bandeiras_salvar_para_ec,
     bandeiras_disponiveis_listar,
+    bandeira_disponivel_inserir,
+    bandeira_disponivel_atualizar,
+    bandeira_disponivel_deletar,
     cliente_detalhes_por_id,
     cliente_salvar,
     cliente_deletar,
@@ -424,6 +427,122 @@ def _make_tab_termos_filtraveis(engine: Engine) -> pn.viewable.Viewable:
             ),
             pn.Column("#### Gerenciar Termos Existentes", grid, btn_excluir),
         ),
+        sizing_mode="stretch_width",
+    )
+
+
+# =========================
+# ABA: BANDEIRAS (CADASTRO GERAL)
+# =========================
+def _make_tab_bandeiras_cadastro(engine: Engine) -> pn.viewable.Viewable:
+    """Aba para gerenciar bandeiras na tabela mestre bandeiras_disponiveis"""
+    grid = pn.widgets.Tabulator(
+        pd.DataFrame(columns=["nome", "padrao"]),
+        height=400,
+        show_index=False,
+        sizing_mode="stretch_width",
+        selectable="checkbox",
+        pagination="local",
+        page_size=20,
+    )
+
+    nome_input = pn.widgets.TextInput(name="Nome da Bandeira", placeholder="Ex: VISA")
+    padrao_checkbox = pn.widgets.Checkbox(name="Padrão (ativada por padrão para novos ECs)", value=False)
+
+    btn_novo = pn.widgets.Button(name="Novo", button_type="light")
+    btn_salvar = pn.widgets.Button(name="Salvar", button_type="success")
+    btn_excluir = pn.widgets.Button(name="Excluir", button_type="danger", disabled=True)
+    btn_atualizar = pn.widgets.Button(name="🔄 Atualizar Lista", button_type="primary")
+
+    nome_selecionado = [None]  # Usar lista para permitir modificação em closures
+
+    def _load_grid(*events):
+        try:
+            bandeiras = bandeiras_disponiveis_listar(engine)
+            df = pd.DataFrame(bandeiras)
+            if not df.empty:
+                df["padrao"] = df["padrao"].astype(int)
+            grid.value = df if not df.empty else pd.DataFrame(columns=["nome", "padrao"])
+            grid.selection = []
+            btn_excluir.disabled = True
+        except Exception as e:
+            _notify("error", f"Erro ao carregar bandeiras: {e}")
+
+    def _limpar_formulario(*events):
+        nome_input.value = ""
+        padrao_checkbox.value = False
+        nome_selecionado[0] = None
+        btn_excluir.disabled = True
+        grid.selection = []
+
+    def _preencher_formulario(selected_rows):
+        if not selected_rows:
+            _limpar_formulario()
+            return
+
+        row = grid.value.iloc[selected_rows[0]]
+        nome_selecionado[0] = row["nome"]
+        nome_input.value = row["nome"]
+        padrao_checkbox.value = bool(row.get("padrao", 0))
+        btn_excluir.disabled = False
+
+    def _salvar(*events):
+        nome = (nome_input.value or "").strip().upper()
+        if not nome:
+            return _notify("warning", "Nome da bandeira é obrigatório.")
+
+        try:
+            if nome_selecionado[0]:
+                # Atualizar
+                if bandeira_disponivel_atualizar(engine, nome_selecionado[0], nome, 1 if padrao_checkbox.value else 0):
+                    _notify("success", f"Bandeira '{nome}' atualizada com sucesso.")
+                else:
+                    _notify("error", "Erro ao atualizar bandeira.")
+            else:
+                # Inserir
+                if bandeira_disponivel_inserir(engine, nome, 1 if padrao_checkbox.value else 0):
+                    _notify("success", f"Bandeira '{nome}' criada com sucesso.")
+                else:
+                    _notify("error", "Erro ao criar bandeira. Verifique se já existe.")
+
+            _load_grid()
+            _limpar_formulario()
+        except Exception as e:
+            _notify("error", f"Erro ao salvar: {e}")
+
+    def _excluir(*events):
+        if not nome_selecionado[0]:
+            return
+
+        try:
+            if bandeira_disponivel_deletar(engine, nome_selecionado[0]):
+                _notify("success", f"Bandeira '{nome_selecionado[0]}' excluída com sucesso.")
+                _load_grid()
+                _limpar_formulario()
+            else:
+                _notify("error", "Erro ao excluir bandeira.")
+        except Exception as e:
+            _notify("error", f"Erro ao excluir: {e}")
+
+    grid.param.watch(lambda e: _preencher_formulario(e.new), "selection")
+    btn_novo.on_click(_limpar_formulario)
+    btn_salvar.on_click(_salvar)
+    btn_excluir.on_click(_excluir)
+    btn_atualizar.on_click(_load_grid)
+
+    _load_grid()
+
+    return pn.Column(
+        pn.pane.Markdown("### Gestão de Bandeiras (Cadastro Geral)"),
+        pn.pane.Markdown(
+            "Gerencie as bandeiras disponíveis no sistema. Estas bandeiras podem ser configuradas por EC na aba 'Bandeiras por EC'."
+        ),
+        pn.Row(btn_atualizar, sizing_mode="stretch_width"),
+        grid,
+        pn.layout.Divider(),
+        pn.pane.Markdown("#### Formulário de Bandeira"),
+        pn.Row(nome_input, padrao_checkbox, sizing_mode="stretch_width"),
+        pn.Row(btn_novo, btn_salvar, btn_excluir, sizing_mode="stretch_width"),
         sizing_mode="stretch_width",
     )
 
@@ -895,6 +1014,7 @@ def make_gestao_view(
     return pn.Tabs(
         ("Clientes", _make_tab_clientes(engine)),
         ("Contextos", _make_tab_contextos(engine)),
+        ("Bandeiras", _make_tab_bandeiras_cadastro(engine)),
         ("Termos Filtráveis", _make_tab_termos_filtraveis(engine)),
         ("Bandeiras por EC", _make_tab_bandeiras(engine)),
         ("Taxas por EC", _make_tab_taxas(engine)),

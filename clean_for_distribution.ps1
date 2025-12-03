@@ -1,238 +1,104 @@
-# ============================================================================
-# SCRIPT DE LIMPEZA PARA DISTRIBUICAO
-# Remove arquivos temporarios e locais antes de distribuir
-# ============================================================================
+﻿# Script de preparacao para distribuicao - Financial Checker
+# Cria pacote ZIP limpo com banco SQLite incluido
+
+$ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "CONCILIE - LIMPEZA PARA DISTRIBUICAO" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host ""
-
-$itemsRemoved = 0
-$spaceFreed = 0
-
-function Remove-ItemSafe {
-    param($Path, $Description)
-    
-    if (Test-Path $Path) {
-        try {
-            $size = (Get-ChildItem $Path -Recurse -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
-            Remove-Item $Path -Recurse -Force -ErrorAction Stop
-            $script:itemsRemoved++
-            $script:spaceFreed += $size
-            Write-Host "  [OK] Removido: $Description" -ForegroundColor Green
-            return $true
-        } catch {
-            Write-Host "  [AVISO] Erro ao remover: $Description - $($_.Exception.Message)" -ForegroundColor Yellow
-            return $false
-        }
-    } else {
-        Write-Host "  [INFO] Nao encontrado: $Description" -ForegroundColor Gray
-        return $false
-    }
-}
-
-# 1. Remover Ambientes Virtuais
-Write-Host ""
-Write-Host "[1/8] Removendo ambientes virtuais..." -ForegroundColor Cyan
-Remove-ItemSafe ".venv" "Ambiente virtual (.venv)"
-Remove-ItemSafe ".venv_test" "Ambiente virtual de teste (.venv_test)"
-Remove-ItemSafe "venv" "Ambiente virtual (venv)"
-Remove-ItemSafe "venv2" "Ambiente virtual (venv2)"
-Remove-ItemSafe "env" "Ambiente virtual (env)"
-
-# 2. Remover Cache Python
-Write-Host ""
-Write-Host "[2/8] Removendo cache Python..." -ForegroundColor Cyan
-Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notlike "*\.venv_backup_*\*" } | ForEach-Object {
-    Remove-ItemSafe $_.FullName "Cache Python: $($_.FullName)"
-}
-Get-ChildItem -Path . -Recurse -Filter "*.pyc" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notlike "*\.venv_backup_*\*" } | ForEach-Object {
-    Remove-ItemSafe $_.FullName "Bytecode: $($_.Name)"
-}
-Get-ChildItem -Path . -Recurse -Filter "*.pyo" -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notlike "*\.venv_backup_*\*" } | ForEach-Object {
-    Remove-ItemSafe $_.FullName "Bytecode otimizado: $($_.Name)"
-}
-
-# 3. Remover Banco de Dados Local
-Write-Host ""
-Write-Host "[3/8] Removendo bancos de dados locais..." -ForegroundColor Cyan
-Remove-ItemSafe "data/concilie.db" "Banco SQLite (concilie.db)"
-Remove-ItemSafe "data/concilie.db-shm" "Arquivo compartilhado (concilie.db-shm)"
-Remove-ItemSafe "data/concilie.db-wal" "Write-Ahead Log (concilie.db-wal)"
-
-# 4. Remover Planilhas de Teste
-Write-Host ""
-Write-Host "[4/8] Removendo planilhas de teste..." -ForegroundColor Cyan
-Remove-ItemSafe "lancamento_planilhas" "Planilhas de lancamento"
-Remove-ItemSafe "venda_planilhas" "Planilhas de venda"
-Remove-ItemSafe "arquivos_processados" "Arquivos processados"
-
-Get-ChildItem -Path "data" -Recurse -Filter "*.xlsx" -ErrorAction SilentlyContinue | ForEach-Object {
-    Remove-ItemSafe $_.FullName "Planilha: $($_.Name)"
-}
-Get-ChildItem -Path "data" -Recurse -Filter "*.xls" -ErrorAction SilentlyContinue | ForEach-Object {
-    Remove-ItemSafe $_.FullName "Planilha: $($_.Name)"
-}
-
-# 5. Remover Relatorios Gerados
-Write-Host ""
-Write-Host "[5/8] Removendo relatorios gerados..." -ForegroundColor Cyan
-Get-ChildItem -Path "relatorios" -Filter "*.html" -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne "template_relatorio.html" } | ForEach-Object {
-    Remove-ItemSafe $_.FullName "Relatorio HTML: $($_.Name)"
-}
-Get-ChildItem -Path "relatorios" -Filter "*.png" -ErrorAction SilentlyContinue | ForEach-Object {
-    Remove-ItemSafe $_.FullName "Grafico: $($_.Name)"
-}
-
-# 6. Remover Arquivos Temporarios
-Write-Host ""
-Write-Host "[6/8] Removendo arquivos temporarios..." -ForegroundColor Cyan
-Remove-ItemSafe "temp" "Diretorio temporario"
-
-# 7. Remover Schemas JSON (usados para migracao)
-Write-Host ""
-Write-Host "[7/8] Removendo schemas de migracao..." -ForegroundColor Cyan
-Remove-ItemSafe "mysql_schema.json" "Schema MySQL"
-Remove-ItemSafe "sqlite_schema.json" "Schema SQLite"
-
-# 8. Remover Diretorios Nao Relacionados
-Write-Host ""
-Write-Host "[8/8] Removendo diretorios nao relacionados..." -ForegroundColor Cyan
-Remove-ItemSafe "spotify_downloader" "Spotify Downloader"
-Remove-ItemSafe "bd_structures" "Estruturas BD"
-
-# Relatorio Final
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "RELATORIO FINAL" -ForegroundColor White
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "  Itens removidos: $itemsRemoved" -ForegroundColor White
-$spaceMB = [math]::Round($spaceFreed / 1MB, 2)
-Write-Host "  Espaco liberado: $spaceMB MB" -ForegroundColor White
-Write-Host ""
-Write-Host "[OK] Limpeza concluida!" -ForegroundColor Green
-Write-Host ""
-
-# Criar ZIP de distribuicao
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "CRIANDO ZIP DE DISTRIBUICAO" -ForegroundColor White
+Write-Host "PREPARACAO PARA DISTRIBUICAO" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Remover ZIPs antigos primeiro
-Write-Host "[INFO] Removendo ZIPs antigos..." -ForegroundColor Cyan
-Get-ChildItem -Filter "Concilie_v2.0_Distribuicao_*.zip" -ErrorAction SilentlyContinue | ForEach-Object {
-    Remove-Item $_.FullName -Force
-    Write-Host "  [OK] Removido: $($_.Name)" -ForegroundColor Green
+# Verificar se base_concilie.db existe
+$baseBanco = "data\base_concilie.db"
+if (-not (Test-Path $baseBanco)) {
+    Write-Host "[ERRO] Banco master nao encontrado: $baseBanco" -ForegroundColor Red
+    Write-Host "[INFO] Execute create_clean_sqlite.py primeiro" -ForegroundColor Yellow
+    exit 1
 }
+
+Write-Host "[1/4] Criando banco para distribuicao..." -ForegroundColor Green
+Copy-Item $baseBanco "data\concilie.db" -Force
+Write-Host "  OK concilie.db criado (copia de base_concilie.db)" -ForegroundColor Gray
 Write-Host ""
 
-$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$zipName = "Concilie_v2.0_Distribuicao_$timestamp.zip"
-$tempDist = ".dist_temp"
-
-Write-Host "[INFO] Preparando estrutura de distribuicao..." -ForegroundColor Cyan
-
-# Remover pasta temp se existir
+Write-Host "[2/4] Preparando arquivos..." -ForegroundColor Green
+$tempDist = "dist_temp"
 if (Test-Path $tempDist) {
     Remove-Item $tempDist -Recurse -Force
 }
+New-Item -ItemType Directory -Path $tempDist | Out-Null
 
-# Criar pasta temporaria
-New-Item -ItemType Directory -Path $tempDist -Force | Out-Null
+Write-Host "  OK Copiando arquivos da raiz..." -ForegroundColor Gray
+Copy-Item "main.py" -Destination $tempDist
+Copy-Item "install.py" -Destination $tempDist
+Copy-Item "requirements.txt" -Destination $tempDist
+Copy-Item "Instalar.bat" -Destination $tempDist
+Copy-Item "Iniciar Sistema.bat" -Destination $tempDist
+Copy-Item "README.md" -Destination $tempDist -ErrorAction SilentlyContinue
 
-# Copiar arquivos mantendo estrutura
-Write-Host "[INFO] Copiando arquivos essenciais..." -ForegroundColor Cyan
-
-# Arquivos raiz
-$rootFiles = @(
-    "main.py", "install.py", "requirements.txt", "README.md", "README_NEW.md",
-    ".gitignore", "backup_restore_venv.ps1", "clean_for_distribution.ps1",
-    "INSTALL_QUICK.md", "REQUISITOS_INSTALACAO.md", "RESUMO_DISTRIBUICAO.md",
-    "ESTRUTURA_DISTRIBUICAO.md", "GUIA_INSTALACAO_DISTRIBUICAO.md",
-    "COMPATIBILIDADE_SQL.md", "ANALISE_COMPLETA_SISTEMA.md",
-    "compare_schemas.py", "migrate_mysql_to_sqlite.py"
-)
-
-foreach ($file in $rootFiles) {
-    if (Test-Path $file) {
-        Copy-Item $file -Destination $tempDist -Force
-    }
+Write-Host "  OK Copiando instalador Python..." -ForegroundColor Gray
+if (Test-Path "python-3.13.9-amd64.exe") {
+    Copy-Item "python-3.13.9-amd64.exe" -Destination $tempDist
+} else {
+    Write-Host "  [AVISO] python-3.13.9-amd64.exe nao encontrado (ignorando)" -ForegroundColor Yellow
 }
 
-# Copiar pastas inteiras (com estrutura)
-$folders = @("conf", "modules", "proc", "assets")
-foreach ($folder in $folders) {
-    if (Test-Path $folder) {
-        # Copiar apenas arquivos .py e imagens
-        $destFolder = Join-Path $tempDist $folder
-        New-Item -ItemType Directory -Path $destFolder -Force | Out-Null
-        
-        Get-ChildItem -Path $folder -Filter "*.py" -File | ForEach-Object {
-            Copy-Item $_.FullName -Destination $destFolder -Force
-        }
-        
-        # Copiar imagens da pasta assets
-        if ($folder -eq "assets") {
-            Get-ChildItem -Path $folder -Include "*.png","*.jpg","*.jpeg" -Recurse -File | ForEach-Object {
-                Copy-Item $_.FullName -Destination $destFolder -Force
-            }
-        }
-    }
-}
+Write-Host "  OK Copiando modulos..." -ForegroundColor Gray
+Copy-Item "conf" -Destination $tempDist -Recurse
+Copy-Item "modules" -Destination $tempDist -Recurse
+Copy-Item "proc" -Destination $tempDist -Recurse
 
-# Criar estrutura de diretórios vazios com .gitkeep
-@("data", "relatorios", "temp") | ForEach-Object {
-    $dir = Join-Path $tempDist $_
-    New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    New-Item -ItemType File -Path (Join-Path $dir ".gitkeep") -Force | Out-Null
-}
+Write-Host "  OK Copiando assets..." -ForegroundColor Gray
+Copy-Item "assets" -Destination $tempDist -Recurse -ErrorAction SilentlyContinue
 
-# Copiar template de relatório se existir
-if (Test-Path "relatorios\template_relatorio.html") {
-    Copy-Item "relatorios\template_relatorio.html" -Destination (Join-Path $tempDist "relatorios") -Force
-}
-if (Test-Path "relatorios\README.md") {
-    Copy-Item "relatorios\README.md" -Destination (Join-Path $tempDist "relatorios") -Force
-}
+Write-Host "  OK Criando estrutura de diretorios..." -ForegroundColor Gray
+New-Item -ItemType Directory -Path "$tempDist\data" -Force | Out-Null
+New-Item -ItemType Directory -Path "$tempDist\relatorios" -Force | Out-Null
+New-Item -ItemType Directory -Path "$tempDist\temp" -Force | Out-Null
 
-# Contar arquivos
-$fileCount = (Get-ChildItem $tempDist -Recurse -File).Count
-Write-Host "  Arquivos preparados: $fileCount" -ForegroundColor Gray
+Write-Host "  OK Incluindo banco de dados..." -ForegroundColor Gray
+Copy-Item "data\concilie.db" -Destination "$tempDist\data" -Force
 Write-Host ""
 
-Write-Host "[INFO] Compactando distribuicao..." -ForegroundColor Cyan
-try {
-    # Compactar a pasta temp inteira
-    Compress-Archive -Path "$tempDist\*" -DestinationPath $zipName -Force -CompressionLevel Optimal
-    
-    # Remover pasta temp
-    Remove-Item $tempDist -Recurse -Force
-    
-    $zipSize = [math]::Round((Get-Item $zipName).Length / 1MB, 2)
-    
-    Write-Host ""
-    Write-Host "[OK] ZIP criado com sucesso!" -ForegroundColor Green
-    Write-Host "  Nome: $zipName" -ForegroundColor White
-    Write-Host "  Tamanho: $zipSize MB" -ForegroundColor White
-    Write-Host "  Arquivos: $fileCount" -ForegroundColor White
-    Write-Host ""
-} catch {
-    Write-Host ""
-    Write-Host "[ERRO] Falha ao criar ZIP: $_" -ForegroundColor Red
-    Write-Host ""
-    # Limpar pasta temp em caso de erro
-    if (Test-Path $tempDist) {
-        Remove-Item $tempDist -Recurse -Force
-    }
-}
+Write-Host "[3/4] Limpando arquivos temporarios..." -ForegroundColor Green
+Get-ChildItem -Path $tempDist -Include "__pycache__","*.pyc" -Recurse -Force | Remove-Item -Force -Recurse
+Write-Host "  OK Cache Python removido" -ForegroundColor Gray
+Write-Host ""
 
+Write-Host "[4/4] Criando arquivo ZIP..." -ForegroundColor Green
+$nomeZip = "Financial_Checker_SQLite_$(Get-Date -Format 'yyyyMMdd_HHmmss').zip"
+if (Test-Path $nomeZip) {
+    Remove-Item $nomeZip -Force
+}
+Compress-Archive -Path "$tempDist\*" -DestinationPath $nomeZip -CompressionLevel Optimal
+Write-Host "  OK Pacote criado: $nomeZip" -ForegroundColor Gray
+
+Remove-Item $tempDist -Recurse -Force
+Write-Host ""
+
+$tamanho = (Get-Item $nomeZip).Length / 1MB
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "Proximos passos:" -ForegroundColor Cyan
-Write-Host "  1. Teste a instalacao em ambiente limpo" -ForegroundColor White
-Write-Host "  2. Extraia o ZIP e execute: python install.py" -ForegroundColor White
-Write-Host "  3. Execute: python main.py --mode singleuser" -ForegroundColor White
-Write-Host "  4. Para restaurar venv: .\backup_restore_venv.ps1 -Restore" -ForegroundColor White
+Write-Host "OK DISTRIBUICAO PRONTA!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
+Write-Host "Arquivo: $nomeZip" -ForegroundColor White
+Write-Host "Tamanho: $([Math]::Round($tamanho, 2)) MB" -ForegroundColor White
+Write-Host ""
+Write-Host "Conteudo incluido:" -ForegroundColor Yellow
+Write-Host "  - Codigo Python (main.py + modulos)" -ForegroundColor Gray
+Write-Host "  - Banco SQLite (concilie.db com schema e usuario admin)" -ForegroundColor Gray
+Write-Host "  - Script de instalacao simplificado (install.py)" -ForegroundColor Gray
+Write-Host "  - Dependencias (requirements.txt)" -ForegroundColor Gray
+Write-Host "  - Instalador Python 3.13.9 (se disponivel)" -ForegroundColor Gray
+Write-Host ""
+Write-Host "Instrucoes para o cliente:" -ForegroundColor Yellow
+Write-Host "  1. Extrair ZIP em uma pasta" -ForegroundColor Gray
+Write-Host "  2. Se nao tiver Python: executar python-3.13.9-amd64.exe" -ForegroundColor Gray
+Write-Host "     (marcar 'Add to PATH' na instalacao)" -ForegroundColor Gray
+Write-Host "  3. Dar duplo clique em: Instalar.bat" -ForegroundColor Gray
+Write-Host "     (cria ambiente virtual + instala dependencias)" -ForegroundColor Gray
+Write-Host "  4. Dar duplo clique em: Iniciar Sistema.bat" -ForegroundColor Gray
+Write-Host "  5. Acessar: http://localhost:8500" -ForegroundColor Gray
+Write-Host "  6. Login: admin / 1234" -ForegroundColor Gray
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Cyan

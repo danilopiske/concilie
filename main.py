@@ -15,6 +15,7 @@ from modules.reports import criar_interface_relatorio  # <-- IMPORTAÇÃO PARA R
 from modules.ui_calculos import (
     make_calculos_view,
 )  # <-- IMPORTAÇÃO DA INTERFACE DE CÁLCULOS
+from modules.ui_analista import make_analista_view  # <-- IMPORTAÇÃO DO ANALISTA
 from proc.proc_usuarios import get_user_by_credentials
 import logging
 
@@ -160,6 +161,9 @@ def render_view(route: str | None = None):
     if route == "Relatórios":
         return criar_interface_relatorio(engine)
 
+    if route == "Analista":
+        return make_analista_view(engine, usuario_logado=user.get("usuario"))
+
     # Fallback
     return pn.Column(
         pn.pane.Markdown(f"### {route or 'Função não definida'}"),
@@ -238,7 +242,7 @@ def do_login(_=None):
         f"**Função:** {user.get('funcao','') or '-'}"
     )
 
-    menu_select.options = ["Importar", "Gestão", "Cálculos", "Relatórios"]
+    menu_select.options = ["Gestão", "Importar", "Cálculos", "Relatórios", "Analista"]
     menu_select.value = "Importar"
     _go_to("Importar")
     _notify_success(f"Bem-vindo, {user.get('nome') or user['usuario']}.")

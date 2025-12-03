@@ -22,7 +22,7 @@ def get_vendas_por_forma_pagamento(engine: Engine) -> pd.DataFrame:
 def get_vendas_pizza_forma_pagamento(engine: Engine) -> pd.DataFrame:
     # View agregada: soma de vendas por forma de pagamento
     return pd.read_sql(
-        "SELECT Forma_de_pagamento, SUM(vl_venda) as ValorTotal FROM vendas_processadas GROUP BY Forma_de_pagamento",
+        "SELECT Forma_de_pagamento, SUM(Valor_da_venda) as ValorTotal FROM vendas_processadas GROUP BY Forma_de_pagamento",
         engine,
     )
 
