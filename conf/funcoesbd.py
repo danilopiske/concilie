@@ -1855,7 +1855,7 @@ def agregar_periodos_db(engine: Engine, processamentoid: str) -> List[Dict[str, 
     quarter_expr = _quarter_sql(engine, "Data_da_venda")
     semester_expr = _semester_sql(engine, "Data_da_venda")
     date_fmt_mes = _date_format_sql(engine, "Data_da_venda", "%Y-%m")
-    
+
     # Expressões de período (para SELECT e GROUP BY devem ser idênticas)
     periodo_mes = date_fmt_mes
     periodo_trimestre = _concat_sql(engine, year_expr, "'-Q'", quarter_expr)
@@ -1879,7 +1879,9 @@ def agregar_periodos_db(engine: Engine, processamentoid: str) -> List[Dict[str, 
 
     # Gerar queries específicas para cada período
     sql_mes = sql_template.format(tipo="mes", periodo_expr=periodo_mes)
-    sql_trimestre = sql_template.format(tipo="trimestre", periodo_expr=periodo_trimestre)
+    sql_trimestre = sql_template.format(
+        tipo="trimestre", periodo_expr=periodo_trimestre
+    )
     sql_semestre = sql_template.format(tipo="semestre", periodo_expr=periodo_semestre)
     sql_ano = sql_template.format(tipo="ano", periodo_expr=periodo_ano)
 

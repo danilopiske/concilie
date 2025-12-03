@@ -181,6 +181,9 @@ $RECYCLE.BIN/
 # ==================
 # Específico do Projeto
 # ==================
+# Ferramentas de desenvolvimento (não distribuir)
+dev_tools/
+
 # Diretórios não relacionados (devem ser removidos)
 spotify_downloader/
 bd_structures/
@@ -203,11 +206,13 @@ conf/local_*.py
 # Temporários
 temp/
 tmp/
+temp_debug/
 *.tmp
 
 # Backups
 backup/
 *.backup
+.venv_backup*/
 
 # Arquivos binários e distribuições
 *.exe
