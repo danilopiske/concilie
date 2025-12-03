@@ -185,6 +185,7 @@ $RECYCLE.BIN/
 spotify_downloader/
 bd_structures/
 docs/
+docs_old/
 scripts/
 
 # Arquivos de teste
@@ -207,6 +208,15 @@ tmp/
 # Backups
 backup/
 *.backup
+
+# Arquivos binários e distribuições
+*.exe
+*.msi
+*.dmg
+*.zip
+*.tar.gz
+*.rar
+*.7z
 
 # ==================
 # Mantidos no Repositório

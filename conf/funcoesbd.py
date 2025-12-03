@@ -99,6 +99,64 @@ def _insert_ignore_sql(engine: Engine, table: str, columns: str, values: str) ->
         return f"INSERT IGNORE INTO {table} ({columns}) VALUES ({values})"
 
 
+def _year_sql(engine: Engine, column: str) -> str:
+    """Retorna SQL para extrair ano de uma data"""
+    if _is_sqlite(engine):
+        return f"strftime('%Y', {column})"
+    else:
+        return f"YEAR({column})"
+
+
+def _month_sql(engine: Engine, column: str) -> str:
+    """Retorna SQL para extrair mês (número) de uma data"""
+    if _is_sqlite(engine):
+        return f"CAST(strftime('%m', {column}) AS INTEGER)"
+    else:
+        return f"MONTH({column})"
+
+
+def _quarter_sql(engine: Engine, column: str) -> str:
+    """Retorna SQL para calcular trimestre de uma data"""
+    if _is_sqlite(engine):
+        # SQLite: calcular trimestre com CASE baseado no mês
+        return f"""CASE 
+            WHEN {_month_sql(engine, column)} <= 3 THEN '1'
+            WHEN {_month_sql(engine, column)} <= 6 THEN '2'
+            WHEN {_month_sql(engine, column)} <= 9 THEN '3'
+            ELSE '4'
+        END"""
+    else:
+        return f"QUARTER({column})"
+
+
+def _semester_sql(engine: Engine, column: str) -> str:
+    """Retorna SQL para calcular semestre de uma data"""
+    month_sql = _month_sql(engine, column)
+    if _is_sqlite(engine):
+        return f"CASE WHEN {month_sql} <= 6 THEN '1' ELSE '2' END"
+    else:
+        return f"IF({month_sql} <= 6, '1', '2')"
+
+
+def _get_table_columns(engine: Engine, table_name: str) -> List[str]:
+    """Retorna lista de colunas de uma tabela"""
+    if _is_sqlite(engine):
+        # SQLite: usa PRAGMA table_info
+        rows = fetch_all(engine, f"PRAGMA table_info({table_name})")
+        return [r["name"] for r in rows]
+    else:
+        # MySQL: usa INFORMATION_SCHEMA
+        rows = fetch_all(
+            engine,
+            f"""
+            SELECT COLUMN_NAME AS coluna FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table_name}'
+            ORDER BY ORDINAL_POSITION
+            """,
+        )
+        return [r["coluna"] for r in rows]
+
+
 def _upsert_sql(
     engine: Engine, table: str, columns: List[str], update_columns: List[str]
 ) -> str:
@@ -1038,24 +1096,8 @@ def listar_contextos(engine: Engine) -> List[str]:
 
 
 def listar_colunas_vendas_processadas(engine: Engine) -> List[str]:
-    if _is_sqlite(engine):
-        # SQLite: usa PRAGMA table_info
-        rows = fetch_all(
-            engine,
-            "PRAGMA table_info(vendas_processadas)",
-        )
-        return [r["name"] for r in rows]
-    else:
-        # MySQL: usa INFORMATION_SCHEMA
-        rows = fetch_all(
-            engine,
-            """
-            SELECT COLUMN_NAME AS coluna FROM INFORMATION_SCHEMA.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vendas_processadas'
-             ORDER BY ORDINAL_POSITION
-            """,
-        )
-        return [r["coluna"] for r in rows]
+    """Lista todas as colunas da tabela vendas_processadas"""
+    return _get_table_columns(engine, "vendas_processadas")
 
 
 def colunas_controle_deletar(engine: Engine, col_id: int) -> None:
@@ -1176,27 +1218,8 @@ def colunas_controle_sincronizar(
             "Contexto e Tipo de Arquivo são obrigatórios para sincronização."
         )
 
-    if _is_sqlite(engine):
-        # SQLite: usa PRAGMA table_info
-        cols_real = {
-            str(r["name"])
-            for r in fetch_all(
-                engine,
-                "PRAGMA table_info(vendas_processadas)",
-            )
-        }
-    else:
-        # MySQL: usa INFORMATION_SCHEMA
-        cols_real = {
-            str(r["coluna"])
-            for r in fetch_all(
-                engine,
-                """
-            SELECT COLUMN_NAME AS coluna FROM INFORMATION_SCHEMA.COLUMNS
-             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vendas_processadas'
-        """,
-            )
-        }
+    # Usar função helper para obter colunas
+    cols_real = set(_get_table_columns(engine, "vendas_processadas"))
 
     cadastradas = {
         str(r["campo"])
@@ -1827,130 +1850,38 @@ def agregar_periodos_db(engine: Engine, processamentoid: str) -> List[Dict[str, 
         f"[DEBUG agregar_periodos_db] Tipo do banco: {'SQLite' if _is_sqlite(engine) else 'MySQL'}"
     )
 
-    if _is_sqlite(engine):
-        # SQLite
-        sql_mes = """
-            SELECT 
-                'mes' as tipo_periodo,
-                strftime('%Y-%m', Data_da_venda) as periodo,
-                COUNT(*) as quantidade,
-                SUM(Valor_da_venda) as valor_total,
-                AVG(Valor_da_venda) as valor_medio,
-                MIN(Valor_da_venda) as valor_min,
-                MAX(Valor_da_venda) as valor_max
-            FROM vendas_processadas
-            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
-            GROUP BY strftime('%Y-%m', Data_da_venda)
-        """
+    # Construir expressões SQL compatíveis com ambos os bancos
+    year_expr = _year_sql(engine, "Data_da_venda")
+    quarter_expr = _quarter_sql(engine, "Data_da_venda")
+    semester_expr = _semester_sql(engine, "Data_da_venda")
+    date_fmt_mes = _date_format_sql(engine, "Data_da_venda", "%Y-%m")
+    
+    # Expressões de período (para SELECT e GROUP BY devem ser idênticas)
+    periodo_mes = date_fmt_mes
+    periodo_trimestre = _concat_sql(engine, year_expr, "'-Q'", quarter_expr)
+    periodo_semestre = _concat_sql(engine, year_expr, "'-S'", semester_expr)
+    periodo_ano = year_expr
 
-        sql_trimestre = """
-            SELECT 
-                'trimestre' as tipo_periodo,
-                strftime('%Y', Data_da_venda) || '-Q' || 
-                CASE 
-                    WHEN CAST(strftime('%m', Data_da_venda) AS INTEGER) <= 3 THEN '1'
-                    WHEN CAST(strftime('%m', Data_da_venda) AS INTEGER) <= 6 THEN '2'
-                    WHEN CAST(strftime('%m', Data_da_venda) AS INTEGER) <= 9 THEN '3'
-                    ELSE '4'
-                END as periodo,
-                COUNT(*) as quantidade,
-                SUM(Valor_da_venda) as valor_total,
-                AVG(Valor_da_venda) as valor_medio,
-                MIN(Valor_da_venda) as valor_min,
-                MAX(Valor_da_venda) as valor_max
-            FROM vendas_processadas
-            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
-            GROUP BY periodo
-        """
+    # Template base para agregação
+    sql_template = """
+        SELECT 
+            '{tipo}' as tipo_periodo,
+            {periodo_expr} as periodo,
+            COUNT(*) as quantidade,
+            SUM(Valor_da_venda) as valor_total,
+            AVG(Valor_da_venda) as valor_medio,
+            MIN(Valor_da_venda) as valor_min,
+            MAX(Valor_da_venda) as valor_max
+        FROM vendas_processadas
+        WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+        GROUP BY {periodo_expr}
+    """
 
-        sql_semestre = """
-            SELECT 
-                'semestre' as tipo_periodo,
-                strftime('%Y', Data_da_venda) || '-S' || 
-                CASE 
-                    WHEN CAST(strftime('%m', Data_da_venda) AS INTEGER) <= 6 THEN '1'
-                    ELSE '2'
-                END as periodo,
-                COUNT(*) as quantidade,
-                SUM(Valor_da_venda) as valor_total,
-                AVG(Valor_da_venda) as valor_medio,
-                MIN(Valor_da_venda) as valor_min,
-                MAX(Valor_da_venda) as valor_max
-            FROM vendas_processadas
-            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
-            GROUP BY periodo
-        """
-
-        sql_ano = """
-            SELECT 
-                'ano' as tipo_periodo,
-                strftime('%Y', Data_da_venda) as periodo,
-                COUNT(*) as quantidade,
-                SUM(Valor_da_venda) as valor_total,
-                AVG(Valor_da_venda) as valor_medio,
-                MIN(Valor_da_venda) as valor_min,
-                MAX(Valor_da_venda) as valor_max
-            FROM vendas_processadas
-            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
-            GROUP BY strftime('%Y', Data_da_venda)
-        """
-    else:
-        # MySQL
-        sql_mes = """
-            SELECT 
-                'mes' as tipo_periodo,
-                DATE_FORMAT(Data_da_venda, '%Y-%m') as periodo,
-                COUNT(*) as quantidade,
-                SUM(Valor_da_venda) as valor_total,
-                AVG(Valor_da_venda) as valor_medio,
-                MIN(Valor_da_venda) as valor_min,
-                MAX(Valor_da_venda) as valor_max
-            FROM vendas_processadas
-            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
-            GROUP BY DATE_FORMAT(Data_da_venda, '%Y-%m')
-        """
-
-        sql_trimestre = """
-            SELECT 
-                'trimestre' as tipo_periodo,
-                CONCAT(YEAR(Data_da_venda), '-Q', QUARTER(Data_da_venda)) as periodo,
-                COUNT(*) as quantidade,
-                SUM(Valor_da_venda) as valor_total,
-                AVG(Valor_da_venda) as valor_medio,
-                MIN(Valor_da_venda) as valor_min,
-                MAX(Valor_da_venda) as valor_max
-            FROM vendas_processadas
-            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
-            GROUP BY CONCAT(YEAR(Data_da_venda), '-Q', QUARTER(Data_da_venda))
-        """
-
-        sql_semestre = """
-            SELECT 
-                'semestre' as tipo_periodo,
-                CONCAT(YEAR(Data_da_venda), '-S', IF(MONTH(Data_da_venda) <= 6, '1', '2')) as periodo,
-                COUNT(*) as quantidade,
-                SUM(Valor_da_venda) as valor_total,
-                AVG(Valor_da_venda) as valor_medio,
-                MIN(Valor_da_venda) as valor_min,
-                MAX(Valor_da_venda) as valor_max
-            FROM vendas_processadas
-            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
-            GROUP BY CONCAT(YEAR(Data_da_venda), '-S', IF(MONTH(Data_da_venda) <= 6, '1', '2'))
-        """
-
-        sql_ano = """
-            SELECT 
-                'ano' as tipo_periodo,
-                YEAR(Data_da_venda) as periodo,
-                COUNT(*) as quantidade,
-                SUM(Valor_da_venda) as valor_total,
-                AVG(Valor_da_venda) as valor_medio,
-                MIN(Valor_da_venda) as valor_min,
-                MAX(Valor_da_venda) as valor_max
-            FROM vendas_processadas
-            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
-            GROUP BY YEAR(Data_da_venda)
-        """
+    # Gerar queries específicas para cada período
+    sql_mes = sql_template.format(tipo="mes", periodo_expr=periodo_mes)
+    sql_trimestre = sql_template.format(tipo="trimestre", periodo_expr=periodo_trimestre)
+    sql_semestre = sql_template.format(tipo="semestre", periodo_expr=periodo_semestre)
+    sql_ano = sql_template.format(tipo="ano", periodo_expr=periodo_ano)
 
     # Executar todas as queries e combinar resultados
     params = {"pid": processamentoid}
