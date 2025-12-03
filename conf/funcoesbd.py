@@ -1946,3 +1946,61 @@ def obter_total_registros_processamento(engine: Engine, processamentoid: str) ->
         print(f"[ERROR obter_total_registros_processamento] Erro ao contar: {e}")
         print(f"[ERROR obter_total_registros_processamento] SQL: {sql}")
         raise
+
+
+def agregar_recebiveis_db(engine: Engine, processamentoid: str) -> List[Dict[str, Any]]:
+    """Agrega tipos de recebíveis/produtos diretamente no banco"""
+    print(
+        f"[DEBUG agregar_recebiveis_db] Iniciando agregação para processamento: {processamentoid}"
+    )
+
+    # Tentar diferentes colunas que podem conter tipo de produto/recebível
+    colunas_possiveis = [
+        "Produto",
+        "Produto_cielo",
+        "Tipo_produto",
+        "Tipo_recebivel",
+        "Tipo",
+    ]
+
+    for coluna in colunas_possiveis:
+        try:
+            # Testar se a coluna existe
+            test_sql = f"""
+                SELECT {coluna}
+                FROM vendas_processadas
+                WHERE processamentoid = :pid
+                LIMIT 1
+            """
+            fetch_one(engine, test_sql, {"pid": processamentoid})
+
+            # Se chegou aqui, a coluna existe - fazer agregação
+            sql = f"""
+                SELECT 
+                    {coluna} as tipo_recebivel,
+                    COUNT(*) as quantidade,
+                    SUM(Valor_da_venda) as valor_total,
+                    AVG(Valor_da_venda) as valor_medio,
+                    MIN(Valor_da_venda) as valor_min,
+                    MAX(Valor_da_venda) as valor_max
+                FROM vendas_processadas
+                WHERE processamentoid = :pid AND {coluna} IS NOT NULL
+                GROUP BY {coluna}
+                ORDER BY valor_total DESC
+            """
+
+            print(f"[DEBUG agregar_recebiveis_db] Usando coluna: {coluna}")
+            resultado = fetch_all(engine, sql, {"pid": processamentoid})
+            print(
+                f"[DEBUG agregar_recebiveis_db] Resultado obtido: {len(resultado)} registros"
+            )
+            return resultado
+
+        except Exception as e:
+            # Coluna não existe, tentar próxima
+            print(f"[DEBUG agregar_recebiveis_db] Coluna {coluna} não encontrada: {e}")
+            continue
+
+    # Se nenhuma coluna foi encontrada
+    print(f"[DEBUG agregar_recebiveis_db] Nenhuma coluna de tipo de recebível encontrada")
+    return []

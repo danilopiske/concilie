@@ -27,6 +27,7 @@ from conf.funcoesbd import (
     agregar_bandeiras_db,
     agregar_formas_pagamento_db,
     agregar_periodos_db,
+    agregar_recebiveis_db,
     obter_total_registros_processamento,
 )
 from proc.proc_importacao import (
@@ -509,7 +510,10 @@ def make_analista_view(
         ("Bandeiras", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
         ("Formas de Pagamento", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
         ("Tipos de Recebíveis", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
-        ("Períodos", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
+        ("Períodos - Mês", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
+        ("Períodos - Trimestre", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
+        ("Períodos - Semestre", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
+        ("Períodos - Ano", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
     )
 
     status_pane = pn.pane.Markdown("", sizing_mode="stretch_width")
@@ -670,6 +674,13 @@ def make_analista_view(
                 f"[DEBUG] Primeiros 2 períodos: {periodos[:2] if periodos else 'vazio'}"
             )
 
+            print(f"[DEBUG] Agregando tipos de recebíveis...")
+            recebiveis = agregar_recebiveis_db(engine, pid)
+            print(f"[DEBUG] Recebíveis agregados: {len(recebiveis)} registros")
+            print(
+                f"[DEBUG] Primeiros 2 recebíveis: {recebiveis[:2] if recebiveis else 'vazio'}"
+            )
+
             # Converter None para 0 nas agregações
             print(f"[DEBUG] Convertendo valores None para 0 nas bandeiras...")
             for b in bandeiras:
@@ -754,24 +765,67 @@ def make_analista_view(
                 print(f"[DEBUG] Nenhuma forma")
                 tab_resultados[1].value = pd.DataFrame()
 
-            # Tab de tipos de recebíveis (vazio por enquanto)
-            print(f"[DEBUG] Tab de tipos (vazio)")
-            tab_resultados[2].value = pd.DataFrame()
+            # Tab de tipos de recebíveis
+            print(f"[DEBUG] Atualizando tab de tipos de recebíveis...")
+            if recebiveis:
+                df_recebiveis = pd.DataFrame(recebiveis)
+                print(f"[DEBUG] DataFrame recebíveis: {len(df_recebiveis)} linhas")
+                tab_resultados[2].value = df_recebiveis
+            else:
+                print(f"[DEBUG] Nenhum recebível")
+                tab_resultados[2].value = pd.DataFrame()
 
-            print(f"[DEBUG] Atualizando tab de períodos...")
+            print(f"[DEBUG] Atualizando tabs de períodos...")
             if periodos:
                 df_periodos = pd.DataFrame(periodos)
                 print(f"[DEBUG] DataFrame períodos: {len(df_periodos)} linhas")
-                tab_resultados[3].value = df_periodos
+                
+                # Separar por tipo de período
+                df_mes = df_periodos[df_periodos['tipo_periodo'] == 'mes'].copy()
+                df_trimestre = df_periodos[df_periodos['tipo_periodo'] == 'trimestre'].copy()
+                df_semestre = df_periodos[df_periodos['tipo_periodo'] == 'semestre'].copy()
+                df_ano = df_periodos[df_periodos['tipo_periodo'] == 'ano'].copy()
+                
+                # Formatar valores para exibição
+                for df in [df_mes, df_trimestre, df_semestre, df_ano]:
+                    if not df.empty and 'valor_total' in df.columns:
+                        df['valor_total'] = df['valor_total'].apply(lambda x: f"R$ {x:,.2f}" if pd.notna(x) else "R$ 0,00")
+                    if not df.empty and 'valor_medio' in df.columns:
+                        df['valor_medio'] = df['valor_medio'].apply(lambda x: f"R$ {x:,.2f}" if pd.notna(x) else "R$ 0,00")
+                
+                tab_resultados[3].value = df_mes if not df_mes.empty else pd.DataFrame()
+                tab_resultados[4].value = df_trimestre if not df_trimestre.empty else pd.DataFrame()
+                tab_resultados[5].value = df_semestre if not df_semestre.empty else pd.DataFrame()
+                tab_resultados[6].value = df_ano if not df_ano.empty else pd.DataFrame()
+                
+                print(f"[DEBUG] Períodos - Mês: {len(df_mes)}, Trimestre: {len(df_trimestre)}, Semestre: {len(df_semestre)}, Ano: {len(df_ano)}")
             else:
                 print(f"[DEBUG] Nenhum período")
                 tab_resultados[3].value = pd.DataFrame()
+                tab_resultados[4].value = pd.DataFrame()
+                tab_resultados[5].value = pd.DataFrame()
+                tab_resultados[6].value = pd.DataFrame()
 
             print(f"[DEBUG] Todas as tabs atualizadas!")
-            status_pane.object = f"✅ **Processamento {pid} carregado!** Total: {total_registros:,} registros | {len(bandeiras)} bandeiras | {len(formas)} formas | {len(periodos)} períodos"
+            
+            # Contar períodos por tipo
+            n_mes = len([p for p in periodos if p.get('tipo_periodo') == 'mes'])
+            n_trim = len([p for p in periodos if p.get('tipo_periodo') == 'trimestre'])
+            n_sem = len([p for p in periodos if p.get('tipo_periodo') == 'semestre'])
+            n_ano = len([p for p in periodos if p.get('tipo_periodo') == 'ano'])
+            
+            status_pane.object = f"""✅ **Processamento {pid} carregado!** 
+            
+📊 **Resumo:**
+- Total de registros: {total_registros:,}
+- Bandeiras: {len(bandeiras)}
+- Formas de pagamento: {len(formas)}
+- Tipos de recebíveis: {len(recebiveis)}
+- Períodos: {n_mes} meses | {n_trim} trimestres | {n_sem} semestres | {n_ano} anos
+"""
             _notify(
                 "success",
-                f"Processamento {pid} carregado com sucesso! ({total_registros:,} registros)",
+                f"Processamento {pid} carregado! {total_registros:,} registros | {len(recebiveis)} tipos de recebíveis",
             )
 
         except Exception as e:
