@@ -41,28 +41,13 @@ def classificar_e_gravar_recebiveis(
     """
     Processa, filtra e grava recebíveis nas tabelas corretas, com metadados e deduplicação.
     """
-    print(f"[DEBUG] 🔄 INICIANDO classificar_e_gravar_recebiveis")
-    print(f"[DEBUG] - Arquivo: {arquivo_origem}")
-    print(f"[DEBUG] - DataFrame shape: {df.shape}")
-    print(f"[DEBUG] - Colunas: {list(df.columns)}")
-
     # Termo filtrável removido - deve ser configurado manualmente se necessário
 
-    # Debug detalhado das primeiras linhas
     if not df.empty:
-        print(f"[DEBUG] - Primeira linha de dados:")
-        print(df.iloc[0].to_dict() if len(df) > 0 else "DataFrame vazio")
 
         # Se já tem coluna 'Filtrado', refaz a filtragem com os termos atuais do banco
         if "Filtrado" in df.columns:
-            print(
-                f"[DEBUG] ⚠️  SEGUNDA EXECUÇÃO DETECTADA: DataFrame já contém coluna 'Filtrado'"
-            )
-            print(
-                f"[DEBUG] ⚠️  Valores únicos na coluna 'Filtrado': {df['Filtrado'].unique()}"
-            )
             # Refaz a filtragem: sobrescreve a coluna 'Filtrado' com base nos termos atuais
-            print(f"[DEBUG] ⚠️  REFILTRAGEM: Detectando coluna de lançamento...")
             # Detecta coluna de lançamento (PRIORIZA 'lancamento' sobre 'descricao')
             lancamento_col = None
 
@@ -75,9 +60,6 @@ def classificar_e_gravar_recebiveis(
                     "tipo de lançamento",
                 ]:
                     lancamento_col = c
-                    print(
-                        f"[DEBUG] ⚠️  REFILTRAGEM: Coluna encontrada (prioridade): '{lancamento_col}'"
-                    )
                     break
 
             # Segunda passada: se não encontrou 'lancamento', buscar por 'descricao'
@@ -85,16 +67,10 @@ def classificar_e_gravar_recebiveis(
                 for c in df.columns:
                     if str(c).strip().lower() in ["descricao", "descrição"]:
                         lancamento_col = c
-                        print(
-                            f"[DEBUG] ⚠️  REFILTRAGEM: Coluna encontrada (fallback): '{lancamento_col}'"
-                        )
                         break
 
             if not lancamento_col:
                 lancamento_col = df.columns[0] if len(df.columns) > 0 else None
-                print(
-                    f"[DEBUG] ⚠️  REFILTRAGEM: Usando primeira coluna: '{lancamento_col}'"
-                )
 
             def norm(s):
                 import unicodedata
@@ -107,42 +83,30 @@ def classificar_e_gravar_recebiveis(
                     .strip()
                 )
 
-            print(f"[DEBUG] ⚠️  REFILTRAGEM: Carregando termos...")
             termos_raw = termos_listar(engine, str(ec_id), contexto, tipo="r")
-            print(f"[DEBUG] ⚠️  REFILTRAGEM: Termos carregados: {termos_raw}")
             termos = [
                 norm(t["termo"]) if isinstance(t, dict) and "termo" in t else norm(t)
                 for t in termos_raw
             ]
-            print(f"[DEBUG] ⚠️  REFILTRAGEM: Termos normalizados: {termos}")
 
             if termos:
                 padrao_termos = re.compile(
                     "|".join(map(re.escape, termos)), flags=re.IGNORECASE
                 )
-                print(
-                    f"[DEBUG] ⚠️  REFILTRAGEM: Padrão criado: '{padrao_termos.pattern}'"
-                )
             else:
                 padrao_termos = None
-                print(f"[DEBUG] ⚠️  REFILTRAGEM: Nenhum termo - não filtrará")
 
             mask_vazio = df[lancamento_col].isnull() | (
                 df[lancamento_col].astype(str).str.strip() == ""
             )
 
             if padrao_termos:
-                print(f"[DEBUG] ⚠️  REFILTRAGEM: Verificando matches...")
-
-                def debug_match(x):
+                def check_match(x):
                     x_norm = norm(x)
                     match = padrao_termos.search(x_norm)
-                    result = bool(match)
-                    if result:
-                        print(f"[DEBUG] ⚠️  REFILTRAGEM: MATCH: '{x}' -> '{x_norm}'")
-                    return result
+                    return bool(match)
 
-                mask_termo = df[lancamento_col].astype(str).apply(debug_match)
+                mask_termo = df[lancamento_col].astype(str).apply(check_match)
             else:
                 mask_termo = pd.Series([False] * len(df), index=df.index)
 
@@ -153,14 +117,6 @@ def classificar_e_gravar_recebiveis(
 
             df.loc[mask_proc, "Filtrado"] = 0
             df.loc[mask_filt, "Filtrado"] = 1
-
-            print(f"[DEBUG] ⚠️  REFILTRAGEM: Resultado final:")
-            print(f"[DEBUG] ⚠️    → Processados: {mask_proc.sum()}")
-            print(f"[DEBUG] ⚠️    → Filtrados: {mask_filt.sum()}")
-            print(f"[DEBUG] ⚠️    → Vazios: {mask_vazio.sum()}")
-            print(
-                f"[DEBUG] ⚠️  Valores únicos em 'Filtrado': {sorted(df['Filtrado'].unique())}"
-            )
 
     now = datetime.now()
 
@@ -179,16 +135,8 @@ def classificar_e_gravar_recebiveis(
         )
 
     # Normaliza e filtra
-    # TEMPORÁRIO: Pular filtragem para debug - todos os registros vão para processados
-    debug_mode = False  # Mude para False quando quiser reativar a filtragem normal
-
-    if debug_mode:
-        print(
-            "[DEBUG] 🔧 MODO DEBUG ATIVO: Todos os registros irão para recebiveis_processados"
-        )
-
     df = normalizar_dataframe_recebiveis(
-        df, engine, ec_id, contexto, usuario, debug_skip_filter=debug_mode
+        df, engine, ec_id, contexto, usuario
     )
 
     # NOTA: As datas já foram convertidas corretamente em normalizar_dataframe_recebiveis
@@ -198,23 +146,22 @@ def classificar_e_gravar_recebiveis(
     df["arquivo_origem"] = arquivo_origem or ""
     df["processamentoid"] = processamentoid
     df["cliente_id"] = cliente_id
-    df["ec_id"] = ec_id
+
+    # ⚠️ CRÍTICO: Apenas preencher ec_id se não veio do de-para (coluna vazia/ausente)
+    # Se ec_id já existe no DataFrame (via de-para), NÃO sobrescrever!
+    if "ec_id" not in df.columns or df["ec_id"].isna().all():
+        df["ec_id"] = ec_id
+
     # As datas já estão convertidas corretamente em normalizar_dataframe_recebiveis
 
     # Separa entre processados e filtrados baseado na coluna 'Filtrado'
     if "Filtrado" in df.columns:
         df_proc = df[df["Filtrado"] == 0].copy()
         df_filt = df[df["Filtrado"] == 1].copy()
-        print(
-            f"[DEBUG] ✅ Separação baseada na coluna 'Filtrado': {len(df_proc)} processados, {len(df_filt)} filtrados"
-        )
     else:
         # Se não tem coluna Filtrado, todos vão para processados
         df_proc = df.copy()
         df_filt = pd.DataFrame(columns=df.columns)
-        print(
-            f"[DEBUG] ⚠️  Sem coluna 'Filtrado', todos {len(df_proc)} registros vão para processados"
-        )
 
     # Remove colunas auxiliares (igual às vendas)
     columns_to_remove = ["Filtrado", "planilha_origem"]
@@ -222,33 +169,14 @@ def classificar_e_gravar_recebiveis(
     df_filt_db = df_filt.drop(columns=columns_to_remove, errors="ignore")
 
     # ✅ CORREÇÃO: Converter valores monetários para float ANTES do insert
-    print(f"[DEBUG][RECEBIVEIS] 🔧 Convertendo valores monetários para float...")
-
     for col in ["valor_recebivel", "valor_liquido"]:
         if col in df_proc_db.columns:
-            # Forçar conversão para numérico
-            antes_dtype = df_proc_db[col].dtype
-            antes_nulos = df_proc_db[col].isna().sum()
-
-            df_proc_db[col] = pd.to_numeric(df_proc_db[col], errors="coerce")
-
-            depois_dtype = df_proc_db[col].dtype
-            depois_nulos = df_proc_db[col].isna().sum()
-            novos_nulos = depois_nulos - antes_nulos
-
-            print(f"[DEBUG][RECEBIVEIS] {col}:")
-            print(f"  - Tipo: {antes_dtype} → {depois_dtype}")
-            print(f"  - NULLs: {antes_nulos} → {depois_nulos} (+{novos_nulos})")
-
-            # Mostrar exemplo de valores após conversão
-            if not df_proc_db[col].empty:
-                valores_validos = df_proc_db[col].dropna()
-                if len(valores_validos) > 0:
-                    exemplo = valores_validos.head(3).tolist()
-                    print(f"  - Exemplos: {exemplo}")
+            # ⚠️ CRÍTICO: Converter E arredondar para 2 casas decimais
+            df_proc_db[col] = pd.to_numeric(df_proc_db[col], errors="coerce").round(2)
 
         if col in df_filt_db.columns:
-            df_filt_db[col] = pd.to_numeric(df_filt_db[col], errors="coerce")
+            # ⚠️ CRÍTICO: Converter E arredondar para 2 casas decimais
+            df_filt_db[col] = pd.to_numeric(df_filt_db[col], errors="coerce").round(2)
 
     n_proc, n_filt = len(df_proc_db), len(df_filt_db)
 
@@ -260,9 +188,6 @@ def classificar_e_gravar_recebiveis(
 
     # Remover duplicadas (igual às vendas)
     if n_proc:
-        print(
-            f"[DEBUG][RECEBIVEIS] Removendo duplicadas de processados - colunas: {df_proc_db.columns.tolist()}"
-        )
         recebiveis_remover_duplicadas(
             engine,
             "recebiveis_processados",
@@ -270,14 +195,9 @@ def classificar_e_gravar_recebiveis(
             df_proc_db.columns.tolist(),
         )
     if n_filt:
-        print(
-            f"[DEBUG][RECEBIVEIS] Removendo duplicadas de filtrados - colunas: {df_filt_db.columns.tolist()}"
-        )
         recebiveis_remover_duplicadas(
             engine, "recebiveis_filtrados", processamentoid, df_filt_db.columns.tolist()
         )
-
-    print(f"[DEBUG][RECEBIVEIS] Processadas: {n_proc}, Filtradas: {n_filt}")
 
     return {
         "processadas": len(df_proc_db),
@@ -318,25 +238,15 @@ def normalizar_dataframe_recebiveis(
     colunas_data = [c for c in colunas_data_candidatas if c in df.columns]
 
     for col in colunas_data:
-        df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True)
-
-    print(f"[DEBUG] ✅ Colunas convertidas para datetime: {colunas_data}")
-
-    # Debug: Mostrar primeiros valores de data_recebivel após conversão
-    if "data_recebivel" in df.columns and len(df) > 0:
-        print(f"[DEBUG] 📅 Primeiros valores de data_recebivel após conversão:")
-        for idx in df.head(3).index:
-            valor_original = df.loc[idx, "data_recebivel"]
-            print(
-                f"[DEBUG]   Linha {idx}: {valor_original} (tipo: {type(valor_original).__name__})"
-            )
-    if "data_pagamento" in df.columns and len(df) > 0:
-        print(f"[DEBUG] 📅 Primeiros valores de data_pagamento após conversão:")
-        for idx in df.head(3).index:
-            valor_original = df.loc[idx, "data_pagamento"]
-            print(
-                f"[DEBUG]   Linha {idx}: {valor_original} (tipo: {type(valor_original).__name__})"
-            )
+        # ⚠️ CORREÇÃO CRÍTICA: Detectar formato ISO 8601 (YYYY-MM-DD) vs brasileiro (DD/MM/YYYY)
+        # - Se string contém '-' → formato ISO (não usar dayfirst)
+        # - Se string contém '/' → formato brasileiro (usar dayfirst=True)
+        sample_value = (
+            str(df[col].dropna().iloc[0]) if len(df[col].dropna()) > 0 else ""
+        )
+        use_dayfirst = "/" in sample_value  # Apenas para formato DD/MM/YYYY
+        
+        df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=use_dayfirst)
 
     # Conversão explícita de colunas numéricas/monetárias
     colunas_numericas_candidatas = [
@@ -350,20 +260,9 @@ def normalizar_dataframe_recebiveis(
     colunas_numericas = [c for c in colunas_numericas_candidatas if c in df.columns]
 
     for col in colunas_numericas:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    print(f"[DEBUG] ✅ Colunas convertidas para numeric: {colunas_numericas}")
-
-    print(f"[DEBUG] 🔄 INICIANDO normalizar_dataframe_recebiveis")
-    print(f"[DEBUG] - Recebido DataFrame com {len(df)} linhas")
-    print(f"[DEBUG] - Colunas disponíveis: {list(df.columns)}")
-    print(f"[DEBUG] - ec_id: {ec_id}, contexto: {contexto}, usuario: {usuario}")
-
-    # Mostra as primeiras 3 linhas para debug
-    if len(df) > 0:
-        print(f"[DEBUG] - Primeiras 3 linhas do DataFrame:")
-        for idx, row in df.head(3).iterrows():
-            print(f"[DEBUG]   Linha {idx}: {dict(row)}")
+        # ⚠️ CRÍTICO: Converter para numeric E arredondar para 2 casas decimais
+        # Evita imprecisão de ponto flutuante (0.30 → 0.3097)
+        df[col] = pd.to_numeric(df[col], errors="coerce").round(2)
 
     # Adiciona metadados básicos
     df["data_processamento"] = datetime.now()
@@ -374,22 +273,14 @@ def normalizar_dataframe_recebiveis(
         adquirente_valor = contexto.upper()
         if "Adquirente" not in df.columns:
             df["Adquirente"] = adquirente_valor
-            print(
-                f"[DEBUG] ✅ Coluna 'Adquirente' criada com valor: '{adquirente_valor}'"
-            )
         else:
             # Preencher apenas onde está vazio/nulo
             mask_vazio = df["Adquirente"].isnull() | (
                 df["Adquirente"].astype(str).str.strip() == ""
             )
             df.loc[mask_vazio, "Adquirente"] = adquirente_valor
-            print(
-                f"[DEBUG] ✅ Coluna 'Adquirente' preenchida onde vazia com: '{adquirente_valor}'"
-            )
 
     # APLICAR FILTRAGEM BASEADA EM TERMOS
-    print(f"[DEBUG] 🔍 INICIANDO FILTRAGEM POR TERMOS...")
-
     # Identificar coluna de lançamento/descrição (prioridade para 'lancamento')
     lancamento_col = None
 
@@ -402,9 +293,6 @@ def normalizar_dataframe_recebiveis(
             "tipo de lançamento",
         ]:
             lancamento_col = c
-            print(
-                f"[DEBUG] ✅ Coluna de lançamento encontrada (prioridade): '{lancamento_col}'"
-            )
             break
 
     # Segunda passada: se não encontrou 'lancamento', buscar por 'descricao'
@@ -412,21 +300,14 @@ def normalizar_dataframe_recebiveis(
         for c in df.columns:
             if str(c).strip().lower() in ["descricao", "descrição"]:
                 lancamento_col = c
-                print(
-                    f"[DEBUG] ✅ Coluna de descrição encontrada (fallback): '{lancamento_col}'"
-                )
                 break
 
     if not lancamento_col:
         lancamento_col = df.columns[0] if len(df.columns) > 0 else None
-        print(f"[DEBUG] ⚠️  Usando primeira coluna disponível: '{lancamento_col}'")
 
     if not lancamento_col:
-        print(f"[DEBUG] ❌ ERRO: Nenhuma coluna adequada encontrada para filtragem!")
         df["Filtrado"] = 0
         return df
-
-    print(f"[DEBUG] 📋 Coluna selecionada para filtragem: '{lancamento_col}'")
 
     # Função de normalização de texto
     def norm(s):
@@ -439,17 +320,12 @@ def normalizar_dataframe_recebiveis(
         )
 
     # Carregar termos de filtro
-    print(f"[DEBUG] 🔍 Carregando termos de filtragem...")
-    print(f"[DEBUG] - Parâmetros: ec_id='{ec_id}', contexto='{contexto}', tipo='r'")
-
     termos_raw = termos_listar(engine, str(ec_id), contexto, tipo="r")
-    print(f"[DEBUG] 📥 Termos carregados da base: {termos_raw}")
 
     termos = [
         norm(t["termo"]) if isinstance(t, dict) and "termo" in t else norm(t)
         for t in termos_raw
     ]
-    print(f"[DEBUG] 🔤 Termos normalizados: {termos}")
 
     # 🔥 INICIALIZAR coluna Filtrado SEMPRE
     df["Filtrado"] = 0  # Default: não filtrado
@@ -458,10 +334,6 @@ def normalizar_dataframe_recebiveis(
     # IMPORTANTE: Após o De-Para, "motivo_ajuste" foi renomeado para "lancamento"
     # Esta validação acontece ANTES da filtragem por termos
     if contexto and contexto.upper() == "CIELO":
-        print(
-            f"[DEBUG] 🔍 Validação CIELO: Verificando coluna 'lancamento' (ex-motivo_ajuste)..."
-        )
-
         # Procurar coluna lancamento (que é o destino do De-Para de motivo_ajuste)
         lancamento_col_validacao = None
         for col in df.columns:
@@ -469,9 +341,6 @@ def normalizar_dataframe_recebiveis(
             # Procurar por "lancamento" que é como motivo_ajuste foi renomeado
             if col_lower == "lancamento":
                 lancamento_col_validacao = col
-                print(
-                    f"[DEBUG] ✅ Coluna 'lancamento' encontrada: '{lancamento_col_validacao}'"
-                )
                 break
 
         if lancamento_col_validacao:
@@ -486,42 +355,17 @@ def normalizar_dataframe_recebiveis(
             linhas_vazias = mask_vazio.sum()
 
             if linhas_vazias > 0:
-                print(
-                    f"[DEBUG] 🚫 CIELO VALIDAÇÃO: {linhas_vazias} linhas com 'lancamento' vazio serão FILTRADAS"
-                )
-
                 # Marcar como filtrado
                 df.loc[mask_vazio, "Filtrado"] = 1
 
-                # Debug: mostrar exemplos
-                exemplos = df[mask_vazio].head(5)
-                print(
-                    f"[DEBUG] 📋 Exemplos de linhas filtradas por lancamento vazio (primeiras 5):"
-                )
-                for idx in exemplos.index:
-                    valor_lancamento = df.loc[idx, lancamento_col_validacao]
-                    print(
-                        f"[DEBUG]   - Linha {idx}: lancamento = '{valor_lancamento}' (tipo: {type(valor_lancamento).__name__})"
-                    )
-            else:
-                print(f"[DEBUG] ✅ Todas as linhas têm 'lancamento' preenchido")
-        else:
-            print(
-                f"[DEBUG] ⚠️  Coluna 'lancamento' NÃO encontrada! Colunas disponíveis: {list(df.columns)}"
-            )
-
     # Aplicar filtragem por TERMOS (adiciona mais filtros aos já existentes)
     if termos and lancamento_col in df.columns:
-        print(f"[DEBUG] 🎯 Aplicando filtragem na coluna '{lancamento_col}'...")
-
         # Criar padrão regex
         padrao_termos = re.compile(
             "|".join(map(re.escape, termos)), flags=re.IGNORECASE
         )
-        print(f"[DEBUG] 🔧 Padrão regex criado: {padrao_termos.pattern}")
 
-        # Aplicar filtro linha por linha para debug detalhado
-        filtrados_count = 0
+        # Aplicar filtro
         for idx, row in df.iterrows():
             valor_celula = str(row.get(lancamento_col, "")).strip()
             valor_normalizado = norm(valor_celula)
@@ -529,50 +373,6 @@ def normalizar_dataframe_recebiveis(
             match = padrao_termos.search(valor_normalizado)
             if match:
                 df.loc[idx, "Filtrado"] = 1
-                filtrados_count += 1
-                print(
-                    f"[DEBUG] 🚫 FILTRADO - Linha {idx}: '{valor_celula}' -> Match: '{match.group()}'"
-                )
-            else:
-                print(
-                    f"[DEBUG] ✅ MANTIDO - Linha {idx}: '{valor_celula}' (normalizado: '{valor_normalizado}')"
-                )
-
-        print(f"[DEBUG] 📊 RESULTADO FILTRAGEM:")
-        print(f"[DEBUG] - Total de linhas: {len(df)}")
-        print(f"[DEBUG] - Linhas filtradas: {filtrados_count}")
-        print(f"[DEBUG] - Linhas mantidas: {len(df) - filtrados_count}")
-
-    else:
-        if not termos:
-            print(
-                f"[DEBUG] ⚠️  Nenhum termo de filtragem encontrado - todos os registros serão mantidos"
-            )
-        if lancamento_col not in df.columns:
-            print(f"[DEBUG] ⚠️  Coluna '{lancamento_col}' não existe no DataFrame")
-
-    # Resumo final da filtragem
-    total_filtrado = (df["Filtrado"] == 1).sum()
-    total_processado = (df["Filtrado"] == 0).sum()
-    print(f"[DEBUG] 📊 RESUMO FINAL DA FILTRAGEM:")
-    print(f"[DEBUG] - Total de linhas: {len(df)}")
-    print(f"[DEBUG] - Linhas para PROCESSAR: {total_processado}")
-    print(f"[DEBUG] - Linhas para FILTRAR: {total_filtrado}")
-
-    # Debug detalhado: mostrar valores da coluna lancamento
-    if "lancamento" in df.columns:
-        print(f"[DEBUG] � Análise da coluna 'lancamento':")
-        print(f"[DEBUG] - Valores únicos: {df['lancamento'].nunique()}")
-        print(f"[DEBUG] - Nulos: {df['lancamento'].isnull().sum()}")
-        print(
-            f"[DEBUG] - Vazios: {(df['lancamento'].astype(str).str.strip() == '').sum()}"
-        )
-        valores_exemplo = df["lancamento"].head(10).tolist()
-        print(f"[DEBUG] - Primeiros 10 valores: {valores_exemplo}")
-
-    print(f"[DEBUG] ✅ FINALIZANDO normalizar_dataframe_recebiveis")
-    print(f"[DEBUG] - Retornando DataFrame com {len(df)} linhas")
-    print(f"[DEBUG] - Colunas finais: {list(df.columns)}")
 
     return df
 
@@ -766,11 +566,13 @@ def safe_read_multisheet_file(
             print(f"[DEBUG][MULTISHEET] Processando planilha: {sheet_name}")
             try:
                 # Ler planilha como DataFrame
+                # ⚠️ CRÍTICO: keep_default_na=False para evitar conversão automática de datas
                 df = pd.read_excel(
                     path,
                     sheet_name=sheet_name,
                     header=None,
                     dtype=str,
+                    keep_default_na=False,
                     na_filter=False,
                     engine="openpyxl",
                 )
@@ -1094,11 +896,13 @@ def safe_read_multisheet_file(
                     # Se não há dados após o cabeçalho, usar o DataFrame completo
                     data_values = df.values
 
+                # ⚠️ CRÍTICO: Manter dtype=str para evitar conversão automática de datas
                 data_df = pd.DataFrame(
                     data_values,
                     columns=headers[
                         : len(data_values[0]) if len(data_values) > 0 else len(headers)
                     ],
+                    dtype=str,
                 )
 
                 # Limpar linhas que são claramente texto de relatório, não dados
@@ -1609,10 +1413,12 @@ def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
     if ext in (".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"):
         try:
             # Primeira tentativa: ler direto como texto
+            # ⚠️ CRÍTICO: dtype=str + keep_default_na=False para evitar conversão de datas
             options = {
                 "header": None,
                 "engine": "openpyxl",
                 "dtype": str,  # Força todas as colunas como string
+                "keep_default_na": False,  # Não converte strings vazias em NaN
                 "na_filter": False,  # Não tenta converter NaN/NA
             }
             df = pd.read_excel(path, **options)
@@ -1634,8 +1440,9 @@ def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
                             str(x).strip() if str(x).strip() else f"Coluna_{i}"
                             for i, x in enumerate(row)
                         ]
+                        # ⚠️ CRÍTICO: Manter dtype=str para evitar conversão automática de datas
                         result_df = pd.DataFrame(
-                            df.iloc[idx + 1 :].values, columns=header_row
+                            df.iloc[idx + 1 :].values, columns=header_row, dtype=str
                         )
                         return result_df.fillna(""), 0, result_df.columns.tolist()
 
@@ -1651,6 +1458,7 @@ def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
                         "header": header,
                         "engine": engine,
                         "dtype": str,  # Força todas as colunas como string
+                        "keep_default_na": False,  # Não converte strings vazias em NaN
                         "na_filter": False,  # Não tenta converter NaN/NA
                     }
                     df = pd.read_excel(path, **options)
@@ -1673,6 +1481,51 @@ def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
                         df.dropna(how="all", inplace=True)
                         df.dropna(how="all", axis=1, inplace=True)
                         return df.fillna(""), 1, df.columns.tolist()
+
+                    # ⚠️ CRÍTICO: Quando header=None, detectar cabeçalho manualmente
+                    if header is None:
+                        print(
+                            "[DEBUG] Detectando cabeçalho automaticamente (header=None)..."
+                        )
+                        idx_header = detectar_cabecalho(df)
+                        print(f"[DEBUG] Cabeçalho detectado na linha: {idx_header}")
+
+                        if idx_header >= 0 and idx_header < len(df):
+                            # Extrair nomes das colunas da linha detectada
+                            header_row = df.iloc[idx_header]
+                            header_names = [
+                                (
+                                    str(col).strip()
+                                    if str(col).strip()
+                                    and str(col).strip().lower() not in ["nan", "none"]
+                                    else f"Coluna_{i}"
+                                )
+                                for i, col in enumerate(header_row)
+                            ]
+                            print(
+                                f"[DEBUG] Nomes das colunas extraídos: {header_names[:10]}..."
+                            )
+
+                            # Aplicar cabeçalho e remover linhas antes dele
+                            # ⚠️ CRÍTICO: Converter para string para evitar conversão automática de datas
+                            df_with_header = df.iloc[idx_header + 1 :].astype(str)
+                            df_with_header.columns = header_names
+                            df_with_header.reset_index(drop=True, inplace=True)
+
+                            print(
+                                f"[DEBUG] DataFrame com cabeçalho aplicado - shape: {df_with_header.shape}"
+                            )
+                            print(
+                                f"[DEBUG] Primeiras colunas: {list(df_with_header.columns)[:10]}"
+                            )
+
+                            df_with_header.dropna(how="all", inplace=True)
+                            df_with_header.dropna(how="all", axis=1, inplace=True)
+                            return (
+                                df_with_header.fillna(""),
+                                idx_header,
+                                df_with_header.columns.tolist(),
+                            )
 
                     df.dropna(how="all", inplace=True)
                     df.dropna(how="all", axis=1, inplace=True)
@@ -2355,7 +2208,9 @@ class CieloHistoricoDetalheParser:
         return score
 
     def parse(self, path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        df_raw = pd.read_excel(path, header=None, engine="openpyxl")
+        df_raw = pd.read_excel(
+            path, header=None, engine="openpyxl", dtype=str, keep_default_na=False
+        )
         print("[DEBUG][CieloHistoricoDetalheParser] Primeiras linhas do arquivo:")
         print(df_raw.head(5))
         idx = detectar_cabecalho(df_raw)
@@ -2450,7 +2305,9 @@ class FaturamentoECParser:
         return score
 
     def parse(self, path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        df_raw = pd.read_excel(path, header=None, engine="openpyxl")
+        df_raw = pd.read_excel(
+            path, header=None, engine="openpyxl", dtype=str, keep_default_na=False
+        )
         idx = detectar_cabecalho(df_raw)
         headers = [str(h).strip() if h is not None else "" for h in df_raw.iloc[idx]]
         df = df_raw.iloc[idx + 1 :].reset_index(drop=True).copy()
@@ -2505,7 +2362,9 @@ class GenericoPlanilhaParser:
         return 10
 
     def parse(self, path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-        df_raw = pd.read_excel(path, header=None, engine="openpyxl")
+        df_raw = pd.read_excel(
+            path, header=None, engine="openpyxl", dtype=str, keep_default_na=False
+        )
         idx = detectar_cabecalho(df_raw)
         headers = [str(h).strip() if h is not None else "" for h in df_raw.iloc[idx]]
         df = df_raw.iloc[idx + 1 :].reset_index(drop=True).copy()
@@ -2956,7 +2815,14 @@ def preparar_dataframe_de_arquivo(
                 )
                 print("[DEBUG][PROCESSAR] Fallback: tentando parser alternativo...")
                 update_progress(10)
-                head_df = pd.read_excel(path, header=None, engine="openpyxl", nrows=120)
+                head_df = pd.read_excel(
+                    path,
+                    header=None,
+                    engine="openpyxl",
+                    nrows=120,
+                    dtype=str,
+                    keep_default_na=False,
+                )
                 update_progress(15)
                 parser = escolher_parser(path, head_df)
                 log(
@@ -3215,8 +3081,17 @@ def aplicar_regras_depara(
 
             # Regras já vêm filtradas por ativo=1 do banco
             if origem_nome and destino_nome:
-                origem = origem_nome.strip()
-                destino = destino_nome.strip()
+                # Converter para string se não for
+                origem = (
+                    str(origem_nome).strip()
+                    if not isinstance(origem_nome, str)
+                    else origem_nome.strip()
+                )
+                destino = (
+                    str(destino_nome).strip()
+                    if not isinstance(destino_nome, str)
+                    else destino_nome.strip()
+                )
 
                 # Acumular múltiplos destinos para a mesma origem
                 if origem not in mapeamento:
@@ -3230,15 +3105,19 @@ def aplicar_regras_depara(
         # CORREÇÃO TEMPORÁRIA: Adicionar regras faltantes para todas as abas
         # Detectar tipo de aba pelas colunas presentes
         colunas_pagamentos = [
-            col for col in df_origem.columns if col.startswith("pagamentos_")
+            col
+            for col in df_origem.columns
+            if isinstance(col, str) and col.startswith("pagamentos_")
         ]
         colunas_ajustes = [
-            col for col in df_origem.columns if col.startswith("ajustes_")
+            col
+            for col in df_origem.columns
+            if isinstance(col, str) and col.startswith("ajustes_")
         ]
         colunas_cancelamentos = [
             col
             for col in df_origem.columns
-            if col.startswith("cancelamentos e contestações_")
+            if isinstance(col, str) and col.startswith("cancelamentos e contestações_")
         ]
 
         # Regras para PAGAMENTOS - APENAS banco, agencia, conta
@@ -3449,7 +3328,12 @@ def aplicar_regras_depara(
             for col_destino, possibilidades in mapeamento_rede.items():
                 if col_destino in colunas_validas:
                     for col_origem in df_limpo.columns:
-                        col_origem_clean = col_origem.lower()
+                        # Converter para string se for numérico
+                        col_origem_clean = (
+                            str(col_origem).lower()
+                            if not isinstance(col_origem, str)
+                            else col_origem.lower()
+                        )
                         for prefixo in [
                             "ajustes_",
                             "recebidos_",
@@ -3803,10 +3687,9 @@ def normalizar_dataframe_vendas(
         if c in df.columns:
             df[c] = _to_datetime_pt(df[c])
 
-    for c in [
-        "Taxas_Perc",
-        "Taxas_RR",
-        "Taxa_de_embarque",
+    # ⚠️ CRÍTICO: Converter valores monetários para float SEM arredondar ainda
+    # O arredondamento será feito DEPOIS do ajuste das taxas da REDE
+    colunas_valores = [
         "Valor_da_venda",
         "Valor_descontado",
         "Valor_RR",
@@ -3817,7 +3700,18 @@ def normalizar_dataframe_vendas(
         "Valor_do_saque",
         "Valor Comissão Bruta",
         "Valor Líquido",
-    ]:
+        "Taxa_de_embarque",
+    ]
+
+    for c in colunas_valores:
+        if c in df.columns:
+            # Converter para float sem arredondar (arredondar depois do ajuste REDE)
+            df[c] = _to_float_br(df[c])
+
+    # ⚠️ IMPORTANTE: Taxas percentuais - converter mas NÃO arredondar ainda
+    # Arredondamento será feito APÓS multiplicação por 100 da REDE (se aplicável)
+    colunas_taxa = ["Taxas_Perc", "Taxas_RR"]
+    for c in colunas_taxa:
         if c in df.columns:
             df[c] = _to_float_br(df[c])
 
@@ -3828,6 +3722,47 @@ def normalizar_dataframe_vendas(
             .fillna(1)
             .astype(int)
         )
+
+    # --- AJUSTE ESPECÍFICO: MULTIPLICAR TAXAS DA REDE POR 100 SE NECESSÁRIO ---
+    print("[DEBUG][REDE] Verificando necessidade de ajustar taxas da REDE...")
+
+    # Identificar registros da REDE pela coluna Adquirente
+    mask_rede_adquirente = pd.Series([False] * len(df), index=df.index)
+
+    if "Adquirente" in df.columns:
+        mask_rede_adquirente = (
+            df["Adquirente"].astype(str).str.upper().str.contains("REDE", na=False)
+        )
+
+    # Aplicar multiplicação por 100 nas taxas percentuais APENAS se valores < 1
+    # (Proteção contra multiplicação dupla: 0.0235 → 2.35, mas não 2.35 → 235)
+    for coluna_taxa in colunas_taxa:
+        if coluna_taxa in df.columns and mask_rede_adquirente.any():
+            # Máscara combinada: registros REDE com taxa < 1 (formato decimal)
+            mask_ajuste = (
+                mask_rede_adquirente & (df[coluna_taxa] < 1) & df[coluna_taxa].notnull()
+            )
+
+            if mask_ajuste.any():
+                registros_afetados = mask_ajuste.sum()
+                df.loc[mask_ajuste, coluna_taxa] = (
+                    df.loc[mask_ajuste, coluna_taxa] * 100
+                )
+                print(
+                    f"[DEBUG][REDE] {coluna_taxa} multiplicada por 100 para {registros_afetados} registros da REDE (valores < 1)"
+                )
+            else:
+                print(
+                    f"[DEBUG][REDE] {coluna_taxa} já está no formato correto (valores >= 1)"
+                )
+
+    # ⚠️ AGORA SIM: Arredondar todos os valores monetários e taxas para 2 casas decimais
+    print(
+        "[DEBUG] Aplicando arredondamento final (round(2)) em valores monetários e taxas..."
+    )
+    for c in colunas_valores + colunas_taxa:
+        if c in df.columns:
+            df[c] = df[c].round(2)
 
     # --- CÁLCULO DE VALOR_RR BASEADO EM TAXAS_RR ---
     print("[DEBUG] Calculando Valor_RR baseado em Taxas_RR...")
@@ -3847,10 +3782,14 @@ def normalizar_dataframe_vendas(
                 df["Valor_RR"] = 0.0
 
             # Calcular Valor_RR = (Valor_da_venda * Taxas_RR) / 100
+            # ⚠️ CRÍTICO: Arredondar para 2 casas decimais (evitar imprecisão de ponto flutuante)
             df.loc[mask_calc_rr, "Valor_RR"] = (
-                df.loc[mask_calc_rr, "Valor_da_venda"]
-                * df.loc[mask_calc_rr, "Taxas_RR"]
-            ) / 100
+                (
+                    df.loc[mask_calc_rr, "Valor_da_venda"]
+                    * df.loc[mask_calc_rr, "Taxas_RR"]
+                )
+                / 100
+            ).round(2)
 
             registros_calculados = mask_calc_rr.sum()
             print(
@@ -3870,29 +3809,6 @@ def normalizar_dataframe_vendas(
         print("[DEBUG] Colunas Taxas_RR ou Valor_da_venda não encontradas para cálculo")
 
     # --- FIM DO CÓDIGO DE NORMALIZAÇÃO ---
-
-    # --- AJUSTE ESPECÍFICO: MULTIPLICAR TAXAS DA REDE POR 100 ---
-    print("[DEBUG][REDE] Verificando necessidade de ajustar taxas da REDE...")
-
-    # Identificar registros da REDE pela coluna Adquirente ou outras colunas
-    mask_rede_adquirente = pd.Series([False] * len(df), index=df.index)
-
-    if "Adquirente" in df.columns:
-        mask_rede_adquirente = (
-            df["Adquirente"].astype(str).str.upper().str.contains("REDE", na=False)
-        )
-
-    # Aplicar multiplicação por 100 nas taxas percentuais para registros da REDE
-    colunas_taxa = ["Taxas_Perc", "Taxas_RR"]
-    for coluna_taxa in colunas_taxa:
-        if coluna_taxa in df.columns and mask_rede_adquirente.any():
-            registros_afetados = mask_rede_adquirente.sum()
-            df.loc[mask_rede_adquirente, coluna_taxa] = (
-                df.loc[mask_rede_adquirente, coluna_taxa] * 100
-            )
-            print(
-                f"[DEBUG][REDE] {coluna_taxa} multiplicada por 100 para {registros_afetados} registros da REDE"
-            )
 
     # --- REGRA ESPECÍFICA DA REDE: PREVISÃO DE PAGAMENTO = DATA_DA_VENDA + 31 DIAS ---
     print(
@@ -4323,7 +4239,11 @@ def classificar_e_gravar_vendas(
         _df["arquivo_origem"] = arquivo_origem or ""
         _df["processamentoid"] = processamentoid
         _df["cliente_id"] = int(cliente_id)
-        _df["ec_id"] = str(ec_id)  # ec_id agora é VARCHAR, não INT
+
+        # ⚠️ CRÍTICO: Apenas preencher ec_id se não veio do de-para (coluna vazia/ausente)
+        # Se ec_id já existe no DataFrame (via de-para), NÃO sobrescrever!
+        if "ec_id" not in _df.columns or _df["ec_id"].isna().all():
+            _df["ec_id"] = str(ec_id)  # ec_id agora é VARCHAR, não INT
 
     # Removido: lógica de limpeza de valores zerados - mantém todas as vendas
     # Removido: lógica de vendas_diversas conforme solicitado

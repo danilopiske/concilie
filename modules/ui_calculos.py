@@ -1,86 +1,140 @@
+from sqlalchemy import text
+
+
+# ============================================================================
+# ⚠️  VERSÃO ANTIGA (COMPLEXA) - BACKUP PARA ROLLBACK SE NECESSÁRIO
+# ============================================================================
+# COMO DESFAZER A REFATORAÇÃO:
+# 1. Descomentar TODO o código abaixo (linhas 9-176)
+# 2. Procurar "UPDATE LOG INLINE" no código principal (linha ~1250)
+# 3. Substituir bloco inline por: update_log_tx_calc_em_lotes(engine, proc_id, tipo_taxa, lote=10000, conn_externa=conn)
+# 4. Comentar/remover função dummy abaixo
+# ============================================================================
+#
+# def update_log_tx_calc_em_lotes(engine, proc_id, tipo_taxa, lote=10000, conn_externa=None):
+#     """Atualiza tx_calc usando MIN(tx_venda) por período"""
+#     # Definir campos de período
+#     if tipo_taxa == "log_mensal":
+#         periodo_field = "DATE_FORMAT(vp2.Data_da_venda, '%Y-%m')"
+#         periodo_join = "DATE_FORMAT(vp.Data_da_venda, '%Y-%m')"
+#     elif tipo_taxa == "log_trimestral":
+#         periodo_field = "CONCAT(YEAR(vp2.Data_da_venda), '-Q', QUARTER(vp2.Data_da_venda))"
+#         periodo_join = "CONCAT(YEAR(vp.Data_da_venda), '-Q', QUARTER(vp.Data_da_venda))"
+#     elif tipo_taxa == "log_semestral":
+#         periodo_field = "CONCAT(YEAR(vp2.Data_da_venda), '-S', CEILING(MONTH(vp2.Data_da_venda)/6))"
+#         periodo_join = "CONCAT(YEAR(vp.Data_da_venda), '-S', CEILING(MONTH(vp.Data_da_venda)/6))"
+#     else:  # log_anual
+#         periodo_field = "YEAR(vp2.Data_da_venda)"
+#         periodo_join = "YEAR(vp.Data_da_venda)"
+#
+#     # Buscar IDs
+#     if conn_externa:
+#         ids = conn_externa.execute(text("""
+#             SELECT vc.id_venda FROM vendas_calculos vc
+#             WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo AND vc.tx_calc IS NULL
+#             ORDER BY vc.id_venda
+#         """), {"calc_id": proc_id, "calc_tipo": tipo_taxa}).fetchall()
+#     else:
+#         with engine.connect() as conn:
+#             ids = conn.execute(text("""
+#                 SELECT vc.id_venda FROM vendas_calculos vc
+#                 WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo AND vc.tx_calc IS NULL
+#                 ORDER BY vc.id_venda
+#             """), {"calc_id": proc_id, "calc_tipo": tipo_taxa}).fetchall()
+#
+#     id_list = [row[0] for row in ids]
+#     if conn_externa:
+#         print(f"[DEBUG] 🔗 Usando conexão externa")
+#     else:
+#         print(f"[DEBUG] ⚠️  Nova conexão")
+#     print(f"[DEBUG] 📊 Total: {len(id_list)} vendas LOG ({tipo_taxa})")
+#
+#     if len(id_list) == 0:
+#         print(f"[DEBUG] ❌ Nenhum registro tx_calc IS NULL")
+#         return
+#
+#     # Processar lotes
+#     total_lotes = (len(id_list) + lote - 1) // lote
+#     registros_atualizados_total = 0
+#     for i in range(0, len(id_list), lote):
+#         ids_lote = id_list[i : i + lote]
+#         if not ids_lote:
+#             continue
+#         lote_num = i // lote + 1
+#         percentual = (i / len(id_list)) * 100
+#         print(f"[DEBUG]   Lote {lote_num}/{total_lotes} ({percentual:.1f}%) - {len(ids_lote)} vendas...")
+#         ids_str = ",".join(str(x) for x in ids_lote)
+#
+#         update_sql = f"""
+#             UPDATE vendas_calculos vc
+#             JOIN vendas_processadas vp ON vc.id_venda = vp.id
+#             JOIN (
+#                 SELECT {periodo_field} AS periodo, vc2.forma_pagamento, vc2.bandeira, MIN(vc2.tx_venda) AS min_tx_venda
+#                 FROM vendas_calculos vc2
+#                 JOIN vendas_processadas vp2 ON vc2.id_venda = vp2.id
+#                 WHERE vc2.calc_id = :calc_id AND vc2.calc_tipo = :calc_tipo AND vc2.id_venda IN ({ids_str})
+#                 GROUP BY periodo, vc2.forma_pagamento, vc2.bandeira
+#             ) agg ON agg.periodo = {periodo_join} AND agg.forma_pagamento = vc.forma_pagamento AND agg.bandeira = vc.bandeira
+#             SET vc.tx_calc = agg.min_tx_venda
+#             WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo AND vc.id_venda IN ({ids_str})
+#         """
+#
+#         if conn_externa:
+#             result = conn_externa.execute(text(update_sql), {"calc_id": proc_id, "calc_tipo": tipo_taxa})
+#             registros_atualizados_total += result.rowcount
+#             if result.rowcount == 0:
+#                 print(f"[DEBUG]      ⚠️  0 registros")
+#             else:
+#                 print(f"[DEBUG]      ✅ {result.rowcount} registros")
+#         else:
+#             with engine.begin() as conn:
+#                 result = conn.execute(text(update_sql), {"calc_id": proc_id, "calc_tipo": tipo_taxa})
+#                 registros_atualizados_total += result.rowcount
+#                 if result.rowcount == 0:
+#                     print(f"[DEBUG]      ⚠️  0 registros")
+#                 else:
+#                     print(f"[DEBUG]      ✅ {result.rowcount} registros")
+#
+#     print(f"\n[DEBUG] 🎯 Resumo LOG:")
+#     print(f"[DEBUG]    Total processado: {len(id_list)}")
+#     print(f"[DEBUG]    Total atualizado: {registros_atualizados_total}")
+#     if registros_atualizados_total < len(id_list):
+#         print(f"[DEBUG]    ⚠️  {len(id_list) - registros_atualizados_total} sem match")
+#
+# ============================================================================
+
+
+# --- Função dummy (previne erro se código antigo tentar chamar) ---
+def update_log_tx_calc_em_lotes(
+    engine, proc_id, tipo_taxa, lote=10000, conn_externa=None
+):
+    """
+    [DEPRECATED] Função substituída por código inline (linha ~1250).
+    Mantida para evitar erro se código antigo tentar chamar.
+    """
+    raise NotImplementedError(
+        "❌ Função descontinuada! UPDATE LOG agora é inline no bloco principal (veja linha ~1250)."
+    )
+
+
 import panel as pn
 import pandas as pd
 from datetime import datetime
-from conf.funcoesbd import fetch_all, _is_sqlite
+from conf.funcoesbd import fetch_all
 
 
 def _remove_collate_if_sqlite(engine, sql: str) -> str:
-    """Remove COLLATE clauses do SQL se for SQLite"""
-    if _is_sqlite(engine):
-        # Remove todas as ocorrências de COLLATE utf8mb4_0900_ai_ci
-        import re
-
-        sql = re.sub(r"\s+COLLATE\s+utf8mb4_0900_ai_ci", "", sql, flags=re.IGNORECASE)
+    """MySQL: COLLATE clauses são suportadas nativamente - retorna SQL sem alteração"""
     return sql
 
 
 def _remove_update_alias_if_sqlite(engine, sql: str) -> str:
-    """
-    Remove alias de UPDATE statements para SQLite.
-    MySQL: UPDATE vendas_calculos vc SET vc.column = value
-    SQLite: UPDATE vendas_calculos SET column = value
-    """
-    if not _is_sqlite(engine):
-        return sql
-
-    import re
-
-    # Remove alias do UPDATE (ex: "UPDATE vendas_calculos vc" -> "UPDATE vendas_calculos")
-    sql = re.sub(
-        r"UPDATE\s+(\w+)\s+\w+\s+SET", r"UPDATE \1 SET", sql, flags=re.IGNORECASE
-    )
-
-    # Remove prefixo do alias nas colunas (ex: "vc.tx_rr_calc" -> "tx_rr_calc")
-    # Mas apenas nas linhas SET e WHERE
-    sql = re.sub(r"\b\w+\.([\w_]+)\s*=", r"\1 =", sql)
-
+    """MySQL: aliases em UPDATE são suportados nativamente - retorna SQL sem alteração"""
     return sql
 
 
 def _convert_update_join_for_sqlite(engine, sql: str) -> str:
-    """
-    Converte UPDATE ... JOIN ... SET (MySQL) para sintaxe compatível com SQLite.
-    SQLite não suporta UPDATE JOIN, então usamos UPDATE com subquery.
-    """
-    if not _is_sqlite(engine):
-        return sql
-
-    import re
-
-    # Pattern: UPDATE table1 alias1 JOIN ... SET ... WHERE ...
-    # Converte para: UPDATE table1 SET ... WHERE rowid IN (SELECT rowid FROM table1 JOIN ...)
-
-    # Para SQLite, a abordagem mais simples é reescrever manualmente cada query
-    # Por ora, vamos identificar o padrão e converter dinamicamente
-
-    # Se contém "UPDATE ... JOIN", precisa ser reescrito
-    if re.search(r"UPDATE\s+\w+\s+\w+\s+JOIN", sql, re.IGNORECASE):
-        # Cada query tem estrutura específica, então vamos tratá-las caso a caso
-        # baseado em palavras-chave identificadoras
-
-        # Caso 1: Update com taxas (JOIN taxas t)
-        if "JOIN taxas t" in sql:
-            return _convert_taxas_update_for_sqlite(sql)
-
-        # Caso 2: Update com min_txs (agregação de mínima taxa - inclui min_txs_rr)
-        elif (
-            "min_txs" in sql
-            or "MIN(vc2.tx_venda)" in sql
-            or "MIN(vc2.tx_rr_venda)" in sql
-        ):
-            return _convert_min_tx_update_for_sqlite(sql)
-
-        # Caso 3: Update com max_txs (agregação de máxima taxa)
-        elif "max_txs" in sql or "MAX(vc2.tx_venda)" in sql:
-            return _convert_max_tx_update_for_sqlite(sql)
-
-        # Caso 4: Update simples com apenas vendas_processadas
-        elif (
-            "JOIN vendas_processadas vp ON vc.id_venda = vp.id" in sql
-            and "JOIN taxas" not in sql
-        ):
-            return _convert_simple_join_update_for_sqlite(sql)
-
+    """MySQL: UPDATE JOIN é suportado nativamente - retorna SQL sem alteração"""
     return sql
 
 
@@ -192,7 +246,7 @@ def _convert_taxas_update_for_sqlite(sql: str) -> str:
                 AND LOWER(t.contexto) = LOWER(vp.Adquirente)
                 AND LOWER(t.bandeira) = LOWER(vp.Bandeira)
                 AND LOWER(t.forma_pagamento) = LOWER(vp.Forma_de_pagamento)
-                AND vp.data_processamento BETWEEN t.data_ini AND t.data_fim
+                AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
             WHERE vendas_calculos.id_venda = vp.id
         )
         """
@@ -223,7 +277,7 @@ def _convert_taxas_update_for_sqlite(sql: str) -> str:
                 AND LOWER(t.contexto) = LOWER(vp.Adquirente)
                 AND LOWER(t.bandeira) = LOWER(vp.Bandeira)
                 AND LOWER(t.forma_pagamento) = LOWER(vp.Forma_de_pagamento)
-                AND vp.data_processamento BETWEEN t.data_ini AND t.data_fim
+                AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
             WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
         )
         UPDATE vendas_calculos
@@ -532,12 +586,14 @@ def make_calculos_view(engine):
                 )
 
                 if not vendas:
-                    preview_pane.object = "⚠️ **Nenhuma venda encontrada para este processamento.**"
+                    preview_pane.object = (
+                        "⚠️ **Nenhuma venda encontrada para este processamento.**"
+                    )
                     preview_pane.visible = True
                     return
 
                 total_vendas = len(vendas)
-                
+
                 # Estatísticas gerais
                 valores = [v.get("Valor_da_venda", 0) or 0 for v in vendas]
                 valor_total = sum(valores)
@@ -554,28 +610,39 @@ def make_calculos_view(engine):
                         data_proc = venda.get("data_processamento")
 
                         if ec_id and bandeira and forma_pgto and data_proc:
-                            sql_taxa = text("""
+                            sql_taxa = text(
+                                """
                                 SELECT COUNT(*) as cnt
                                 FROM taxas t
                                 WHERE t.ec = :ec_id
                                 AND LOWER(t.bandeira) = LOWER(:bandeira)
                                 AND LOWER(t.forma_pagamento) = LOWER(:forma_pgto)
                                 AND :data_proc BETWEEN t.data_ini AND t.data_fim
-                            """)
-                            result = conn.execute(sql_taxa, {
-                                "ec_id": ec_id,
-                                "bandeira": bandeira,
-                                "forma_pgto": forma_pgto,
-                                "data_proc": data_proc
-                            }).fetchone()
+                            """
+                            )
+                            result = conn.execute(
+                                sql_taxa,
+                                {
+                                    "ec_id": ec_id,
+                                    "bandeira": bandeira,
+                                    "forma_pgto": forma_pgto,
+                                    "data_proc": data_proc,
+                                },
+                            ).fetchone()
                             if result and result[0] > 0:
                                 vendas_com_cad += 1
 
-                vendas_com_log = total_vendas - vendas_com_cad if usar_taxa_cad else total_vendas
+                vendas_com_log = (
+                    total_vendas - vendas_com_cad if usar_taxa_cad else total_vendas
+                )
 
                 # Estatísticas de taxas originais
-                taxas_orig = [v.get("Taxas_Perc", 0) or 0 for v in vendas if v.get("Taxas_Perc")]
-                taxas_rr_orig = [v.get("Taxas_RR", 0) or 0 for v in vendas if v.get("Taxas_RR")]
+                taxas_orig = [
+                    v.get("Taxas_Perc", 0) or 0 for v in vendas if v.get("Taxas_Perc")
+                ]
+                taxas_rr_orig = [
+                    v.get("Taxas_RR", 0) or 0 for v in vendas if v.get("Taxas_RR")
+                ]
 
                 min_taxa_orig = min(taxas_orig) if taxas_orig else 0
                 max_taxa_orig = max(taxas_orig) if taxas_orig else 0
@@ -651,10 +718,13 @@ def make_calculos_view(engine):
     def processar_action(event=None):
         def processamento_longo():
             import datetime
+            import time
             from sqlalchemy import text
 
+            # ⏱️ Timestamp inicial
+            t_inicio = time.time()
             print(
-                "[DEBUG] Iniciando processamento de cálculo de taxas (modo SQL massivo)..."
+                f"[DEBUG] [00:00] Iniciando processamento de cálculo de taxas (modo SQL massivo)..."
             )
             status_msg.visible = True
             status_msg.alert_type = "info"
@@ -681,10 +751,15 @@ def make_calculos_view(engine):
             usuario_logado = "sistema"  # Troque para o usuário real se disponível
             data_atual = datetime.datetime.now()
 
-            print(f"[DEBUG] Receba Rápido ativo: {tem_receba_rapido}")
+            print(
+                f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Receba Rápido ativo: {tem_receba_rapido}"
+            )
 
             # Buscar vendas processadas com informações de EC e contexto
-            print("[DEBUG] Buscando vendas processadas e contextos do processamento...")
+            t_query_vendas = time.time()
+            print(
+                f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Buscando vendas processadas..."
+            )
             vendas = fetch_all(
                 engine,
                 """
@@ -697,24 +772,19 @@ def make_calculos_view(engine):
                 """,
                 {"proc_id": proc_id},
             )
-            print(f"[DEBUG] {len(vendas)} vendas encontradas.")
+            print(
+                f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] {len(vendas)} vendas encontradas em {time.time()-t_query_vendas:.2f}s"
+            )
             if not vendas:
                 status_msg.object = "Nenhuma venda encontrada para o processamento."
                 status_msg.alert_type = "warning"
                 return
 
-            # Debug: contagem antes do delete
-            with engine.begin() as conn:
-                count_before = conn.execute(
-                    text(
-                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo"
-                    ),
-                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
-                ).scalar()
-                print(f"[DEBUG] vendas_calculos antes do delete: {count_before}")
-
             # Montar lista de inserts com campos de cálculo nulos
-            print("[DEBUG] Preparando inserts na tabela vendas_calculos...")
+            t_prepare = time.time()
+            print(
+                f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Preparando dados para insert..."
+            )
             insert_sql = text(
                 """
                 INSERT INTO vendas_calculos (
@@ -761,54 +831,126 @@ def make_calculos_view(engine):
                 params_list.append(params)
 
             if params_list:
-                print("[DEBUG] Exemplo de params para insert:", params_list[0])
-            batch_size = 1000
+                print(
+                    f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] {len(params_list)} registros preparados em {time.time()-t_prepare:.2f}s"
+                )
+            # DEBUG após insert
+            with engine.connect() as _conn:
+                count_inserted = _conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo"
+                    ),
+                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                ).scalar()
+                print(
+                    f"[DEBUG] TOTAL vendas_calculos inseridos para processamento: {count_inserted}"
+                )
+
+            # ⚡ OTIMIZAÇÃO: aumentar batch_size de 1000 para 5000 (reduz iterações de 1550 para 310)
+            batch_size = 5000
             total = len(params_list)
-            print(f"[DEBUG] Executando insert em lotes de {batch_size} registros...")
+
+            t_inserts = time.time()
+            print(
+                f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Executando insert em lotes de {batch_size} registros ({total//batch_size + 1} lotes)..."
+            )
             with engine.begin() as conn:
                 # Limpar vendas_calculos para este processamento/tipo_taxa antes de inserir
+                t_delete = time.time()
                 delete_sql = text(
                     """
                     DELETE FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
                 """
                 )
                 conn.execute(delete_sql, {"calc_id": proc_id, "calc_tipo": tipo_taxa})
+                print(
+                    f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] DELETE executado em {time.time()-t_delete:.2f}s"
+                )
+
+                # Log apenas a cada 10% de progresso para não poluir
+                last_pct = 0
                 for i in range(0, total, batch_size):
                     batch = params_list[i : i + batch_size]
                     conn.execute(insert_sql, batch)
-                    print(
-                        f"[DEBUG] Insertado {min(i+batch_size, total)}/{total} registros..."
-                    )
-                    status_msg.object = f"Processando... {min(i+batch_size, total)}/{total} registros inseridos."
-                # Debug: contagem após insert
-                count_after = conn.execute(
-                    text(
-                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo"
-                    ),
-                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
-                ).scalar()
-                print(f"[DEBUG] vendas_calculos após insert: {count_after}")
 
-                # Debug: contar vendas com tx_venda = 0 ou NULL
-                count_tx_zero = conn.execute(
+                    current_pct = (
+                        int((i / total) * 10) * 10
+                    )  # Arredonda para múltiplos de 10%
+                    if current_pct > last_pct and current_pct > 0:
+                        elapsed = time.time() - t_inserts
+                        eta = (elapsed / (i + len(batch))) * (total - (i + len(batch)))
+                        print(
+                            f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Insert: {current_pct}% ({min(i+batch_size, total)}/{total}) - ETA: {eta:.0f}s"
+                        )
+                        last_pct = current_pct
+                    status_msg.object = f"Processando... {min(i+batch_size, total)}/{total} registros inseridos."
+
+                print(
+                    f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] ✅ Todos os inserts concluídos em {time.time()-t_inserts:.2f}s"
+                )
+
+                # ⚡ OTIMIZAÇÃO: Consolidar queries de estatísticas em uma única query (economia: ~35s → ~5s)
+                t_stats_consolidado = time.time()
+                stats_insert = conn.execute(
                     text(
-                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND (tx_venda IS NULL OR tx_venda = 0)"
+                        """
+                        SELECT 
+                            COUNT(*) as total_inserido,
+                            SUM(CASE WHEN tx_venda IS NULL OR tx_venda = 0 THEN 1 ELSE 0 END) as tx_venda_zero
+                        FROM vendas_calculos 
+                        WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
+                    """
                     ),
                     {"calc_id": proc_id, "calc_tipo": tipo_taxa},
-                ).scalar()
-                print(f"[DEBUG] Vendas com tx_venda = 0 ou NULL: {count_tx_zero}")
-                if count_tx_zero > 0:
+                ).fetchone()
+                print(
+                    f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Estatísticas insert: {stats_insert[0]} registros, {stats_insert[1]} com tx_venda=0/NULL ({time.time()-t_stats_consolidado:.2f}s)"
+                )
+                if stats_insert[1] > 0:
                     print(
-                        f"[DEBUG] ⚠️  Essas {count_tx_zero} vendas terão perda = 0 (sem taxa original, não há perda real)"
+                        f"[DEBUG] ⚠️  Essas {stats_insert[1]} vendas terão perda = 0 (sem taxa original, não há perda real)"
                     )
+
+                # Verificar se dados foram inseridos corretamente
+                sample_check = conn.execute(
+                    text(
+                        """
+                        SELECT COUNT(*) as total, 
+                               COUNT(DISTINCT calc_tipo) as tipos,
+                               GROUP_CONCAT(DISTINCT calc_tipo) as tipos_list
+                        FROM vendas_calculos 
+                        WHERE calc_id = :calc_id
+                    """
+                    ),
+                    {"calc_id": proc_id},
+                ).fetchone()
+                print(f"[DEBUG] 🔍 Verificação pós-insert:")
+                print(
+                    f"[DEBUG]    Total registros com calc_id '{proc_id}': {sample_check[0]}"
+                )
+                print(
+                    f"[DEBUG]    Tipos encontrados ({sample_check[1]}): {sample_check[2]}"
+                )
+
+                # 🚀 OPÇÃO FUTURA: LOAD DATA INFILE (80-90% mais rápido que batch insert)
+                # Para implementar: exportar params_list para CSV e usar:
+                # LOAD DATA LOCAL INFILE 'temp.csv' INTO TABLE vendas_calculos ...
+                # Redução esperada: 612s → 30-60s
 
                 # Atualizar taxas e valores via UPDATE JOIN, corrigindo collation
-                print("[DEBUG] Executando UPDATE JOIN para calcular taxas...")
+                t_updates = time.time()
+                print(
+                    f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] ⏳ Iniciando UPDATEs JOIN..."
+                )
                 print(f"[DEBUG] Usar Taxa CAD: {usar_taxa_cad}, Tipo Log: {tipo_taxa}")
-                
+
                 # Se checkbox CAD estiver marcado, primeiro tentar aplicar taxa CAD
                 if usar_taxa_cad:
-                    print("[DEBUG] Aplicando Taxa CAD primeiro...")
+                    t_cad = time.time()
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Aplicando Taxa CAD (camada 1: específica)..."
+                    )
+                    # CAMADA 1: Tentar taxa específica (forma + bandeira)
                     update_sql_raw = f"""
                         UPDATE vendas_calculos vc
                         JOIN vendas_processadas vp ON vc.id_venda = vp.id
@@ -816,7 +958,8 @@ def make_calculos_view(engine):
                             AND LOWER(t.contexto) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Adquirente) COLLATE utf8mb4_0900_ai_ci
                             AND LOWER(t.bandeira) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Bandeira) COLLATE utf8mb4_0900_ai_ci
                             AND LOWER(t.forma_pagamento) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Forma_de_pagamento) COLLATE utf8mb4_0900_ai_ci
-                            AND vp.data_processamento BETWEEN t.data_ini AND t.data_fim
+                            AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
+                            AND t.bandeira IS NOT NULL
                         SET
                             vc.tx_calc = t.taxa,
                             vc.desc_calc = vp.Valor_da_venda * t.taxa / 100,
@@ -835,36 +978,75 @@ def make_calculos_view(engine):
                         engine, update_sql_processed
                     )
                     update_sql = text(update_sql_processed)
-                    conn.execute(
+                    result_camada1 = conn.execute(
                         update_sql,
                         {
                             "calc_id": proc_id,
                             "calc_tipo": tipo_taxa,
                         },
                     )
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] CAD Camada 1: {result_camada1.rowcount} registros ({time.time()-t_cad:.2f}s)"
+                    )
 
-                    # Debug: estatísticas de perda após CAD
-                    stats_cad = conn.execute(
-                        text(
-                            """
-                            SELECT 
-                                COUNT(*) as total,
-                                SUM(CASE WHEN tx_calc IS NOT NULL THEN 1 ELSE 0 END) as com_taxa_cad,
-                                SUM(CASE WHEN tx_calc IS NULL THEN 1 ELSE 0 END) as sem_taxa_cad
-                            FROM vendas_calculos 
-                            WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
-                            """
-                        ),
-                        {"calc_id": proc_id, "calc_tipo": tipo_taxa},
-                    ).fetchone()
-                    print(f"[DEBUG] Estatísticas após Taxa CAD:")
-                    print(f"  • Total de vendas: {stats_cad[0]}")
-                    print(f"  • Com taxa CAD encontrada: {stats_cad[1]}")
-                    print(f"  • Sem taxa CAD (será aplicado Log): {stats_cad[2]}")
+                    # CAMADA 2: Tentar taxa genérica (só forma, bandeira = NULL)
+                    t_cad2 = time.time()
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Aplicando Taxa CAD (camada 2: genérica)..."
+                    )
+                    update_sql_generica_raw = f"""
+                        UPDATE vendas_calculos vc
+                        JOIN vendas_processadas vp ON vc.id_venda = vp.id
+                        JOIN taxas t ON t.ec = vp.ec_id 
+                            AND LOWER(t.contexto) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Adquirente) COLLATE utf8mb4_0900_ai_ci
+                            AND LOWER(t.forma_pagamento) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Forma_de_pagamento) COLLATE utf8mb4_0900_ai_ci
+                            AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
+                            AND t.bandeira IS NULL
+                        SET
+                            vc.tx_calc = t.taxa,
+                            vc.desc_calc = vp.Valor_da_venda * t.taxa / 100,
+                            vc.vl_liq_calc = vp.Valor_da_venda - (vp.Valor_da_venda * t.taxa / 100),
+                            vc.perda = CASE 
+                                WHEN vc.tx_venda IS NULL OR vc.tx_venda = 0 THEN 0
+                                ELSE vc.vl_liq_venda - (vp.Valor_da_venda - (vp.Valor_da_venda * t.taxa / 100))
+                            END
+                        WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
+                        AND vc.tx_calc IS NULL
+                        """
+                    update_sql_generica_processed = _remove_collate_if_sqlite(
+                        engine, update_sql_generica_raw
+                    )
+                    update_sql_generica_processed = _convert_update_join_for_sqlite(
+                        engine, update_sql_generica_processed
+                    )
+                    update_sql_generica = text(update_sql_generica_processed)
+                    result_camada2 = conn.execute(
+                        update_sql_generica,
+                        {
+                            "calc_id": proc_id,
+                            "calc_tipo": tipo_taxa,
+                        },
+                    )
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] CAD Camada 2: {result_camada2.rowcount} registros ({time.time()-t_cad2:.2f}s)"
+                    )
+
+                    # ⚡ Estatísticas já conhecidas pelos rowcounts (economiza ~21s de query)
+                    vendas_com_cad = result_camada1.rowcount + result_camada2.rowcount
+                    vendas_sem_cad = len(vendas) - vendas_com_cad
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Estatísticas após Taxa CAD (calculado sem query):"
+                    )
+                    print(f"  • Total de vendas: {len(vendas)}")
+                    print(
+                        f"  • Com taxa CAD encontrada: {vendas_com_cad} (camada1: {result_camada1.rowcount}, camada2: {result_camada2.rowcount})"
+                    )
+                    print(f"  • Sem taxa CAD (será aplicado Log): {vendas_sem_cad}")
 
                     # Atualizar taxas RR (Receba Rápido) para vendas com CAD
                     if tem_receba_rapido:
                         print("[DEBUG] Atualizando taxas RR para vendas com CAD...")
+                        # CAMADA 1 RR: Taxa específica (forma + bandeira)
                         update_rr_sql_raw = f"""
                             UPDATE vendas_calculos vc
                             JOIN vendas_processadas vp ON vc.id_venda = vp.id
@@ -872,7 +1054,8 @@ def make_calculos_view(engine):
                                 AND LOWER(t.contexto) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Adquirente) COLLATE utf8mb4_0900_ai_ci
                                 AND LOWER(t.bandeira) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Bandeira) COLLATE utf8mb4_0900_ai_ci
                                 AND LOWER(t.forma_pagamento) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Forma_de_pagamento) COLLATE utf8mb4_0900_ai_ci
-                                AND vp.data_processamento BETWEEN t.data_ini AND t.data_fim
+                                AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
+                                AND t.bandeira IS NOT NULL
                             SET
                                 vc.tx_rr_calc = COALESCE(t.taxa_rr, t.taxa),
                                 vc.vl_rr_calc = vp.Valor_da_venda * COALESCE(t.taxa_rr, t.taxa) / 100,
@@ -891,12 +1074,56 @@ def make_calculos_view(engine):
                             engine, update_rr_sql_processed
                         )
                         update_rr_sql = text(update_rr_sql_processed)
-                        conn.execute(
+                        result_rr1 = conn.execute(
                             update_rr_sql,
                             {
                                 "calc_id": proc_id,
                                 "calc_tipo": tipo_taxa,
                             },
+                        )
+                        print(
+                            f"[DEBUG] RR Camada 1 (forma+bandeira): {result_rr1.rowcount} registros"
+                        )
+
+                        # CAMADA 2 RR: Taxa genérica (só forma)
+                        update_rr_generica_sql_raw = f"""
+                            UPDATE vendas_calculos vc
+                            JOIN vendas_processadas vp ON vc.id_venda = vp.id
+                            JOIN taxas t ON t.ec = vp.ec_id 
+                                AND LOWER(t.contexto) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Adquirente) COLLATE utf8mb4_0900_ai_ci
+                                AND LOWER(t.forma_pagamento) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Forma_de_pagamento) COLLATE utf8mb4_0900_ai_ci
+                                AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
+                                AND t.bandeira IS NULL
+                            SET
+                                vc.tx_rr_calc = COALESCE(t.taxa_rr, t.taxa),
+                                vc.vl_rr_calc = vp.Valor_da_venda * COALESCE(t.taxa_rr, t.taxa) / 100,
+                                vc.perda_rr = CASE 
+                                    WHEN vc.vl_rr_venda IS NOT NULL AND (vp.Valor_da_venda * COALESCE(t.taxa_rr, t.taxa) / 100) IS NOT NULL 
+                                    THEN (vp.Valor_da_venda * COALESCE(t.taxa_rr, t.taxa) / 100) - vc.vl_rr_venda
+                                    ELSE NULL 
+                                END
+                            WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
+                            AND vc.tx_calc IS NOT NULL
+                            AND (vc.tx_rr_calc IS NULL OR vc.tx_rr_calc = 0)
+                            """
+                        update_rr_generica_sql_processed = _remove_collate_if_sqlite(
+                            engine, update_rr_generica_sql_raw
+                        )
+                        update_rr_generica_sql_processed = (
+                            _convert_update_join_for_sqlite(
+                                engine, update_rr_generica_sql_processed
+                            )
+                        )
+                        update_rr_generica_sql = text(update_rr_generica_sql_processed)
+                        result_rr2 = conn.execute(
+                            update_rr_generica_sql,
+                            {
+                                "calc_id": proc_id,
+                                "calc_tipo": tipo_taxa,
+                            },
+                        )
+                        print(
+                            f"[DEBUG] RR Camada 2 (só forma): {result_rr2.rowcount} registros"
                         )
 
                 # Agora aplicar lógica de LOG para vendas que não têm tx_calc (se usar_taxa_cad) ou todas (se não usar)
@@ -904,128 +1131,189 @@ def make_calculos_view(engine):
                 # Se não usar_taxa_cad, aplicar LOG em todas
                 aplicar_log = True
                 if usar_taxa_cad:
-                    print("[DEBUG] Aplicando lógica de Log para vendas sem Taxa CAD...")
-                else:
-                    print(f"[DEBUG] Aplicando lógica de Log ({tipo_taxa}) para todas as vendas...")
-                
-                if aplicar_log:
-                    # Lógica para tipos log: aplicar menor taxa das vendas_calculos do período
-                    # Compatibilidade MySQL/SQLite
-                    if _is_sqlite(engine):
-                        # SQLite - usar strftime
-                        if tipo_taxa == "log_mensal":
-                            periodo_ini_sql = "strftime('%Y-%m-01', vp.Data_da_venda)"
-                            periodo_fim_sql = "date(vp.Data_da_venda, 'start of month', '+1 month', '-1 day')"
-                        elif tipo_taxa == "log_trimestral":
-                            periodo_ini_sql = "date(vp.Data_da_venda, 'start of month', '-' || (CAST(strftime('%m', vp.Data_da_venda) AS INTEGER) - 1) % 3 || ' months')"
-                            periodo_fim_sql = "date(vp.Data_da_venda, 'start of month', '-' || (CAST(strftime('%m', vp.Data_da_venda) AS INTEGER) - 1) % 3 || ' months', '+3 months', '-1 day')"
-                        elif tipo_taxa == "log_semestral":
-                            periodo_ini_sql = "CASE WHEN CAST(strftime('%m', vp.Data_da_venda) AS INTEGER) <= 6 THEN strftime('%Y', vp.Data_da_venda) || '-01-01' ELSE strftime('%Y', vp.Data_da_venda) || '-07-01' END"
-                            periodo_fim_sql = "CASE WHEN CAST(strftime('%m', vp.Data_da_venda) AS INTEGER) <= 6 THEN strftime('%Y', vp.Data_da_venda) || '-06-30' ELSE strftime('%Y', vp.Data_da_venda) || '-12-31' END"
-                        elif tipo_taxa == "log_anual":
-                            periodo_ini_sql = (
-                                "strftime('%Y', vp.Data_da_venda) || '-01-01'"
-                            )
-                            periodo_fim_sql = (
-                                "strftime('%Y', vp.Data_da_venda) || '-12-31'"
-                            )
-                        else:
-                            periodo_ini_sql = "vp.Data_da_venda"
-                            periodo_fim_sql = "vp.Data_da_venda"
-                    else:
-                        # MySQL - usar DATE_FORMAT e CONCAT
-                        if tipo_taxa == "log_mensal":
-                            periodo_ini_sql = (
-                                "DATE_FORMAT(vp.Data_da_venda, '%Y-%m-01')"
-                            )
-                            periodo_fim_sql = "LAST_DAY(vp.Data_da_venda)"
-                        elif tipo_taxa == "log_trimestral":
-                            periodo_ini_sql = "DATE_FORMAT(DATE_SUB(vp.Data_da_venda, INTERVAL (MONTH(vp.Data_da_venda)-1)%3 MONTH), '%Y-%m-01')"
-                            periodo_fim_sql = "LAST_DAY(DATE_ADD(DATE_SUB(vp.Data_da_venda, INTERVAL (MONTH(vp.Data_da_venda)-1)%3 MONTH), INTERVAL 2 MONTH))"
-                        elif tipo_taxa == "log_semestral":
-                            periodo_ini_sql = "CASE WHEN MONTH(vp.Data_da_venda) <= 6 THEN CONCAT(YEAR(vp.Data_da_venda), '-01-01') ELSE CONCAT(YEAR(vp.Data_da_venda), '-07-01') END"
-                            periodo_fim_sql = "CASE WHEN MONTH(vp.Data_da_venda) <= 6 THEN CONCAT(YEAR(vp.Data_da_venda), '-06-30') ELSE CONCAT(YEAR(vp.Data_da_venda), '-12-31') END"
-                        elif tipo_taxa == "log_anual":
-                            periodo_ini_sql = "CONCAT(YEAR(vp.Data_da_venda), '-01-01')"
-                            periodo_fim_sql = "CONCAT(YEAR(vp.Data_da_venda), '-12-31')"
-                        else:
-                            periodo_ini_sql = "vp.Data_da_venda"
-                            periodo_fim_sql = "vp.Data_da_venda"
-
-                    # Primeiro UPDATE: preenche tx_calc com a menor tx_venda do período, usando derived table para evitar erro 1093
-                    # Ajuste: usar vp2.data_processamento no subselect para periodo_ini
-                    periodo_ini_sql_sub = periodo_ini_sql.replace("vp.", "vp2.")
-
-                    # Debug: verificar os dados agregados
-                    debug_sql_raw = f"""
-                        SELECT
-                            vp2.ec_id,
-                            LOWER(TRIM(vc2.bandeira)) COLLATE utf8mb4_0900_ai_ci AS bandeira,
-                            LOWER(TRIM(vc2.forma_pagamento)) COLLATE utf8mb4_0900_ai_ci AS forma_pagamento,
-                            {periodo_ini_sql_sub} AS periodo_ini,
-                            MIN(vc2.tx_venda) AS min_tx_venda,
-                            COUNT(*) as qtd
-                        FROM vendas_calculos vc2
-                        JOIN vendas_processadas vp2 ON vc2.id_venda = vp2.id
-                        WHERE vc2.calc_id = :calc_id AND vc2.calc_tipo = :calc_tipo
-                        AND vc2.tx_venda IS NOT NULL AND vc2.tx_venda > 0
-                        GROUP BY vp2.ec_id, LOWER(TRIM(vc2.bandeira)), LOWER(TRIM(vc2.forma_pagamento)), periodo_ini
-                        LIMIT 5
-                        """
-                    debug_sql = text(_remove_collate_if_sqlite(engine, debug_sql_raw))
-                    debug_result = conn.execute(
-                        debug_sql, {"calc_id": proc_id, "calc_tipo": tipo_taxa}
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Aplicando lógica de Log para vendas sem Taxa CAD..."
                     )
-                    print("[DEBUG] Primeiros 5 grupos agregados:")
-                    for row in debug_result:
+                else:
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Aplicando lógica de Log ({tipo_taxa}) para todas as vendas..."
+                    )
+
+                if aplicar_log:
+                    # ⚠️ DEFINIR periodo_format e periodo_ini_sql baseado no tipo_taxa ANTES de usar
+                    if tipo_taxa == "log_mensal":
+                        periodo_format = "%Y-%m-01"  # Apenas o formato
+                        periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-%m-01')"  # Com DATE_FORMAT
+                    elif tipo_taxa == "log_trimestral":
+                        periodo_format = "%Y-Q"
+                        periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-Q')"
+                    elif tipo_taxa == "log_semestral":
+                        periodo_format = "%Y-S"
+                        periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-S')"
+                    else:  # log_anual (padrão)
+                        periodo_format = "%Y-01-01"
+                        periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-01-01')"
+
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Período configurado: {periodo_format}"
+                    )
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] SQL período: {periodo_ini_sql}"
+                    )
+
+                    # Estatísticas ANTES do update LOG (usar conn existente para ver INSERT não comitado)
+                    count_null_pre = conn.execute(
+                        text(
+                            "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_calc IS NULL"
+                        ),
+                        {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                    ).scalar()
+                    count_nonnull_pre = conn.execute(
+                        text(
+                            "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_calc IS NOT NULL"
+                        ),
+                        {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                    ).scalar()
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] 📊 ANTES update LOG: {count_nonnull_pre} com tx_calc preenchido, {count_null_pre} NULL"
+                    )
+
+                    if count_null_pre == 0:
                         print(
-                            f"  ec_id={row[0]}, bandeira={row[1]}, forma={row[2]}, periodo={row[3]}, min_tx={row[4]}, qtd={row[5]}"
+                            f"[DEBUG] ⚠️  PROBLEMA: Nenhum registro com tx_calc IS NULL encontrado!"
+                        )
+                        print(f"[DEBUG]    calc_id = '{proc_id}'")
+                        print(f"[DEBUG]    calc_tipo = '{tipo_taxa}'")
+                        print(
+                            f"[DEBUG]    Possível causa: Conexão não está vendo INSERTs da transação"
+                        )
+                    else:
+                        print(
+                            f"[DEBUG] ✅ Iniciando UPDATE LOG para {count_null_pre} registros..."
                         )
 
-                    # Condição adicional: se usar_taxa_cad, só atualizar onde tx_calc IS NULL
-                    condicao_tx_calc = "AND vc.tx_calc IS NULL" if usar_taxa_cad else ""
-                    
-                    update_tx_sql_raw = f"""
+                    # ============================================================================
+                    # UPDATE LOG INLINE (versão simplificada - sem função separada)
+                    #
+                    # ✅ VANTAGENS desta abordagem:
+                    #    - Usa mesma conexão/transação (vê INSERTs pendentes)
+                    #    - Menos código (~120 linhas removidas)
+                    #    - Mais legível (tudo em sequência)
+                    #    - Sem overhead de chamada de função
+                    #
+                    # 🔄 ROLLBACK: Se precisar voltar para função separada:
+                    #    - Veja código comentado nas linhas 4-105 deste arquivo
+                    #    - Descomente a função update_log_tx_calc_em_lotes
+                    #    - Substitua este bloco por: update_log_tx_calc_em_lotes(engine, proc_id, tipo_taxa, lote=10000, conn_externa=conn)
+                    # ============================================================================
+                    # Definir campos de período baseado no tipo_taxa
+                    if tipo_taxa == "log_mensal":
+                        periodo_field = "DATE_FORMAT(vp2.Data_da_venda, '%Y-%m')"
+                        periodo_join = "DATE_FORMAT(vp.Data_da_venda, '%Y-%m')"
+                    elif tipo_taxa == "log_trimestral":
+                        periodo_field = "CONCAT(YEAR(vp2.Data_da_venda), '-Q', QUARTER(vp2.Data_da_venda))"
+                        periodo_join = "CONCAT(YEAR(vp.Data_da_venda), '-Q', QUARTER(vp.Data_da_venda))"
+                    elif tipo_taxa == "log_semestral":
+                        periodo_field = "CONCAT(YEAR(vp2.Data_da_venda), '-S', CEILING(MONTH(vp2.Data_da_venda)/6))"
+                        periodo_join = "CONCAT(YEAR(vp.Data_da_venda), '-S', CEILING(MONTH(vp.Data_da_venda)/6))"
+                    else:  # log_anual
+                        periodo_field = "YEAR(vp2.Data_da_venda)"
+                        periodo_join = "YEAR(vp.Data_da_venda)"
+
+                    # ⚡ UPDATE LOG SIMPLIFICADO - Sem loop, query única otimizada
+                    print(
+                        f"[DEBUG] 🚀 Executando UPDATE LOG em query única (sem batches)..."
+                    )
+
+                    # UPDATE direto com subquery de agregação (calcula MIN de TODAS as vendas do período)
+                    update_log_sql = f"""
                         UPDATE vendas_calculos vc
                         JOIN vendas_processadas vp ON vc.id_venda = vp.id
                         JOIN (
-                            SELECT
-                                vp2.ec_id,
-                                LOWER(TRIM(vc2.bandeira)) COLLATE utf8mb4_0900_ai_ci AS bandeira,
-                                LOWER(TRIM(vc2.forma_pagamento)) COLLATE utf8mb4_0900_ai_ci AS forma_pagamento,
-                                {periodo_ini_sql_sub} AS periodo_ini,
+                            SELECT 
+                                {periodo_field} AS periodo,
+                                vc2.forma_pagamento,
+                                vc2.bandeira,
                                 MIN(vc2.tx_venda) AS min_tx_venda
                             FROM vendas_calculos vc2
                             JOIN vendas_processadas vp2 ON vc2.id_venda = vp2.id
-                            WHERE vc2.calc_id = :calc_id AND vc2.calc_tipo = :calc_tipo
-                            AND vc2.tx_venda IS NOT NULL AND vc2.tx_venda > 0
-                            GROUP BY vp2.ec_id, LOWER(TRIM(vc2.bandeira)), LOWER(TRIM(vc2.forma_pagamento)), periodo_ini
-                        ) min_txs
-                        ON vp.ec_id = min_txs.ec_id
-                        AND LOWER(TRIM(vc.bandeira)) COLLATE utf8mb4_0900_ai_ci = min_txs.bandeira
-                        AND LOWER(TRIM(vc.forma_pagamento)) COLLATE utf8mb4_0900_ai_ci = min_txs.forma_pagamento
-                        AND {periodo_ini_sql} = min_txs.periodo_ini
-                        SET vc.tx_calc = min_txs.min_tx_venda
-                        WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
-                        {condicao_tx_calc}
-                        """
-                    update_tx_sql_processed = _remove_collate_if_sqlite(
-                        engine, update_tx_sql_raw
+                            WHERE vc2.calc_id = :calc_id 
+                              AND vc2.calc_tipo = :calc_tipo
+                            GROUP BY periodo, vc2.forma_pagamento, vc2.bandeira
+                        ) agg
+                            ON agg.periodo = {periodo_join}
+                           AND agg.forma_pagamento = vc.forma_pagamento
+                           AND agg.bandeira = vc.bandeira
+                        SET vc.tx_calc = agg.min_tx_venda
+                        WHERE vc.calc_id = :calc_id 
+                          AND vc.calc_tipo = :calc_tipo
+                          AND vc.tx_calc IS NULL
+                    """
+
+                    t_log_update_start = time.time()
+                    result_log = conn.execute(
+                        text(update_log_sql),
+                        {"calc_id": proc_id, "calc_tipo": tipo_taxa},
                     )
-                    update_tx_sql_processed = _convert_update_join_for_sqlite(
-                        engine, update_tx_sql_processed
+                    t_log_update = time.time() - t_log_update_start
+
+                    print(
+                        f"[DEBUG] ✅ UPDATE LOG: {result_log.rowcount} registros atualizados em {t_log_update:.2f}s"
                     )
-                    update_tx_sql = text(update_tx_sql_processed)
-                    result = conn.execute(
-                        update_tx_sql,
-                        {
-                            "calc_id": proc_id,
-                            "calc_tipo": tipo_taxa,
-                        },
+
+                    if result_log.rowcount == 0:
+                        print(
+                            f"[DEBUG] ⚠️  Nenhum registro atualizado - possíveis causas:"
+                        )
+                        print(
+                            f"[DEBUG]    1. Todos registros já têm tx_calc preenchido"
+                        )
+                        print(
+                            f"[DEBUG]    2. Não há dados suficientes para agregação por período/bandeira/forma"
+                        )
+                        print(
+                            f"[DEBUG]    3. Filtro de período não retornou resultados"
+                        )
+                    # ============================================================================
+                    # FIM DO BLOCO UPDATE LOG INLINE
+                    # Refatoração: 2025-12-12 - Substituiu update_log_tx_calc_em_lotes()
+                    # Resultado: Código mais simples, menos bugs, mesma funcionalidade
+                    # ============================================================================
+
+                    # Estatísticas APÓS o update LOG (usar conn existente para ver resultado do UPDATE)
+                    count_null_pos = conn.execute(
+                        text(
+                            "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_calc IS NULL"
+                        ),
+                        {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                    ).scalar()
+                    count_nonnull_pos = conn.execute(
+                        text(
+                            "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_calc IS NOT NULL"
+                        ),
+                        {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                    ).scalar()
+
+                    delta = count_nonnull_pos - count_nonnull_pre
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] 📊 APÓS update LOG: {count_nonnull_pos} com tx_calc preenchido, {count_null_pos} NULL"
                     )
-                    print(f"[DEBUG] UPDATE tx_calc affected rows: {result.rowcount}")
-                    # Segundo UPDATE: preenche desc_calc, vl_liq_calc e perda (desc_calc - desc_venda)
-                    # Atualizar todas as vendas que têm tx_calc (tanto CAD quanto LOG já preencheram)
+
+                    if delta > 0:
+                        print(
+                            f"[DEBUG] ✅ Sucesso! +{delta} registros preenchidos pela lógica LOG ({(delta/len(vendas))*100:.1f}% do total)"
+                        )
+                    else:
+                        print(
+                            f"[DEBUG] ❌ FALHA: Nenhum registro foi atualizado pelo LOG!"
+                        )
+                        print(f"[DEBUG]    Esperado: {count_null_pre} atualizações")
+                        print(f"[DEBUG]    Realizado: 0 atualizações")
+
+                    t_log_desc = time.time()
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Executando UPDATE desc_calc/perda..."
+                    )
                     update_desc_sql_raw = """
                         UPDATE vendas_calculos vc
                         JOIN vendas_processadas vp ON vc.id_venda = vp.id
@@ -1052,31 +1340,25 @@ def make_calculos_view(engine):
                         },
                     )
                     print(
-                        f"[DEBUG] UPDATE desc_calc/vl_liq_calc/perda affected rows: {result2.rowcount}"
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] UPDATE desc_calc/vl_liq_calc/perda affected rows: {result2.rowcount} ({time.time()-t_log_desc:.2f}s)"
                     )
 
-                    # Debug: estatísticas de perda para LOG
-                    stats = conn.execute(
-                        text(
-                            """
-                            SELECT 
-                                COUNT(*) as total,
-                                SUM(CASE WHEN perda = 0 THEN 1 ELSE 0 END) as com_perda_zero,
-                                SUM(CASE WHEN perda > 0 THEN 1 ELSE 0 END) as com_perda_positiva,
-                                SUM(CASE WHEN perda < 0 THEN 1 ELSE 0 END) as com_perda_negativa,
-                                SUM(CASE WHEN perda IS NULL THEN 1 ELSE 0 END) as sem_perda_calculada
-                            FROM vendas_calculos 
-                            WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
-                            """
-                        ),
-                        {"calc_id": proc_id, "calc_tipo": tipo_taxa},
-                    ).fetchone()
-                    print(f"[DEBUG] Estatísticas de Perda (Taxa {tipo_taxa.upper()}):")
-                    print(f"  • Total de vendas: {stats[0]}")
-                    print(f"  • Perda = 0 (sem taxa original): {stats[1]}")
-                    print(f"  • Perda > 0 (cobrado a mais): {stats[2]}")
-                    print(f"  • Perda < 0 (cobrado a menos): {stats[3]}")
-                    print(f"  • Sem cálculo (tx_calc não encontrado): {stats[4]}")
+                    # ⚡ Estatísticas de perda (OPCIONAL - comentar para economizar ~15s)
+                    # Descomente se precisar de detalhamento de perdas
+                    # t_stats_perda = time.time()
+                    # stats = conn.execute(
+                    #     text("""
+                    #         SELECT COUNT(*) as total,
+                    #                SUM(CASE WHEN perda = 0 THEN 1 ELSE 0 END) as com_perda_zero,
+                    #                SUM(CASE WHEN perda > 0 THEN 1 ELSE 0 END) as com_perda_positiva,
+                    #                SUM(CASE WHEN perda < 0 THEN 1 ELSE 0 END) as com_perda_negativa,
+                    #                SUM(CASE WHEN perda IS NULL THEN 1 ELSE 0 END) as sem_perda_calculada
+                    #         FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
+                    #     """),
+                    #     {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                    # ).fetchone()
+                    # print(f"[DEBUG] Estatísticas de Perda (Taxa {tipo_taxa.upper()}, query: {time.time()-t_stats_perda:.2f}s):")
+                    # print(f"  • Total: {stats[0]} | Perda=0: {stats[1]} | Perda>0: {stats[2]} | Perda<0: {stats[3]} | Sem cálculo: {stats[4]}")
 
                     # Terceiro UPDATE para LOG: preencher taxas RR usando mesma lógica de menor taxa
                     print(
@@ -1085,29 +1367,36 @@ def make_calculos_view(engine):
                     if tem_receba_rapido:
                         # Primeiro: atualizar tx_rr_calc com a menor taxa RR do período
                         # Se usar_taxa_cad, só atualizar onde tx_rr_calc ainda não foi preenchido pelo CAD
-                        condicao_rr = "AND (vc.tx_rr_calc IS NULL OR vc.tx_rr_calc = 0)" if usar_taxa_cad else ""
-                        
-                        periodo_ini_sql_sub_rr = periodo_ini_sql.replace("vp.", "vp2.")
+                        condicao_rr = (
+                            "AND (vc.tx_rr_calc IS NULL OR vc.tx_rr_calc = 0)"
+                            if usar_taxa_cad
+                            else ""
+                        )
+
+                        # ⚠️ USAR periodo_format (não periodo_ini_sql) para evitar duplicação
+                        print(
+                            f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Iniciando UPDATE tx_rr_calc com período: {periodo_format}"
+                        )
                         update_tx_rr_sql_raw = f"""
                             UPDATE vendas_calculos vc
                             JOIN vendas_processadas vp ON vc.id_venda = vp.id
                             JOIN (
                                 SELECT
                                     vp2.ec_id,
-                                    LOWER(TRIM(vc2.bandeira)) COLLATE utf8mb4_0900_ai_ci AS bandeira,
-                                    LOWER(TRIM(vc2.forma_pagamento)) COLLATE utf8mb4_0900_ai_ci AS forma_pagamento,
-                                    {periodo_ini_sql_sub_rr} AS periodo_ini,
-                                    MIN(vc2.tx_rr_venda) AS min_tx_rr_venda
-                                FROM vendas_calculos vc2
-                                JOIN vendas_processadas vp2 ON vc2.id_venda = vp2.id
+                                    LOWER(TRIM(vp2.Bandeira)) AS bandeira,
+                                    LOWER(TRIM(vp2.Forma_de_pagamento)) AS forma_pagamento,
+                                    DATE_FORMAT(vp2.Data_da_venda, '{periodo_format}') AS periodo_ini,
+                                    MIN(vp2.Taxas_RR) AS min_tx_rr_venda
+                                FROM vendas_processadas vp2
+                                JOIN vendas_calculos vc2 ON vc2.id_venda = vp2.id
                                 WHERE vc2.calc_id = :calc_id AND vc2.calc_tipo = :calc_tipo 
-                                AND vc2.tx_rr_venda IS NOT NULL AND vc2.tx_rr_venda > 0
-                                GROUP BY vp2.ec_id, LOWER(TRIM(vc2.bandeira)), LOWER(TRIM(vc2.forma_pagamento)), periodo_ini
+                                AND vp2.Taxas_RR IS NOT NULL AND vp2.Taxas_RR > 0
+                                GROUP BY vp2.ec_id, LOWER(TRIM(vp2.Bandeira)), LOWER(TRIM(vp2.Forma_de_pagamento)), periodo_ini
                             ) min_txs_rr
                             ON vp.ec_id = min_txs_rr.ec_id
-                            AND LOWER(TRIM(vc.bandeira)) COLLATE utf8mb4_0900_ai_ci = min_txs_rr.bandeira
-                            AND LOWER(TRIM(vc.forma_pagamento)) COLLATE utf8mb4_0900_ai_ci = min_txs_rr.forma_pagamento
-                            AND {periodo_ini_sql} = min_txs_rr.periodo_ini
+                            AND LOWER(TRIM(vp.Bandeira)) = min_txs_rr.bandeira
+                            AND LOWER(TRIM(vp.Forma_de_pagamento)) = min_txs_rr.forma_pagamento
+                            AND DATE_FORMAT(vp.Data_da_venda, '{periodo_format}') = min_txs_rr.periodo_ini
                             SET vc.tx_rr_calc = min_txs_rr.min_tx_rr_venda
                             WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
                             {condicao_rr}
@@ -1132,7 +1421,11 @@ def make_calculos_view(engine):
 
                         # Segundo: atualizar vl_rr_calc e perda_rr baseado na tx_rr_calc
                         # Se usar_taxa_cad, só atualizar onde tx_rr_calc foi preenchido pelo LOG
-                        condicao_rr_calc = "AND (vc.tx_rr_calc IS NOT NULL AND (vc.tx_rr_calc != COALESCE((SELECT t2.taxa_rr FROM taxas t2 JOIN vendas_processadas vp2 ON t2.ec = vp2.ec_id WHERE vp2.id = vc.id_venda LIMIT 1), 0)))" if usar_taxa_cad else "AND vc.tx_rr_calc IS NOT NULL"
+                        condicao_rr_calc = (
+                            "AND (vc.tx_rr_calc IS NOT NULL AND (vc.tx_rr_calc != COALESCE((SELECT t2.taxa_rr FROM taxas t2 JOIN vendas_processadas vp2 ON t2.ec = vp2.ec_id WHERE vp2.id = vc.id_venda LIMIT 1), 0)))"
+                            if usar_taxa_cad
+                            else "AND vc.tx_rr_calc IS NOT NULL"
+                        )
                         # Simplificando: se usar_taxa_cad, só atualizar onde tx_rr_calc foi preenchido pelo LOG (não pelo CAD)
                         # Vamos usar uma abordagem mais simples: atualizar todos que têm tx_rr_calc, mas só se não foi preenchido pelo CAD
                         # Na verdade, vamos atualizar todos que têm tx_rr_calc, pois o CAD já preencheu os seus
@@ -1164,7 +1457,11 @@ def make_calculos_view(engine):
                         )
                         update_rr_log_sql = None  # Não usar a query anterior
                     else:
-                        # Se não tem Receba Rápido, zerar os campos RR apenas onde não foram preenchidos pelo CAD
+                        # Se não tem Receba Rápido, zerar tx_rr_calc e vl_rr_calc
+                        # MAS calcular perda_rr = -vl_rr_venda (economia por não usar RR)
+                        print(
+                            "[DEBUG] Cliente SEM Receba Rápido - calculando economia..."
+                        )
                         if usar_taxa_cad:
                             # Zerar apenas onde tx_rr_calc não foi preenchido pelo CAD
                             update_rr_log_sql_raw = """
@@ -1172,18 +1469,26 @@ def make_calculos_view(engine):
                                 SET
                                     vc.tx_rr_calc = 0,
                                     vc.vl_rr_calc = 0,
-                                    vc.perda_rr = 0
+                                    vc.perda_rr = CASE 
+                                        WHEN vc.vl_rr_venda IS NOT NULL AND vc.vl_rr_venda != 0 
+                                        THEN -vc.vl_rr_venda
+                                        ELSE 0
+                                    END
                                 WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
                                 AND (vc.tx_rr_calc IS NULL OR vc.tx_rr_calc = 0)
                                 """
                         else:
-                            # Zerar todas
+                            # Zerar todas, mas calcular perda_rr como economia
                             update_rr_log_sql_raw = """
                                 UPDATE vendas_calculos vc
                                 SET
                                     vc.tx_rr_calc = 0,
                                     vc.vl_rr_calc = 0,
-                                    vc.perda_rr = 0
+                                    vc.perda_rr = CASE 
+                                        WHEN vc.vl_rr_venda IS NOT NULL AND vc.vl_rr_venda != 0 
+                                        THEN -vc.vl_rr_venda
+                                        ELSE 0
+                                    END
                                 WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
                                 """
                         update_rr_log_sql = text(
@@ -1199,7 +1504,7 @@ def make_calculos_view(engine):
                             },
                         )
                         print(
-                            f"[DEBUG] UPDATE taxas RR (zerar) affected rows: {result3.rowcount}"
+                            f"[DEBUG] UPDATE taxas RR (economia) affected rows: {result3.rowcount}"
                         )
 
                     # Debug adicional: verificar se existem dados de tx_rr_venda
@@ -1218,40 +1523,203 @@ def make_calculos_view(engine):
                         ),
                         {"calc_id": proc_id, "calc_tipo": tipo_taxa},
                     ).scalar()
-                    print(f"[DEBUG] Registros com tx_rr_calc preenchidos: {debug_calc}")
-                print("[DEBUG] UPDATE JOIN finalizado.")
+                    print(
+                        f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Registros com tx_rr_calc preenchidos: {debug_calc}"
+                    )
 
-            # Buscar resultados atualizados para exibir
-            print("[DEBUG] Buscando resultados atualizados para exibir...")
+                print(
+                    f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] ✅ UPDATE JOIN finalizado (total: {time.time()-t_updates:.2f}s)"
+                )
+
+            # ===== ESTATÍSTICAS FINAIS DETALHADAS =====
+            print(f"\n[DEBUG] {'='*60}")
+            print(f"[DEBUG] ESTATÍSTICAS FINAIS DO PROCESSAMENTO")
+            print(f"[DEBUG] {'='*60}")
+
+            with engine.connect() as _conn:
+                # Contagem geral
+                count_total = _conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo"
+                    ),
+                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                ).scalar()
+                print(f"[DEBUG] Total de registros: {count_total}")
+
+                # tx_calc
+                count_txcalc = _conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_calc IS NOT NULL"
+                    ),
+                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                ).scalar()
+                count_txcalc_null = _conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_calc IS NULL"
+                    ),
+                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                ).scalar()
+                print(
+                    f"[DEBUG] tx_calc preenchidos: {count_txcalc} ({count_txcalc/count_total*100:.2f}%)"
+                )
+                print(
+                    f"[DEBUG] tx_calc NULL: {count_txcalc_null} ({count_txcalc_null/count_total*100:.2f}%)"
+                )
+
+                # desc_calc e perda
+                count_desc = _conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND desc_calc IS NOT NULL"
+                    ),
+                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                ).scalar()
+                count_perda = _conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND perda IS NOT NULL"
+                    ),
+                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                ).scalar()
+                print(
+                    f"[DEBUG] desc_calc preenchidos: {count_desc} ({count_desc/count_total*100:.2f}%)"
+                )
+                print(
+                    f"[DEBUG] perda preenchidos: {count_perda} ({count_perda/count_total*100:.2f}%)"
+                )
+
+                # tx_rr_calc
+                count_txrr = _conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_rr_calc IS NOT NULL AND tx_rr_calc != 0"
+                    ),
+                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                ).scalar()
+                count_perdarr = _conn.execute(
+                    text(
+                        "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND perda_rr IS NOT NULL AND perda_rr != 0"
+                    ),
+                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                ).scalar()
+                print(
+                    f"[DEBUG] tx_rr_calc preenchidos (≠0): {count_txrr} ({count_txrr/count_total*100:.2f}%)"
+                )
+                print(
+                    f"[DEBUG] perda_rr preenchidos (≠0): {count_perdarr} ({count_perdarr/count_total*100:.2f}%)"
+                )
+
+                # Amostras de dados
+                print(f"\n[DEBUG] Amostra de registros COM tx_calc:")
+                amostra_preench = _conn.execute(
+                    text(
+                        """SELECT id_venda, bandeira, forma_pagamento, 
+                           ROUND(tx_venda, 2) as tx_venda, ROUND(tx_calc, 2) as tx_calc, 
+                           ROUND(perda, 2) as perda 
+                        FROM vendas_calculos 
+                        WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_calc IS NOT NULL 
+                        LIMIT 3"""
+                    ),
+                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                ).fetchall()
+                for row in amostra_preench:
+                    print(
+                        f"  ID:{row[0]} | {row[1]}/{row[2]} | tx_venda:{row[3]}% tx_calc:{row[4]}% perda:{row[5]}"
+                    )
+
+                if count_txcalc_null > 0:
+                    print(f"\n[DEBUG] Amostra de registros SEM tx_calc (problema!):")
+                    amostra_null = _conn.execute(
+                        text(
+                            """SELECT id_venda, bandeira, forma_pagamento, 
+                               ROUND(tx_venda, 2) as tx_venda 
+                            FROM vendas_calculos 
+                            WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_calc IS NULL 
+                            LIMIT 3"""
+                        ),
+                        {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                    ).fetchall()
+                    for row in amostra_null:
+                        print(f"  ID:{row[0]} | {row[1]}/{row[2]} | tx_venda:{row[3]}%")
+
+                print(f"[DEBUG] {'='*60}\n")
+
+            # Buscar resultados atualizados para exibir (apenas primeiros 50 registros)
+            t_final = time.time()
+            print(
+                f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Buscando amostra de 50 registros para exibir..."
+            )
+            # ⚡ OTIMIZAÇÃO: LIMIT no SQL (não carregar 1.5M registros para mostrar só 50!)
             df_result = pd.read_sql(
                 text(
                     """
-                    SELECT vc.*, vp.Bandeira, vp.Forma_de_pagamento, vp.data_processamento, vp.Quantidade_de_parcelas, vp.ec_id
+                    SELECT vc.id, vc.id_venda, vc.bandeira, vc.forma_pagamento, 
+                           vc.vl_venda, vc.tx_venda, vc.desc_venda, vc.vl_liq_venda,
+                           vc.tx_calc, vc.desc_calc, vc.vl_liq_calc, vc.perda,
+                           vc.tx_rr_venda, vc.vl_rr_venda, vc.tx_rr_calc, vc.vl_rr_calc, vc.perda_rr,
+                           vp.Quantidade_de_parcelas, vp.ec_id, vp.data_processamento
                     FROM vendas_calculos vc
                     JOIN vendas_processadas vp ON vc.id_venda = vp.id
                     WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
-                    ORDER BY vp.data_processamento, vc.id_venda
+                    LIMIT 50
                 """
                 ),
                 engine,
                 params={"calc_id": proc_id, "calc_tipo": tipo_taxa},
             )
-            tabulator.value = df_result.head(50)
+            tabulator.value = df_result
 
-            # Calcular resumo estatístico
-            if not df_result.empty:
-                resumo_dict = {
-                    "Quantidade de vendas": [len(df_result)],
-                    "Total da venda": [df_result["tx_venda"].sum()],
-                    "Total do desconto": [df_result["desc_calc"].sum(skipna=True)],
-                    "% aferido (média)": [df_result["tx_calc"].mean(skipna=True)],
-                    "Menor %": [df_result["tx_calc"].min(skipna=True)],
-                    "Maior %": [df_result["tx_calc"].max(skipna=True)],
-                }
-                df_resumo = pd.DataFrame(resumo_dict)
-                resumo_tabulator.value = df_resumo
-            else:
-                resumo_tabulator.value = pd.DataFrame()
+            # ⚡ OTIMIZAÇÃO: Calcular resumo estatístico direto no SQL (não carregar 1.5M para memória!)
+            print(
+                f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Calculando estatísticas agregadas..."
+            )
+            with engine.connect() as _conn_resumo:
+                resumo_stats = _conn_resumo.execute(
+                    text(
+                        """
+                        SELECT 
+                            COUNT(*) as qtd_vendas,
+                            SUM(tx_venda) as total_tx_venda,
+                            SUM(desc_calc) as total_desc_calc,
+                            AVG(tx_calc) as media_tx_calc,
+                            MIN(tx_calc) as min_tx_calc,
+                            MAX(tx_calc) as max_tx_calc
+                        FROM vendas_calculos
+                        WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
+                    """
+                    ),
+                    {"calc_id": proc_id, "calc_tipo": tipo_taxa},
+                ).fetchone()
+
+                if resumo_stats and resumo_stats[0] > 0:
+                    resumo_dict = {
+                        "Quantidade de vendas": [int(resumo_stats[0])],
+                        "Total da venda": [
+                            float(resumo_stats[1]) if resumo_stats[1] else 0.0
+                        ],
+                        "Total do desconto": [
+                            float(resumo_stats[2]) if resumo_stats[2] else 0.0
+                        ],
+                        "% aferido (média)": [
+                            round(float(resumo_stats[3]), 2) if resumo_stats[3] else 0.0
+                        ],
+                        "Menor %": [
+                            round(float(resumo_stats[4]), 2) if resumo_stats[4] else 0.0
+                        ],
+                        "Maior %": [
+                            round(float(resumo_stats[5]), 2) if resumo_stats[5] else 0.0
+                        ],
+                    }
+                    df_resumo = pd.DataFrame(resumo_dict)
+                    resumo_tabulator.value = df_resumo
+                else:
+                    resumo_tabulator.value = pd.DataFrame()
+
+            # 📊 Resumo de performance final
+            tempo_total = time.time() - t_inicio
+            print(f"\n{'='*60}")
+            print(f"[DEBUG] ✅ PROCESSAMENTO CONCLUÍDO com sucesso!")
+            print(
+                f"[DEBUG] ⏱️  TEMPO TOTAL: {tempo_total:.2f}s ({tempo_total/60:.1f} min)"
+            )
+            print(f"{'='*60}\n")
 
             print("[DEBUG] Processamento finalizado com sucesso!")
             tipo_calc_desc = f"Taxa CAD + {tipo_taxa}" if usar_taxa_cad else tipo_taxa
@@ -1298,13 +1766,17 @@ def make_calculos_view(engine):
         )
         status_gestao = pn.pane.Alert("", alert_type="info", visible=False)
 
-        # Tabulator
+        # Tabulator com checkboxes
         tab_gestao = pn.widgets.Tabulator(
             pd.DataFrame(),
-            selectable=True,
+            selectable="checkbox",  # Habilita checkboxes para seleção múltipla
+            header_filters=True,  # Habilita filtros no cabeçalho
             height=350,
             page_size=30,
             sizing_mode="stretch_width",
+            configuration={
+                "selectableRangeMode": "click",  # Permite selecionar múltiplas linhas
+            },
         )
 
         def carregar_calculos():
@@ -1397,7 +1869,12 @@ def make_calculos_view(engine):
                 pn.Spacer(height=10),
                 pn.Row(receba_rapido_checkbox, sizing_mode="stretch_width"),
                 pn.Spacer(height=10),
-                pn.Row(btn_preview, btn_processar, sizing_mode="stretch_width", align="center"),
+                pn.Row(
+                    btn_preview,
+                    btn_processar,
+                    sizing_mode="stretch_width",
+                    align="center",
+                ),
                 sizing_mode="stretch_width",
             ),
             title="Parâmetros do Cálculo",

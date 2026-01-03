@@ -1,114 +1,173 @@
 """
-Gerenciador de Banco de Dados Híbrido
-Suporta MySQL (modo deploy) e SQLite (modo singleuser)
+Gerenciador Híbrido de Banco de Dados (MySQL/SQLite)
+Sistema otimizado para MySQL com suporte completo a SQLite para distribuição
+
+Define qual banco usar através da variável de ambiente DB_TYPE:
+- DB_TYPE=mysql (padrão) -> MySQL
+- DB_TYPE=sqlite -> SQLite
+
+Para distribuição, use SQLite sem necessidade de servidor MySQL.
 """
 
 import os
 from sqlalchemy.engine import Engine
-from typing import Literal
+from typing import Optional
 
-# Tipo de banco de dados
-DBMode = Literal["mysql", "sqlite"]
-
-# Variável global que define o modo atual
-_DB_MODE: DBMode = "mysql"  # Padrão: MySQL (modo deploy)
+# Variável global para cache da engine
+_engine_cache: Optional[Engine] = None
+_db_type_cache: Optional[str] = None
 
 
-def set_db_mode(mode: DBMode) -> None:
+def get_db_type() -> str:
     """
-    Define o modo de banco de dados a ser usado.
+    Detecta o tipo de banco a ser usado.
 
-    Args:
-        mode: "mysql" para modo deploy ou "sqlite" para modo singleuser
-    """
-    global _DB_MODE
-    if mode not in ("mysql", "sqlite"):
-        raise ValueError(f"Modo inválido: {mode}. Use 'mysql' ou 'sqlite'")
-
-    _DB_MODE = mode
-    print(f"[DB_MANAGER] Modo de banco definido: {mode.upper()}")
-
-
-def get_db_mode() -> DBMode:
-    """Retorna o modo de banco de dados atual."""
-    return _DB_MODE
-
-
-def get_engine() -> Engine:
-    """
-    Retorna a engine apropriada baseada no modo configurado.
+    Ordem de verificação:
+    1. Variável de ambiente DB_TYPE
+    2. Arquivo .db_config (se existir)
+    3. Padrão: MySQL
 
     Returns:
-        Engine SQLAlchemy (MySQL ou SQLite)
+        'mysql' ou 'sqlite'
     """
-    if _DB_MODE == "mysql":
-        from conf.conf_bd import get_engine as get_mysql_engine
+    global _db_type_cache
 
-        print("[DB_MANAGER] Usando MySQL (modo deploy)")
-        return get_mysql_engine()
-    else:
+    # Retorna cache se já detectado
+    if _db_type_cache:
+        return _db_type_cache
+
+    # 1. Verificar variável de ambiente
+    db_type = os.environ.get("DB_TYPE", "").lower()
+    if db_type in ("mysql", "sqlite"):
+        _db_type_cache = db_type
+        return db_type
+
+    # 2. Verificar arquivo de configuração
+    config_file = os.path.join(os.path.dirname(__file__), "..", ".db_config")
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, "r") as f:
+                db_type = f.read().strip().lower()
+                if db_type in ("mysql", "sqlite"):
+                    _db_type_cache = db_type
+                    return db_type
+        except Exception as e:
+            print(f"[DB_MANAGER] Aviso: Erro ao ler .db_config: {e}")
+
+    # 3. Verificar se existe banco SQLite (indica distribuição)
+    sqlite_path = os.path.join(os.path.dirname(__file__), "..", "data", "concilie.db")
+    if os.path.exists(sqlite_path):
+        # Se o arquivo SQLite existe e não há MySQL configurado, usa SQLite
+        _db_type_cache = "sqlite"
+        return "sqlite"
+
+    # 4. Padrão: MySQL (ambiente de desenvolvimento)
+    _db_type_cache = "mysql"
+    return "mysql"
+
+
+def set_db_type(db_type: str):
+    """
+    Define o tipo de banco a ser usado.
+
+    Args:
+        db_type: 'mysql' ou 'sqlite'
+    """
+    global _db_type_cache, _engine_cache
+
+    if db_type not in ("mysql", "sqlite"):
+        raise ValueError(f"Tipo de banco inválido: {db_type}. Use 'mysql' ou 'sqlite'")
+
+    _db_type_cache = db_type
+    _engine_cache = None  # Limpa cache da engine para recriar
+
+
+def get_engine(force_new: bool = False) -> Engine:
+    """
+    Retorna a engine do banco de dados (MySQL ou SQLite).
+
+    Args:
+        force_new: Se True, força criação de nova engine (ignora cache)
+
+    Returns:
+        Engine SQLAlchemy (MySQL ou SQLite conforme configuração)
+    """
+    global _engine_cache
+
+    # Retorna cache se disponível
+    if _engine_cache and not force_new:
+        return _engine_cache
+
+    db_type = get_db_type()
+
+    if db_type == "sqlite":
         from conf.conf_bd_sqlite import get_engine_sqlite
 
-        print("[DB_MANAGER] Usando SQLite (modo singleuser)")
-        return get_engine_sqlite()
+        print("[DB_MANAGER] Usando SQLite")
+        _engine_cache = get_engine_sqlite()
+    else:
+        from conf.conf_bd import get_engine as get_mysql_engine
 
+        print("[DB_MANAGER] Usando MySQL")
+        _engine_cache = get_mysql_engine()
 
-def is_mysql() -> bool:
-    """Retorna True se o modo atual é MySQL."""
-    return _DB_MODE == "mysql"
-
-
-def is_sqlite() -> bool:
-    """Retorna True se o modo atual é SQLite."""
-    return _DB_MODE == "sqlite"
+    return _engine_cache
 
 
 def get_quote_char() -> str:
     """
-    Retorna o caractere de quote apropriado para o banco atual.
+    Retorna o caractere de quote adequado ao banco.
 
     Returns:
-        "`" para MySQL, "" para SQLite
+        "`" para MySQL, '"' para SQLite
     """
-    return "`" if is_mysql() else ""
+    db_type = get_db_type()
+
+    if db_type == "sqlite":
+        return '"'
+    else:
+        return "`"
 
 
 def quote_identifier(identifier: str) -> str:
     """
-    Adiciona quotes em um identificador se necessário.
+    Adiciona quotes em um identificador (tabela/coluna).
 
     Args:
         identifier: Nome da coluna/tabela
 
     Returns:
-        Identificador com quotes (MySQL) ou sem (SQLite)
+        Identificador com quotes apropriados ao banco
     """
-    if is_mysql():
-        return f"`{identifier}`"
-    return identifier
-
-
-def adapt_sql(sql_mysql: str, sql_sqlite: str = None) -> str:
-    """
-    Retorna a query SQL apropriada para o banco atual.
-
-    Args:
-        sql_mysql: Query SQL para MySQL
-        sql_sqlite: Query SQL para SQLite (opcional, usa sql_mysql se não fornecido)
-
-    Returns:
-        Query apropriada para o banco atual
-    """
-    if is_sqlite() and sql_sqlite:
-        return sql_sqlite
-    return sql_mysql
+    quote = get_quote_char()
+    return f"{quote}{identifier}{quote}"
 
 
 def get_primary_key_name() -> str:
     """
-    Retorna o nome da coluna de chave primária para usar em queries.
+    Retorna o nome da coluna de chave primária.
 
     Returns:
-        "id" para MySQL, "rowid" para SQLite
+        "id" (padrão para ambos os bancos)
     """
-    return "id" if is_mysql() else "rowid"
+    return "id"
+
+
+def is_sqlite() -> bool:
+    """
+    Verifica se está usando SQLite.
+
+    Returns:
+        True se usando SQLite, False se MySQL
+    """
+    return get_db_type() == "sqlite"
+
+
+def is_mysql() -> bool:
+    """
+    Verifica se está usando MySQL.
+
+    Returns:
+        True se usando MySQL, False se SQLite
+    """
+    return get_db_type() == "mysql"

@@ -4,15 +4,15 @@ from sqlalchemy.engine import Engine
 from sqlalchemy import text
 from datetime import datetime
 
+# Importa adaptador SQL híbrido
+from conf import sql_adapter
+
 
 # ==============================
-# Helper para compatibilidade MySQL/SQLite
+# Helper functions - Híbrido MySQL/SQLite
 # ==============================
-
-
-def _is_sqlite(engine: Engine) -> bool:
-    """Verifica se a engine é SQLite"""
-    return engine.dialect.name == "sqlite"
+# IMPORTANTE: Estas funções agora suportam ambos os bancos
+# Mantidas para compatibilidade com código existente
 
 
 # Busca detalhes de um processamento específico por id
@@ -34,145 +34,94 @@ def listar_processamentos_detalhado_por_id(
 
 
 def _normalize_text_compare(engine: Engine, column: str, param: str) -> str:
-    """Retorna SQL para comparação case-insensitive de texto
+    """Retorna SQL para comparação case-insensitive de texto (MySQL/SQLite)
 
     Args:
-        engine: Engine do banco de dados
+        engine: Engine SQLAlchemy
         column: Nome da coluna a comparar
         param: Nome do parâmetro (ex: 'ctx')
 
     Returns:
-        SQL compatível com SQLite/MySQL para comparação case-insensitive
+        SQL para comparação case-insensitive
     """
-    if _is_sqlite(engine):
-        # SQLite: usar UPPER() para case-insensitive
-        return f"UPPER({column}) = UPPER(:{param})"
-    else:
-        # MySQL: já é case-insensitive por padrão
-        return f"{column} = :{param}"
+    return sql_adapter.normalize_text_compare(engine, column, param)
 
 
 def _date_format_sql(engine: Engine, column: str, format_str: str) -> str:
-    """Retorna SQL de formatação de data compatível com MySQL e SQLite
+    """Retorna SQL de formatação de data (MySQL/SQLite)
 
     Args:
+        engine: Engine SQLAlchemy
         column: Nome da coluna de data
         format_str: Formato MySQL (ex: '%Y-%m-%d', '%Y-%m')
 
     Returns:
-        SQL formatado para o banco correto
+        SQL formatado
     """
-    if _is_sqlite(engine):
-        # SQLite usa strftime
-        # Converter formato MySQL para SQLite:
-        # %Y-%m-%d -> %Y-%m-%d (mesmo)
-        # %Y-%m -> %Y-%m (mesmo)
-        sqlite_format = format_str  # A maioria dos formatos é compatível
-        return f"strftime('{sqlite_format}', {column})"
-    else:
-        # MySQL usa DATE_FORMAT
-        return f"DATE_FORMAT({column}, '{format_str}')"
+    return sql_adapter.date_format_sql(engine, column, format_str)
 
 
 def _concat_sql(engine: Engine, *args: str) -> str:
-    """Retorna SQL de concatenação compatível com MySQL e SQLite
+    """Retorna SQL de concatenação (MySQL/SQLite)
 
     Args:
+        engine: Engine SQLAlchemy
         *args: Expressões SQL a concatenar
 
     Returns:
-        SQL de concatenação para o banco correto
+        SQL de concatenação
     """
-    if _is_sqlite(engine):
-        # SQLite usa || para concatenação
-        return " || ".join(args)
-    else:
-        # MySQL usa CONCAT()
-        return f"CONCAT({', '.join(args)})"
+    return sql_adapter.concat_sql(engine, *args)
 
 
 def _insert_ignore_sql(engine: Engine, table: str, columns: str, values: str) -> str:
-    """Retorna SQL de INSERT IGNORE compatível com MySQL e SQLite"""
-    if _is_sqlite(engine):
-        return f"INSERT OR IGNORE INTO {table} ({columns}) VALUES ({values})"
-    else:
-        return f"INSERT IGNORE INTO {table} ({columns}) VALUES ({values})"
+    """Retorna SQL de INSERT IGNORE (MySQL/SQLite)"""
+    return sql_adapter.insert_ignore_sql(engine, table, columns, values)
 
 
 def _year_sql(engine: Engine, column: str) -> str:
-    """Retorna SQL para extrair ano de uma data"""
-    if _is_sqlite(engine):
-        return f"strftime('%Y', {column})"
-    else:
-        return f"YEAR({column})"
+    """Retorna SQL para extrair ano de uma data (MySQL/SQLite)"""
+    return sql_adapter.year_sql(engine, column)
 
 
 def _month_sql(engine: Engine, column: str) -> str:
-    """Retorna SQL para extrair mês (número) de uma data"""
-    if _is_sqlite(engine):
-        return f"CAST(strftime('%m', {column}) AS INTEGER)"
-    else:
-        return f"MONTH({column})"
+    """Retorna SQL para extrair mês de uma data (MySQL/SQLite)"""
+    return sql_adapter.month_sql(engine, column)
 
 
 def _quarter_sql(engine: Engine, column: str) -> str:
-    """Retorna SQL para calcular trimestre de uma data"""
-    if _is_sqlite(engine):
-        # SQLite: calcular trimestre com CASE baseado no mês
-        return f"""CASE 
-            WHEN {_month_sql(engine, column)} <= 3 THEN '1'
-            WHEN {_month_sql(engine, column)} <= 6 THEN '2'
-            WHEN {_month_sql(engine, column)} <= 9 THEN '3'
-            ELSE '4'
-        END"""
-    else:
-        return f"QUARTER({column})"
+    """Retorna SQL para calcular trimestre de uma data (MySQL/SQLite)"""
+    return sql_adapter.quarter_sql(engine, column)
 
 
 def _semester_sql(engine: Engine, column: str) -> str:
-    """Retorna SQL para calcular semestre de uma data"""
-    month_sql = _month_sql(engine, column)
-    if _is_sqlite(engine):
-        return f"CASE WHEN {month_sql} <= 6 THEN '1' ELSE '2' END"
-    else:
-        return f"IF({month_sql} <= 6, '1', '2')"
+    """Retorna SQL para calcular semestre de uma data (MySQL/SQLite)"""
+    return sql_adapter.semester_sql(engine, column)
 
 
-def _get_table_columns(engine: Engine, table_name: str) -> List[str]:
-    """Retorna lista de colunas de uma tabela"""
-    if _is_sqlite(engine):
-        # SQLite: usa PRAGMA table_info
-        rows = fetch_all(engine, f"PRAGMA table_info({table_name})")
-        return [r["name"] for r in rows]
-    else:
-        # MySQL: usa INFORMATION_SCHEMA
-        rows = fetch_all(
-            engine,
-            f"""
-            SELECT COLUMN_NAME AS coluna FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{table_name}'
-            ORDER BY ORDINAL_POSITION
-            """,
-        )
-        return [r["coluna"] for r in rows]
+def _get_table_columns(engine: Engine, table_name: str) -> str:
+    """Retorna SQL para buscar colunas de uma tabela (MySQL/SQLite)"""
+    return sql_adapter.get_table_columns_sql(engine, table_name)
+
+
+def _current_timestamp_sql(engine: Engine) -> str:
+    """Retorna SQL para timestamp atual (MySQL/SQLite)"""
+    return sql_adapter.current_timestamp_sql(engine)
+
+
+def _adapt_sql(engine: Engine, sql: str) -> str:
+    """Adapta SQL do MySQL para SQLite quando necessário"""
+    if sql_adapter.get_db_type(engine) == "sqlite":
+        # Substitui INSERT IGNORE por INSERT OR IGNORE
+        sql = sql.replace("INSERT IGNORE", "INSERT OR IGNORE")
+    return sql
 
 
 def _upsert_sql(
     engine: Engine, table: str, columns: List[str], update_columns: List[str]
 ) -> str:
-    """Retorna SQL de UPSERT (INSERT ... ON DUPLICATE KEY UPDATE) compatível"""
-    cols_str = ", ".join(columns)
-    placeholders = ", ".join([f":{col}" for col in columns])
-
-    if _is_sqlite(engine):
-        # SQLite usa INSERT OR REPLACE ou INSERT ... ON CONFLICT
-        # Para ON CONFLICT precisamos saber as colunas únicas
-        # Vamos usar a estratégia mais simples: INSERT OR REPLACE
-        return f"INSERT OR REPLACE INTO {table} ({cols_str}) VALUES ({placeholders})"
-    else:
-        # MySQL: INSERT ... ON DUPLICATE KEY UPDATE
-        updates = ", ".join([f"{col}=VALUES({col})" for col in update_columns])
-        return f"INSERT INTO {table} ({cols_str}) VALUES ({placeholders}) ON DUPLICATE KEY UPDATE {updates}"
+    """Retorna SQL de UPSERT (MySQL/SQLite)"""
+    return sql_adapter.upsert_sql(engine, table, columns, update_columns)
 
 
 # ==============================
@@ -181,23 +130,83 @@ def _upsert_sql(
 
 
 def recebiveis_processados_bulk_insert(engine: Engine, df) -> int:
+    """Insere recebíveis processados em massa (MySQL/SQLite)"""
+    # Usar tipo adequado ao banco
+    decimal_type = sql_adapter.get_decimal_type(engine)
+
+    # Definir tipos explícitos para colunas decimais/numéricas
+    dtype_map = {}
+
+    # Colunas monetárias e percentuais que precisam de precisão
+    decimal_columns = [
+        "valor_liquido",
+        "valor_bruto",
+        "taxa_percentual",
+        "taxa_valor",
+        "desconto_antecipacao",
+        "valor_original",
+    ]
+
+    for col in decimal_columns:
+        if col in df.columns:
+            # MySQL: DECIMAL(18,2), SQLite: REAL
+            if sql_adapter.get_db_type(engine) == "mysql":
+                from sqlalchemy.types import DECIMAL
+
+                dtype_map[col] = DECIMAL(18, 2)
+            else:
+                from sqlalchemy.types import REAL
+
+                dtype_map[col] = REAL
+
     df.to_sql(
         name="recebiveis_processados",
         con=engine,
         index=False,
         if_exists="append",
         chunksize=10000,
+        dtype=dtype_map if dtype_map else None,
     )
     return len(df)
 
 
 def recebiveis_filtrados_bulk_insert(engine: Engine, df) -> int:
+    """Insere recebíveis filtrados em massa (MySQL/SQLite)"""
+    # Usar tipo adequado ao banco
+    decimal_type = sql_adapter.get_decimal_type(engine)
+
+    # Definir tipos explícitos para colunas decimais/numéricas
+    dtype_map = {}
+
+    # Colunas monetárias e percentuais que precisam de precisão
+    decimal_columns = [
+        "valor_liquido",
+        "valor_bruto",
+        "taxa_percentual",
+        "taxa_valor",
+        "desconto_antecipacao",
+        "valor_original",
+    ]
+
+    for col in decimal_columns:
+        if col in df.columns:
+            # MySQL: DECIMAL(18,2), SQLite: REAL
+            if sql_adapter.get_db_type(engine) == "mysql":
+                from sqlalchemy.types import DECIMAL
+
+                dtype_map[col] = DECIMAL(18, 2)
+            else:
+                from sqlalchemy.types import REAL
+
+                dtype_map[col] = REAL
+
     df.to_sql(
         name="recebiveis_filtrados",
         con=engine,
         index=False,
         if_exists="append",
         chunksize=10000,
+        dtype=dtype_map if dtype_map else None,
     )
     return len(df)
 
@@ -205,56 +214,55 @@ def recebiveis_filtrados_bulk_insert(engine: Engine, df) -> int:
 def recebiveis_remover_duplicadas(
     engine: Engine, nome_tabela: str, processamento_id: str, df_cols: List[str]
 ) -> None:
+    """Remove duplicadas de recebíveis (MySQL/SQLite)"""
     if nome_tabela not in {"recebiveis_processados", "recebiveis_filtrados"}:
         raise ValueError("Nome de tabela inválido para recebíveis.")
 
     # Colunas para deduplicação (fixas)
     colunas_para_groupby = [
-        "`recebivel_id`",
-        "`lancamento`",
-        "`valor_liquido`",
-        "`ec_id`",
-        "`data_recebivel`",
-        "`data_pagamento`",
+        sql_adapter.quote_identifier(engine, "recebivel_id"),
+        sql_adapter.quote_identifier(engine, "lancamento"),
+        sql_adapter.quote_identifier(engine, "valor_liquido"),
+        sql_adapter.quote_identifier(engine, "ec_id"),
+        sql_adapter.quote_identifier(engine, "data_recebivel"),
+        sql_adapter.quote_identifier(engine, "data_pagamento"),
     ]
 
-    print(f"[DEBUG][RECEBIVEIS_DUPLICADAS] Tabela: {nome_tabela}")
-    print(f"[DEBUG][RECEBIVEIS_DUPLICADAS] Colunas recebidas: {df_cols}")
-    # print(f"[DEBUG][RECEBIVEIS_DUPLICADAS] Colunas ignoradas: {colunas_a_ignorar}")
-    print(
-        f"[DEBUG][RECEBIVEIS_DUPLICADAS] Colunas para agrupamento: {[col.replace('`', '') for col in colunas_para_groupby]}"
-    )
-
     if not colunas_para_groupby:
-        print(
-            f"[DEBUG][RECEBIVEIS_DUPLICADAS] Nenhuma coluna para agrupamento, retornando sem fazer nada"
-        )
         return
 
     group_by_cols = ", ".join(colunas_para_groupby)
 
-    sql = f"""
-    DELETE FROM {nome_tabela}
-    WHERE id IN (
-        SELECT * FROM (
-            SELECT r.id FROM {nome_tabela} r
-            WHERE r.processamentoid = :id_proc
-            AND r.id NOT IN (
-                SELECT MIN(id) FROM {nome_tabela}
-                WHERE processamentoid = :id_proc
-                GROUP BY {group_by_cols}
-            )
-        ) AS sub
-    )
-    """
-
-    print(f"[DEBUG][RECEBIVEIS_DUPLICADAS] SQL a ser executado:")
-    print(sql.replace(":id_proc", f"'{processamento_id}'"))
+    # Adapta SQL para MySQL vs SQLite
+    if sql_adapter.get_db_type(engine) == "sqlite":
+        # SQLite: sintaxe mais simples
+        sql = f"""
+        DELETE FROM {nome_tabela}
+        WHERE id NOT IN (
+            SELECT MIN(id) FROM {nome_tabela}
+            WHERE processamentoid = :id_proc
+            GROUP BY {group_by_cols}
+        )
+        AND processamentoid = :id_proc
+        """
+    else:
+        # MySQL: precisa de subquery extra
+        sql = f"""
+        DELETE FROM {nome_tabela}
+        WHERE id IN (
+            SELECT * FROM (
+                SELECT r.id FROM {nome_tabela} r
+                WHERE r.processamentoid = :id_proc
+                AND r.id NOT IN (
+                    SELECT MIN(id) FROM {nome_tabela}
+                    WHERE processamentoid = :id_proc
+                    GROUP BY {group_by_cols}
+                )
+            ) AS sub
+        )
+        """
 
     exec_sql(engine, sql, {"id_proc": processamento_id})
-    print(
-        f"[DEBUG][RECEBIVEIS_DUPLICADAS] Remoção de duplicadas concluída para {nome_tabela}"
-    )
 
 
 # ...existing code...
@@ -383,6 +391,7 @@ def get_conn(engine: Engine):
 
 def exec_sql(engine: Engine, sql: str, params: Optional[Dict[str, Any]] = None) -> None:
     """Executes a SQL statement."""
+    sql = _adapt_sql(engine, sql)  # Adapta SQL para SQLite quando necessário
     with get_conn(engine) as conn:
         conn.execute(text(sql), params or {})
 
@@ -391,6 +400,7 @@ def fetch_one(
     engine: Engine, sql: str, params: Optional[Dict[str, Any]] = None
 ) -> Optional[Dict[str, Any]]:
     """Fetches a single row from a SQL query."""
+    sql = _adapt_sql(engine, sql)  # Adapta SQL para SQLite quando necessário
     with get_conn(engine) as conn:
         row = conn.execute(text(sql), params or {}).mappings().first()
         return dict(row) if row else None
@@ -400,6 +410,7 @@ def fetch_all(
     engine: Engine, sql: str, params: Optional[Dict[str, Any]] = None
 ) -> List[Dict[str, Any]]:
     """Fetches all rows from a SQL query."""
+    sql = _adapt_sql(engine, sql)  # Adapta SQL para SQLite quando necessário
     with get_conn(engine) as conn:
         rows = conn.execute(text(sql), params or {}).mappings().all()
         return [dict(r) for r in rows]
@@ -442,25 +453,19 @@ def depara_inserir(
     valor_padrao: Optional[str] = None,
 ) -> None:
     sql = "INSERT INTO depara_colunas (origem_nome, destino_nome, contexto, tipo_origem, ativo, criado_por, tipo_preenchimento, valor_padrao) VALUES (:origem, :destino, :contexto, :tipo, :ativo, :criado_por, :tipo_preenchimento, :valor_padrao)"
-    # Normalizar contexto para uppercase se for SQLite
     contexto_norm = (contexto or "").strip()
-    if _is_sqlite(engine):
-        contexto_norm = contexto_norm.upper()
-
-    exec_sql(
-        engine,
-        sql,
-        {
-            "origem": (origem_nome or "").strip() if origem_nome else None,
-            "destino": (destino_nome or "").strip(),
-            "contexto": contexto_norm,
-            "tipo": (tipo_origem or "V"),
-            "ativo": int(ativo),
-            "criado_por": criado_por,
-            "tipo_preenchimento": tipo_preenchimento,
-            "valor_padrao": valor_padrao,
-        },
-    )
+    params = {
+        "origem": (origem_nome or "").strip() if origem_nome else None,
+        "destino": (destino_nome or "").strip(),
+        "contexto": contexto_norm,
+        "tipo": (tipo_origem or "V"),
+        "ativo": int(ativo),
+        "criado_por": criado_por,
+        "tipo_preenchimento": tipo_preenchimento,
+        "valor_padrao": valor_padrao,
+    }
+    exec_sql(engine, sql, params)
+    # Proteção extra: nunca deixar código duplicado ou solto após a função
 
 
 def depara_atualizar(
@@ -476,11 +481,7 @@ def depara_atualizar(
     valor_padrao: Optional[str] = None,
 ) -> None:
     sql = "UPDATE depara_colunas SET origem_nome = :origem, destino_nome = :destino, contexto = :contexto, tipo_origem = :tipo, ativo = :ativo, tipo_preenchimento = :tipo_preenchimento, valor_padrao = :valor_padrao WHERE id = :id"
-    # Normalizar contexto para uppercase se for SQLite
     contexto_norm = (contexto or "").strip()
-    if _is_sqlite(engine):
-        contexto_norm = contexto_norm.upper()
-
     exec_sql(
         engine,
         sql,
@@ -745,10 +746,8 @@ def bandeiras_por_ec(
 def bandeiras_salvar_para_ec(
     engine: Engine, ec: str, bandeiras: Dict[str, int], contexto: str = "padrao"
 ) -> None:
-    # Normalizar contexto para uppercase se for SQLite
+    # MySQL: case-insensitive por padrão
     contexto_norm = contexto
-    if _is_sqlite(engine):
-        contexto_norm = contexto.upper()
 
     with get_conn(engine) as conn:
         for bandeira, ativo in bandeiras.items():
@@ -1012,34 +1011,106 @@ def deletar_processamento(engine: Engine, id_processamento: str) -> Dict[str, in
 
 
 def vendas_processadas_bulk_insert(engine: Engine, df) -> int:
+    from sqlalchemy.types import DECIMAL, Float
+
+    # Definir tipos explícitos para colunas decimais/numéricas
+    dtype_map = {}
+
+    # Colunas monetárias e percentuais que precisam de precisão exata
+    decimal_columns = [
+        "Valor_da_venda",
+        "Valor_descontado",
+        "Valor_liquido",
+        "Valor_RR",
+        "Taxas_Perc",
+        "Taxas_RR",
+        "Valor_bruto_parcela",
+        "Valor_liquido_parcela",
+    ]
+
+    for col in decimal_columns:
+        if col in df.columns:
+            dtype_map[col] = DECIMAL(
+                18, 2
+            )  # Precisão de 18 dígitos, 2 casas decimais (padrão monetário)
+
     df.to_sql(
         name="vendas_processadas",
         con=engine,
         index=False,
         if_exists="append",
         chunksize=10000,
+        dtype=dtype_map if dtype_map else None,
     )
     return len(df)
 
 
 def vendas_filtradas_bulk_insert(engine: Engine, df) -> int:
+    from sqlalchemy.types import DECIMAL, Float
+
+    # Definir tipos explícitos para colunas decimais/numéricas
+    dtype_map = {}
+
+    # Colunas monetárias e percentuais que precisam de precisão exata
+    decimal_columns = [
+        "Valor_da_venda",
+        "Valor_descontado",
+        "Valor_liquido",
+        "Valor_RR",
+        "Taxas_Perc",
+        "Taxas_RR",
+        "Valor_bruto_parcela",
+        "Valor_liquido_parcela",
+    ]
+
+    for col in decimal_columns:
+        if col in df.columns:
+            dtype_map[col] = DECIMAL(
+                18, 2
+            )  # Precisão de 18 dígitos, 2 casas decimais (padrão monetário)
+
     df.to_sql(
         name="vendas_filtradas",
         con=engine,
         index=False,
         if_exists="append",
         chunksize=10000,
+        dtype=dtype_map if dtype_map else None,
     )
     return len(df)
 
 
 def vendas_diversas_bulk_insert(engine: Engine, df) -> int:
+    from sqlalchemy.types import DECIMAL, Float
+
+    # Definir tipos explícitos para colunas decimais/numéricas
+    dtype_map = {}
+
+    # Colunas monetárias e percentuais que precisam de precisão exata
+    decimal_columns = [
+        "Valor_da_venda",
+        "Valor_descontado",
+        "Valor_liquido",
+        "Valor_RR",
+        "Taxas_Perc",
+        "Taxas_RR",
+        "Valor_bruto_parcela",
+        "Valor_liquido_parcela",
+    ]
+
+    for col in decimal_columns:
+        if col in df.columns:
+            dtype_map[col] = DECIMAL(
+                18, 2
+            )  # Precisão de 18 dígitos, 2 casas decimais (padrão monetário)
+
     df.to_sql(
         name="vendas_diversas",
         con=engine,
         index=False,
         if_exists="append",
         chunksize=10000,
+        dtype=dtype_map if dtype_map else None,
     )
     return len(df)
 
@@ -1097,7 +1168,9 @@ def listar_contextos(engine: Engine) -> List[str]:
 
 def listar_colunas_vendas_processadas(engine: Engine) -> List[str]:
     """Lista todas as colunas da tabela vendas_processadas"""
-    return _get_table_columns(engine, "vendas_processadas")
+    # MySQL: buscar colunas via INFORMATION_SCHEMA
+    rows = fetch_all(engine, _get_table_columns(engine, "vendas_processadas"))
+    return [r["coluna"] for r in rows]
 
 
 def colunas_controle_deletar(engine: Engine, col_id: int) -> None:
@@ -1219,7 +1292,9 @@ def colunas_controle_sincronizar(
         )
 
     # Usar função helper para obter colunas
-    cols_real = set(_get_table_columns(engine, "vendas_processadas"))
+    # MySQL: buscar colunas via INFORMATION_SCHEMA
+    cols_rows = fetch_all(engine, _get_table_columns(engine, "vendas_processadas"))
+    cols_real = set([r["coluna"] for r in cols_rows])
 
     cadastradas = {
         str(r["campo"])
@@ -1351,6 +1426,91 @@ def taxa_atualizar(engine: Engine, taxa_id: int, taxa: Dict[str, Any]) -> bool:
         return False
 
 
+def taxas_copiar(
+    engine: Engine,
+    ec_origem: str,
+    ecs_destino: List[str],
+    contexto: str = "padrao",
+    sobrescrever: bool = False,
+) -> Dict[str, Any]:
+    """
+    Copia todas as taxas de um EC de origem para um ou mais ECs de destino.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        ec_origem: EC de origem das taxas
+        ecs_destino: Lista de ECs de destino
+        contexto: Contexto das taxas (padrão: "padrao")
+        sobrescrever: Se True, remove taxas existentes nos ECs de destino antes de copiar
+
+    Returns:
+        Dicionário com estatísticas da operação:
+        - copiadas: número de taxas copiadas
+        - removidas: número de taxas removidas (se sobrescrever=True)
+        - erros: lista de erros ocorridos
+    """
+    resultado = {"copiadas": 0, "removidas": 0, "erros": []}
+
+    try:
+        # Busca todas as taxas do EC de origem
+        taxas_origem = taxas_por_ec(engine, ec_origem, contexto)
+
+        if not taxas_origem:
+            resultado["erros"].append(f"Nenhuma taxa encontrada para o EC {ec_origem}")
+            return resultado
+
+        for ec_dest in ecs_destino:
+            if ec_dest == ec_origem:
+                resultado["erros"].append(
+                    f"EC de destino {ec_dest} é igual ao EC de origem"
+                )
+                continue
+
+            try:
+                # Se sobrescrever, remove taxas existentes no destino
+                if sobrescrever:
+                    sql_delete = f"""
+                    DELETE FROM taxas 
+                    WHERE ec = :ec AND {_normalize_text_compare(engine, 'contexto', 'contexto')}
+                    """
+                    exec_sql(engine, sql_delete, {"ec": ec_dest, "contexto": contexto})
+                    # Conta quantas foram removidas (assumindo sucesso)
+                    taxas_dest_antes = taxas_por_ec(engine, ec_dest, contexto)
+                    resultado["removidas"] += (
+                        len(taxas_dest_antes) if taxas_dest_antes else 0
+                    )
+
+                # Copia cada taxa
+                for taxa_orig in taxas_origem:
+                    nova_taxa = {
+                        "ec": ec_dest,
+                        "bandeira": taxa_orig.get("bandeira"),
+                        "forma_pagamento": taxa_orig["forma_pagamento"],
+                        "parcelado": taxa_orig["parcelado"],
+                        "parcelas_ini": taxa_orig["parcelas_ini"],
+                        "parcelas_fim": taxa_orig["parcelas_fim"],
+                        "data_ini": taxa_orig["data_ini"],
+                        "data_fim": taxa_orig["data_fim"],
+                        "taxa": taxa_orig["taxa"],
+                        "contexto": contexto,
+                    }
+
+                    if taxa_adicionar(engine, nova_taxa, contexto):
+                        resultado["copiadas"] += 1
+                    else:
+                        resultado["erros"].append(
+                            f"Falha ao copiar taxa {taxa_orig['id']} para EC {ec_dest}"
+                        )
+
+            except Exception as e:
+                resultado["erros"].append(f"Erro ao copiar para EC {ec_dest}: {str(e)}")
+
+    except Exception as e:
+        resultado["erros"].append(f"Erro geral: {str(e)}")
+
+    return resultado
+
+
 # ==============================
 # Contextos
 # ==============================
@@ -1394,16 +1554,24 @@ def contexto_inserir(
     INSERT INTO contextos (nome, descricao, ativo, criado_por)
     VALUES (:nome, :descricao, :ativo, :criado_por)
     """
-    exec_sql(
-        engine,
-        sql,
-        {
-            "nome": (nome or "").strip(),
-            "descricao": (descricao or "").strip() if descricao else None,
-            "ativo": int(ativo),
-            "criado_por": criado_por,
-        },
-    )
+    params = {
+        "nome": (nome or "").strip(),
+        "descricao": (descricao or "").strip() if descricao is not None else None,
+        "ativo": int(ativo),
+        "criado_por": criado_por,
+    }
+    print(f"[DEBUG contexto_inserir] Inserindo com parâmetros: {params}")
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text(_adapt_sql(engine, sql)), params)
+            print(f"[DEBUG contexto_inserir] Linhas inseridas: {result.rowcount}")
+        print(f"[DEBUG contexto_inserir] COMMIT realizado com sucesso")
+    except Exception as e:
+        print(f"[DEBUG contexto_inserir] ERRO ao inserir: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
 
 
 def contexto_atualizar(
@@ -1423,28 +1591,117 @@ def contexto_atualizar(
         atualizado_em = CURRENT_TIMESTAMP
     WHERE id = :id
     """
-    exec_sql(
-        engine,
-        sql,
-        {
-            "id": contexto_id,
-            "nome": (nome or "").strip(),
-            "descricao": (descricao or "").strip() if descricao else None,
-            "ativo": int(ativo),
-        },
-    )
+    params = {
+        "id": contexto_id,
+        "nome": (nome or "").strip(),
+        "descricao": (descricao or "").strip() if descricao is not None else None,
+        "ativo": int(ativo),
+    }
+    print(f"[DEBUG contexto_atualizar] Atualizando ID {contexto_id} com: {params}")
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text(_adapt_sql(engine, sql)), params)
+            print(f"[DEBUG contexto_atualizar] Linhas atualizadas: {result.rowcount}")
+        print(f"[DEBUG contexto_atualizar] COMMIT realizado com sucesso")
+    except Exception as e:
+        print(f"[DEBUG contexto_atualizar] ERRO ao atualizar: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
 
 
 def contexto_deletar(engine: Engine, contexto_id: int) -> bool:
     """Deleta um contexto se não houver de-para associado."""
-    if not contexto_pode_deletar(engine, contexto_id):
-        return False
-    sql = "DELETE FROM contextos WHERE id = :id"
+
+    from conf.sql_adapter import get_db_type
+
+    # Força contexto_id para int puro
+    contexto_id_int = int(contexto_id)
+    print(
+        f"[DEBUG contexto_deletar] Iniciando deleção de ID: {contexto_id_int} (tipo: {type(contexto_id_int)})"
+    )
+    print(f"[DEBUG contexto_deletar] Engine recebida: {engine}")
+    print(f"[DEBUG contexto_deletar] Engine URL: {engine.url}")
+    print(f"[DEBUG contexto_deletar] É SQLite? {get_db_type(engine) == 'sqlite'}")
+
     try:
-        exec_sql(engine, sql, {"id": contexto_id})
-        return True
+        # Primeiro lista TODOS os contextos para debug
+        list_all_sql = "SELECT id, nome FROM contextos ORDER BY id"
+        with engine.connect() as test_conn:
+            all_contexts = test_conn.execute(text(_adapt_sql(engine, list_all_sql)))
+            all_rows = all_contexts.fetchall()
+            print(f"[DEBUG contexto_deletar] TODOS os contextos no banco:")
+            for row in all_rows:
+                print(
+                    f"  - ID: {row[0]} (tipo: {type(row[0])}), Nome: {row[1]} (tipo: {type(row[1])})"
+                )
+
+        # Usar UMA ÚNICA transação para tudo
+        with engine.begin() as conn:
+            # 1. Verifica dependências
+            check_deps_sql = "SELECT COUNT(*) as total FROM depara_colunas WHERE UPPER(contexto) = UPPER((SELECT nome FROM contextos WHERE id = :id))"
+            deps_result = conn.execute(
+                text(_adapt_sql(engine, check_deps_sql)), {"id": contexto_id_int}
+            )
+            deps_row = deps_result.fetchone()
+            total_deps = deps_row[0] if deps_row else 0
+            print(f"[DEBUG contexto_deletar] Dependências encontradas: {total_deps}")
+
+            if total_deps > 0:
+                print(f"[DEBUG contexto_deletar] Bloqueado - contexto em uso")
+                return False
+
+            # 2. Verifica se o registro existe
+            check_sql = "SELECT id, nome FROM contextos WHERE id = :id"
+            print(f"[DEBUG contexto_deletar] Executando query: {check_sql}")
+            print(
+                f"[DEBUG contexto_deletar] Parâmetro: id={contexto_id_int} (tipo: {type(contexto_id_int)})"
+            )
+            check_result = conn.execute(
+                text(_adapt_sql(engine, check_sql)), {"id": contexto_id_int}
+            )
+            registro = check_result.fetchone()
+            print(
+                f"[DEBUG contexto_deletar] Resultado da query: {registro} (tipo: {type(registro)})"
+            )
+            print(
+                f"[DEBUG contexto_deletar] Registro encontrado: {dict(registro._mapping) if registro else None}"
+            )
+
+            if not registro:
+                print(
+                    f"[DEBUG contexto_deletar] ERRO: Registro ID {contexto_id_int} não existe!"
+                )
+                return False
+
+            # 3. Deleta
+            sql = "DELETE FROM contextos WHERE id = :id"
+            result = conn.execute(
+                text(_adapt_sql(engine, sql)), {"id": contexto_id_int}
+            )
+            affected_rows = result.rowcount
+            print(
+                f"[DEBUG contexto_deletar] Linhas afetadas pelo DELETE: {affected_rows}"
+            )
+
+            # 4. Verifica se realmente foi deletado
+            verify_result = conn.execute(
+                text(_adapt_sql(engine, check_sql)), {"id": contexto_id_int}
+            )
+            ainda_existe = verify_result.fetchone()
+            print(
+                f"[DEBUG contexto_deletar] Registro após DELETE: {dict(ainda_existe._mapping) if ainda_existe else 'DELETADO!'}"
+            )
+
+        # Commit automático ao sair do 'with'
+        print(f"[DEBUG contexto_deletar] COMMIT realizado com sucesso")
+        return affected_rows > 0
     except Exception as e:
-        print(f"Erro ao deletar contexto: {e}")
+        print(f"[DEBUG contexto_deletar] EXCEÇÃO ao deletar contexto: {e}")
+        import traceback
+
+        traceback.print_exc()
         return False
 
 
@@ -1464,8 +1721,7 @@ def analise_criar(
     INSERT INTO analises (nome_analise, descricao, usuario_criador, status)
     VALUES (:nome_analise, :descricao, :usuario_criador, 'em_andamento')
     """
-    if _is_sqlite(engine):
-        sql = sql.replace("AUTO_INCREMENT", "AUTOINCREMENT")
+    # MySQL: AUTO_INCREMENT é o padrão
 
     with get_conn(engine) as conn:
         result = conn.execute(
@@ -1476,10 +1732,8 @@ def analise_criar(
                 "usuario_criador": usuario_criador,
             },
         )
-        if _is_sqlite(engine):
-            return result.lastrowid
-        else:
-            return result.lastrowid
+        # MySQL: retornar lastrowid
+        return result.lastrowid
 
 
 def analise_listar(
@@ -1537,10 +1791,8 @@ def analise_atualizar(
     if not updates:
         return False
 
-    if _is_sqlite(engine):
-        updates.append("data_atualizacao = CURRENT_TIMESTAMP")
-    else:
-        updates.append("data_atualizacao = NOW()")
+    # Timestamp atual (compatível MySQL/SQLite)
+    updates.append(f"data_atualizacao = {_current_timestamp_sql(engine)}")
 
     sql = f"UPDATE analises SET {', '.join(updates)} WHERE id = :id"
     try:
@@ -1730,22 +1982,11 @@ def analise_obter_resultados(engine: Engine, analise_id: int) -> Dict[str, Any]:
             {"id": analise_id},
         ),
     }
-    """Deleta um contexto se não houver dependências."""
-    # Primeiro verifica se há depara_colunas usando este contexto
-    sql = "SELECT COUNT(*) as total FROM depara_colunas WHERE contexto = (SELECT nome FROM contextos WHERE id = :id)"
-    result = fetch_one(engine, sql, {"id": contexto_id})
-    if result and result["total"] > 0:
-        return False
-
-    # Se não houver dependências, deleta o contexto
-    sql = "DELETE FROM contextos WHERE id = :id"
-    exec_sql(engine, sql, {"id": contexto_id})
-    return True
 
 
 def contexto_pode_deletar(engine: Engine, contexto_id: int) -> bool:
     """Verifica se um contexto pode ser deletado (não tem dependências)."""
-    sql = "SELECT COUNT(*) as total FROM depara_colunas WHERE contexto = (SELECT nome FROM contextos WHERE id = :id)"
+    sql = "SELECT COUNT(*) as total FROM depara_colunas WHERE UPPER(contexto) = UPPER((SELECT nome FROM contextos WHERE id = :id))"
     result = fetch_one(engine, sql, {"id": contexto_id})
     return result["total"] == 0 if result else True
 
@@ -1760,9 +2001,7 @@ def agregar_bandeiras_db(engine: Engine, processamentoid: str) -> List[Dict[str,
     print(
         f"[DEBUG agregar_bandeiras_db] Iniciando agregação para processamento: {processamentoid}"
     )
-    print(
-        f"[DEBUG agregar_bandeiras_db] Tipo do banco: {'SQLite' if _is_sqlite(engine) else 'MySQL'}"
-    )
+    print("[DEBUG agregar_bandeiras_db] Tipo do banco: MySQL")
 
     sql = """
         SELECT 
@@ -1841,16 +2080,161 @@ def agregar_formas_pagamento_db(
         raise
 
 
+def agregar_formas_pagamento_por_ano_db(
+    engine: Engine, processamentoid: str
+) -> List[Dict[str, Any]]:
+    """Agrega dados de formas de pagamento por ano"""
+    year_expr = _year_sql(engine, "Data_da_venda")
+
+    sql = f"""
+        SELECT 
+            {year_expr} as ano,
+            Forma_de_pagamento as forma_pagamento,
+            COUNT(*) as quantidade,
+            SUM(Valor_da_venda) as valor_total,
+            AVG(Valor_da_venda) as valor_medio,
+            MIN(Taxas_Perc) as taxa_perc_minima,
+            MAX(Taxas_Perc) as taxa_perc_maxima
+        FROM vendas_processadas
+        WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+        GROUP BY {year_expr}, Forma_de_pagamento
+        ORDER BY {year_expr}, valor_total DESC
+    """
+
+    return fetch_all(engine, sql, {"pid": processamentoid})
+
+
+def agregar_periodos_bandeira_forma_db(
+    engine: Engine, processamentoid: str, tipo_periodo: str
+) -> List[Dict[str, Any]]:
+    """
+    Agrega dados por período, bandeira e forma de pagamento.
+    tipo_periodo: 'semestral', 'trimestral' ou 'anual'
+    """
+    print(
+        f"[DEBUG agregar_periodos_bandeira_forma_db] Iniciando agregação {tipo_periodo} para: {processamentoid}"
+    )
+
+    # Construir expressão de período baseada no tipo
+    year_expr = _year_sql(engine, "Data_da_venda")
+
+    if tipo_periodo == "semestral":
+        semester_expr = _semester_sql(engine, "Data_da_venda")
+        periodo_expr = _concat_sql(engine, year_expr, "'-S'", semester_expr)
+        periodo_label = "semestre"
+    elif tipo_periodo == "trimestral":
+        quarter_expr = _quarter_sql(engine, "Data_da_venda")
+        periodo_expr = _concat_sql(engine, year_expr, "'-T'", quarter_expr)
+        periodo_label = "trimestre"
+    elif tipo_periodo == "anual":
+        periodo_expr = year_expr
+        periodo_label = "ano"
+    else:
+        raise ValueError(f"tipo_periodo inválido: {tipo_periodo}")
+
+    sql = f"""
+        SELECT 
+            {periodo_expr} as periodo,
+            Bandeira as bandeira,
+            Forma_de_pagamento as forma_pagamento,
+            SUM(Valor_da_venda) as valor_total,
+            COUNT(*) as quantidade,
+            MIN(Taxas_Perc) as taxa_perc_minima
+        FROM vendas_processadas
+        WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+        GROUP BY {periodo_expr}, Bandeira, Forma_de_pagamento
+        ORDER BY {periodo_expr}, Bandeira, Forma_de_pagamento
+    """
+
+    try:
+        resultados = fetch_all(engine, sql, {"pid": processamentoid})
+        print(
+            f"[DEBUG agregar_periodos_bandeira_forma_db] {tipo_periodo}: {len(resultados)} registros"
+        )
+        return resultados
+    except Exception as e:
+        print(f"[ERROR agregar_periodos_bandeira_forma_db] Erro: {e}")
+        raise
+
+
+def agregar_semestral_db(engine: Engine, processamentoid: str) -> List[Dict[str, Any]]:
+    """Agrega dados por semestre com bandeira e forma de pagamento"""
+    year_expr = _year_sql(engine, "Data_da_venda")
+    semester_expr = _semester_sql(engine, "Data_da_venda")
+    periodo_expr = _concat_sql(engine, year_expr, "'-S'", semester_expr)
+
+    sql = f"""
+        SELECT 
+            {periodo_expr} as semestre,
+            Bandeira as bandeira,
+            Forma_de_pagamento as forma_pagamento,
+            SUM(Valor_da_venda) as valor_total,
+            COUNT(*) as quantidade,
+            MIN(Taxas_Perc) as taxa_perc_minima,
+            MAX(Taxas_Perc) as taxa_perc_maxima
+        FROM vendas_processadas
+        WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+        GROUP BY {periodo_expr}, Bandeira, Forma_de_pagamento
+        ORDER BY {periodo_expr}, Bandeira, Forma_de_pagamento
+    """
+
+    return fetch_all(engine, sql, {"pid": processamentoid})
+
+
+def agregar_trimestral_db(engine: Engine, processamentoid: str) -> List[Dict[str, Any]]:
+    """Agrega dados por trimestre com bandeira e forma de pagamento"""
+    year_expr = _year_sql(engine, "Data_da_venda")
+    quarter_expr = _quarter_sql(engine, "Data_da_venda")
+    periodo_expr = _concat_sql(engine, year_expr, "'-T'", quarter_expr)
+
+    sql = f"""
+        SELECT 
+            {periodo_expr} as trimestre,
+            Bandeira as bandeira,
+            Forma_de_pagamento as forma_pagamento,
+            SUM(Valor_da_venda) as valor_total,
+            COUNT(*) as quantidade,
+            MIN(Taxas_Perc) as taxa_perc_minima,
+            MAX(Taxas_Perc) as taxa_perc_maxima
+        FROM vendas_processadas
+        WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+        GROUP BY {periodo_expr}, Bandeira, Forma_de_pagamento
+        ORDER BY {periodo_expr}, Bandeira, Forma_de_pagamento
+    """
+
+    return fetch_all(engine, sql, {"pid": processamentoid})
+
+
+def agregar_anual_db(engine: Engine, processamentoid: str) -> List[Dict[str, Any]]:
+    """Agrega dados por ano com bandeira e forma de pagamento"""
+    year_expr = _year_sql(engine, "Data_da_venda")
+
+    sql = f"""
+        SELECT 
+            {year_expr} as ano,
+            Bandeira as bandeira,
+            Forma_de_pagamento as forma_pagamento,
+            SUM(Valor_da_venda) as valor_total,
+            COUNT(*) as quantidade,
+            MIN(Taxas_Perc) as taxa_perc_minima,
+            MAX(Taxas_Perc) as taxa_perc_maxima
+        FROM vendas_processadas
+        WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+        GROUP BY {year_expr}, Bandeira, Forma_de_pagamento
+        ORDER BY {year_expr}, Bandeira, Forma_de_pagamento
+    """
+
+    return fetch_all(engine, sql, {"pid": processamentoid})
+
+
 def agregar_periodos_db(engine: Engine, processamentoid: str) -> List[Dict[str, Any]]:
     """Agrega dados por períodos (mês, trimestre, semestre, ano) diretamente no banco"""
     print(
         f"[DEBUG agregar_periodos_db] Iniciando agregação para processamento: {processamentoid}"
     )
-    print(
-        f"[DEBUG agregar_periodos_db] Tipo do banco: {'SQLite' if _is_sqlite(engine) else 'MySQL'}"
-    )
+    print("[DEBUG agregar_periodos_db] Tipo do banco: MySQL")
 
-    # Construir expressões SQL compatíveis com ambos os bancos
+    # Construir expressões SQL para MySQL
     year_expr = _year_sql(engine, "Data_da_venda")
     quarter_expr = _quarter_sql(engine, "Data_da_venda")
     semester_expr = _semester_sql(engine, "Data_da_venda")
@@ -2002,5 +2386,1088 @@ def agregar_recebiveis_db(engine: Engine, processamentoid: str) -> List[Dict[str
             continue
 
     # Se nenhuma coluna foi encontrada
-    print(f"[DEBUG agregar_recebiveis_db] Nenhuma coluna de tipo de recebível encontrada")
+    print(
+        f"[DEBUG agregar_recebiveis_db] Nenhuma coluna de tipo de recebível encontrada"
+    )
     return []
+
+
+# ==============================
+# Funções de Correção de Importação
+# ==============================
+
+
+def atualizar_forma_pagamento_processamento(
+    engine: Engine,
+    processamentoid: str,
+    forma_pagamento_antiga: str,
+    forma_pagamento_nova: str,
+    usuario: str = "sistema",
+) -> Tuple[bool, str, int]:
+    """
+    Atualiza todas as linhas de uma forma de pagamento específica em um processamento.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento a corrigir
+        forma_pagamento_antiga: Forma de pagamento atual que será substituída
+        forma_pagamento_nova: Nova forma de pagamento
+        usuario: Usuário que está fazendo a correção
+
+    Returns:
+        Tupla (sucesso, mensagem, linhas_afetadas)
+    """
+    try:
+        print(f"[DEBUG atualizar_forma_pagamento] Processamento: {processamentoid}")
+        print(
+            f"[DEBUG atualizar_forma_pagamento] De: '{forma_pagamento_antiga}' Para: '{forma_pagamento_nova}'"
+        )
+
+        # Contar quantas linhas serão afetadas
+        sql_count = """
+            SELECT COUNT(*) as total
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Forma_de_pagamento = :forma_antiga
+        """
+        result = fetch_one(
+            engine,
+            sql_count,
+            {"pid": processamentoid, "forma_antiga": forma_pagamento_antiga},
+        )
+        linhas_afetadas = result.get("total", 0) if result else 0
+
+        if linhas_afetadas == 0:
+            return (
+                False,
+                f"Nenhuma linha encontrada com forma de pagamento '{forma_pagamento_antiga}'",
+                0,
+            )
+
+        # Realizar atualização
+        sql_update = """
+            UPDATE vendas_processadas
+            SET Forma_de_pagamento = :forma_nova
+            WHERE processamentoid = :pid AND Forma_de_pagamento = :forma_antiga
+        """
+
+        exec_sql(
+            engine,
+            sql_update,
+            {
+                "pid": processamentoid,
+                "forma_antiga": forma_pagamento_antiga,
+                "forma_nova": forma_pagamento_nova,
+            },
+        )
+
+        # Registrar log de auditoria
+        sql_log = f"""
+            INSERT INTO log_correcoes_importacao 
+            (processamentoid, tipo_correcao, valor_antigo, valor_novo, linhas_afetadas, usuario, data_correcao)
+            VALUES (:pid, 'forma_pagamento', :val_antigo, :val_novo, :linhas, :usuario, {_current_timestamp_sql(engine)})
+        """
+
+        try:
+            exec_sql(
+                engine,
+                sql_log,
+                {
+                    "pid": processamentoid,
+                    "val_antigo": forma_pagamento_antiga,
+                    "val_novo": forma_pagamento_nova,
+                    "linhas": linhas_afetadas,
+                    "usuario": usuario,
+                },
+            )
+        except Exception as e_log:
+            print(f"[WARNING] Erro ao registrar log (tabela pode não existir): {e_log}")
+
+        msg = f"Atualização concluída: {linhas_afetadas} linhas alteradas de '{forma_pagamento_antiga}' para '{forma_pagamento_nova}'"
+        print(f"[SUCCESS atualizar_forma_pagamento] {msg}")
+        return True, msg, linhas_afetadas
+
+    except Exception as e:
+        msg = f"Erro ao atualizar forma de pagamento: {str(e)}"
+        print(f"[ERROR atualizar_forma_pagamento] {msg}")
+        return False, msg, 0
+
+
+def atualizar_bandeira_processamento(
+    engine: Engine,
+    processamentoid: str,
+    bandeira_antiga: str,
+    bandeira_nova: str,
+    usuario: str = "sistema",
+) -> Tuple[bool, str, int]:
+    """
+    Atualiza todas as linhas de uma bandeira específica em um processamento.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento a corrigir
+        bandeira_antiga: Bandeira atual que será substituída
+        bandeira_nova: Nova bandeira
+        usuario: Usuário que está fazendo a correção
+
+    Returns:
+        Tupla (sucesso, mensagem, linhas_afetadas)
+    """
+    try:
+        print(f"[DEBUG atualizar_bandeira] Processamento: {processamentoid}")
+        print(
+            f"[DEBUG atualizar_bandeira] De: '{bandeira_antiga}' Para: '{bandeira_nova}'"
+        )
+
+        # Contar quantas linhas serão afetadas
+        sql_count = """
+            SELECT COUNT(*) as total
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Bandeira = :bandeira_antiga
+        """
+        result = fetch_one(
+            engine,
+            sql_count,
+            {"pid": processamentoid, "bandeira_antiga": bandeira_antiga},
+        )
+        linhas_afetadas = result.get("total", 0) if result else 0
+
+        if linhas_afetadas == 0:
+            return (
+                False,
+                f"Nenhuma linha encontrada com bandeira '{bandeira_antiga}'",
+                0,
+            )
+
+        # Realizar atualização
+        sql_update = """
+            UPDATE vendas_processadas
+            SET Bandeira = :bandeira_nova
+            WHERE processamentoid = :pid AND Bandeira = :bandeira_antiga
+        """
+
+        exec_sql(
+            engine,
+            sql_update,
+            {
+                "pid": processamentoid,
+                "bandeira_antiga": bandeira_antiga,
+                "bandeira_nova": bandeira_nova,
+            },
+        )
+
+        # Registrar log de auditoria
+        sql_log = f"""
+            INSERT INTO log_correcoes_importacao 
+            (processamentoid, tipo_correcao, valor_antigo, valor_novo, linhas_afetadas, usuario, data_correcao)
+            VALUES (:pid, 'bandeira', :val_antigo, :val_novo, :linhas, :usuario, {_current_timestamp_sql(engine)})
+        """
+
+        try:
+            exec_sql(
+                engine,
+                sql_log,
+                {
+                    "pid": processamentoid,
+                    "val_antigo": bandeira_antiga,
+                    "val_novo": bandeira_nova,
+                    "linhas": linhas_afetadas,
+                    "usuario": usuario,
+                },
+            )
+        except Exception as e_log:
+            print(f"[WARNING] Erro ao registrar log (tabela pode não existir): {e_log}")
+
+        msg = f"Atualização concluída: {linhas_afetadas} linhas alteradas de '{bandeira_antiga}' para '{bandeira_nova}'"
+        print(f"[SUCCESS atualizar_bandeira] {msg}")
+        return True, msg, linhas_afetadas
+
+    except Exception as e:
+        msg = f"Erro ao atualizar bandeira: {str(e)}"
+        print(f"[ERROR atualizar_bandeira] {msg}")
+        return False, msg, 0
+
+
+def remover_linhas_forma_pagamento(
+    engine: Engine, processamentoid: str, forma_pagamento: str, usuario: str = "sistema"
+) -> Tuple[bool, str, int]:
+    """
+    Remove todas as linhas de uma forma de pagamento específica em um processamento.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento a corrigir
+        forma_pagamento: Forma de pagamento a remover
+        usuario: Usuário que está fazendo a correção
+
+    Returns:
+        Tupla (sucesso, mensagem, linhas_removidas)
+    """
+    try:
+        print(
+            f"[DEBUG remover_linhas_forma_pagamento] Processamento: {processamentoid}"
+        )
+        print(
+            f"[DEBUG remover_linhas_forma_pagamento] Forma de pagamento: '{forma_pagamento}'"
+        )
+
+        # Contar quantas linhas serão removidas
+        sql_count = """
+            SELECT COUNT(*) as total
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Forma_de_pagamento = :forma_pag
+        """
+        result = fetch_one(
+            engine, sql_count, {"pid": processamentoid, "forma_pag": forma_pagamento}
+        )
+        linhas_removidas = result.get("total", 0) if result else 0
+
+        if linhas_removidas == 0:
+            return (
+                False,
+                f"Nenhuma linha encontrada com forma de pagamento '{forma_pagamento}'",
+                0,
+            )
+
+        # ⚠️ CRÍTICO: Deletar cálculos primeiro (FK constraint)
+        sql_delete_calculos = """
+            DELETE FROM vendas_calculos
+            WHERE id_venda IN (
+                SELECT id FROM vendas_processadas
+                WHERE processamentoid = :pid AND Forma_de_pagamento = :forma_pag
+            )
+        """
+
+        # Mover para vendas_filtradas ao invés de deletar
+        # ⚠️ CRÍTICO: Especificar colunas (excluindo 'id' AUTO_INCREMENT) para evitar conflito
+        sql_insert = """
+            INSERT IGNORE INTO vendas_filtradas (
+                Data_da_venda, Data_da_autorização_da_venda, status_da_venda, Adquirente,
+                Bandeira, Forma_de_pagamento, Quantidade_de_parcelas, Resumo_da_operação,
+                Valor_da_venda, Taxas_Perc, Valor_descontado, Taxas_RR, Valor_RR,
+                Previsão_de_pagamento, Valor_líquido_da_venda, Número_da_máquina,
+                Código_de_autorização, NSU, Número_do_cartão, Receba_rápido, Status,
+                Tratar_ou_Ignorar, Filtrado, arquivo_origem, processamentoid,
+                cliente_id, ec_id, data_processamento, usuario_processamento
+            )
+            SELECT 
+                Data_da_venda, Data_da_autorização_da_venda, status_da_venda, Adquirente,
+                Bandeira, Forma_de_pagamento, Quantidade_de_parcelas, Resumo_da_operação,
+                Valor_da_venda, Taxas_Perc, Valor_descontado, Taxas_RR, Valor_RR,
+                Previsão_de_pagamento, Valor_líquido_da_venda, Número_da_máquina,
+                Código_de_autorização, NSU, Número_do_cartão, Receba_rápido, Status,
+                Tratar_ou_Ignorar, Filtrado, arquivo_origem, processamentoid,
+                cliente_id, ec_id, data_processamento, usuario_processamento
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Forma_de_pagamento = :forma_pag
+        """
+
+        sql_delete = """
+            DELETE FROM vendas_processadas
+            WHERE processamentoid = :pid AND Forma_de_pagamento = :forma_pag
+        """
+
+        print(f"[DEBUG] Movendo {linhas_removidas} linhas para vendas_filtradas...")
+
+        # 1. Deletar cálculos associados (evita erro FK)
+        exec_sql(
+            engine,
+            sql_delete_calculos,
+            {"pid": processamentoid, "forma_pag": forma_pagamento},
+        )
+        print(f"[DEBUG] ✓ Cálculos deletados")
+
+        # 2. Insere em vendas_filtradas (sem o campo 'id')
+        exec_sql(
+            engine, sql_insert, {"pid": processamentoid, "forma_pag": forma_pagamento}
+        )
+        print(f"[DEBUG] ✓ Linhas inseridas em vendas_filtradas")
+
+        # 3. Remove de vendas_processadas
+        exec_sql(
+            engine, sql_delete, {"pid": processamentoid, "forma_pag": forma_pagamento}
+        )
+        print(f"[DEBUG] ✓ Linhas removidas de vendas_processadas")
+
+        # Registrar log de auditoria
+        sql_log = f"""
+            INSERT INTO log_correcoes_importacao 
+            (processamentoid, tipo_correcao, valor_antigo, valor_novo, linhas_afetadas, usuario, data_correcao)
+            VALUES (:pid, 'remocao_forma_pagamento', :val_antigo, NULL, :linhas, :usuario, {_current_timestamp_sql(engine)})
+        """
+
+        try:
+            exec_sql(
+                engine,
+                sql_log,
+                {
+                    "pid": processamentoid,
+                    "val_antigo": forma_pagamento,
+                    "linhas": linhas_removidas,
+                    "usuario": usuario,
+                },
+            )
+        except Exception as e_log:
+            print(f"[WARNING] Erro ao registrar log (tabela pode não existir): {e_log}")
+
+        msg = f"Remoção concluída: {linhas_removidas} linhas com forma de pagamento '{forma_pagamento}' movidas para vendas_filtradas"
+        print(f"[SUCCESS remover_linhas_forma_pagamento] {msg}")
+        return True, msg, linhas_removidas
+
+    except Exception as e:
+        msg = f"Erro ao remover linhas por forma de pagamento: {str(e)}"
+        print(f"[ERROR remover_linhas_forma_pagamento] {msg}")
+        return False, msg, 0
+
+
+def remover_linhas_bandeira(
+    engine: Engine, processamentoid: str, bandeira: str, usuario: str = "sistema"
+) -> Tuple[bool, str, int]:
+    """
+    Remove todas as linhas de uma bandeira específica em um processamento.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento a corrigir
+        bandeira: Bandeira a remover
+        usuario: Usuário que está fazendo a correção
+
+    Returns:
+        Tupla (sucesso, mensagem, linhas_removidas)
+    """
+    try:
+        print(f"[DEBUG remover_linhas_bandeira] Processamento: {processamentoid}")
+        print(f"[DEBUG remover_linhas_bandeira] Bandeira: '{bandeira}'")
+
+        # Contar quantas linhas serão removidas
+        sql_count = """
+            SELECT COUNT(*) as total
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Bandeira = :bandeira
+        """
+        result = fetch_one(
+            engine, sql_count, {"pid": processamentoid, "bandeira": bandeira}
+        )
+        linhas_removidas = result.get("total", 0) if result else 0
+
+        if linhas_removidas == 0:
+            return False, f"Nenhuma linha encontrada com bandeira '{bandeira}'", 0
+
+        # ⚠️ CRÍTICO: Deletar cálculos primeiro (FK constraint)
+        sql_delete_calculos = """
+            DELETE FROM vendas_calculos
+            WHERE id_venda IN (
+                SELECT id FROM vendas_processadas
+                WHERE processamentoid = :pid AND Bandeira = :bandeira
+            )
+        """
+
+        # Mover para vendas_filtradas ao invés de deletar
+        # ⚠️ CRÍTICO: Especificar colunas (excluindo 'id' AUTO_INCREMENT) para evitar conflito
+        sql_insert = """
+            INSERT IGNORE INTO vendas_filtradas (
+                Data_da_venda, Data_da_autorização_da_venda, status_da_venda, Adquirente,
+                Bandeira, Forma_de_pagamento, Quantidade_de_parcelas, Resumo_da_operação,
+                Valor_da_venda, Taxas_Perc, Valor_descontado, Taxas_RR, Valor_RR,
+                Previsão_de_pagamento, Valor_líquido_da_venda, Número_da_máquina,
+                Código_de_autorização, NSU, Número_do_cartão, Receba_rápido, Status,
+                Tratar_ou_Ignorar, Filtrado, arquivo_origem, processamentoid,
+                cliente_id, ec_id, data_processamento, usuario_processamento
+            )
+            SELECT 
+                Data_da_venda, Data_da_autorização_da_venda, status_da_venda, Adquirente,
+                Bandeira, Forma_de_pagamento, Quantidade_de_parcelas, Resumo_da_operação,
+                Valor_da_venda, Taxas_Perc, Valor_descontado, Taxas_RR, Valor_RR,
+                Previsão_de_pagamento, Valor_líquido_da_venda, Número_da_máquina,
+                Código_de_autorização, NSU, Número_do_cartão, Receba_rápido, Status,
+                Tratar_ou_Ignorar, Filtrado, arquivo_origem, processamentoid,
+                cliente_id, ec_id, data_processamento, usuario_processamento
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Bandeira = :bandeira
+        """
+
+        sql_delete = """
+            DELETE FROM vendas_processadas
+            WHERE processamentoid = :pid AND Bandeira = :bandeira
+        """
+
+        print(f"[DEBUG] Movendo {linhas_removidas} linhas para vendas_filtradas...")
+
+        # 1. Deletar cálculos associados (evita erro FK)
+        exec_sql(
+            engine, sql_delete_calculos, {"pid": processamentoid, "bandeira": bandeira}
+        )
+        print(f"[DEBUG] ✓ Cálculos deletados")
+
+        # 2. Insere em vendas_filtradas (sem o campo 'id')
+        exec_sql(engine, sql_insert, {"pid": processamentoid, "bandeira": bandeira})
+        print(f"[DEBUG] ✓ Linhas inseridas em vendas_filtradas")
+
+        # 3. Remove de vendas_processadas
+        exec_sql(engine, sql_delete, {"pid": processamentoid, "bandeira": bandeira})
+        print(f"[DEBUG] ✓ Linhas removidas de vendas_processadas")
+
+        # Registrar log de auditoria
+        sql_log = f"""
+            INSERT INTO log_correcoes_importacao 
+            (processamentoid, tipo_correcao, valor_antigo, valor_novo, linhas_afetadas, usuario, data_correcao)
+            VALUES (:pid, 'remocao_bandeira', :val_antigo, NULL, :linhas, :usuario, {_current_timestamp_sql(engine)})
+        """
+
+        try:
+            exec_sql(
+                engine,
+                sql_log,
+                {
+                    "pid": processamentoid,
+                    "val_antigo": bandeira,
+                    "linhas": linhas_removidas,
+                    "usuario": usuario,
+                },
+            )
+        except Exception as e_log:
+            print(f"[WARNING] Erro ao registrar log (tabela pode não existir): {e_log}")
+
+        msg = f"Remoção concluída: {linhas_removidas} linhas com bandeira '{bandeira}' movidas para vendas_filtradas"
+        print(f"[SUCCESS remover_linhas_bandeira] {msg}")
+        return True, msg, linhas_removidas
+
+    except Exception as e:
+        msg = f"Erro ao remover linhas por bandeira: {str(e)}"
+        print(f"[ERROR remover_linhas_bandeira] {msg}")
+        return False, msg, 0
+
+
+def listar_valores_unicos_processamento(
+    engine: Engine, processamentoid: str, coluna: str
+) -> List[str]:
+    """
+    Lista valores únicos de uma coluna para um processamento específico.
+    Útil para preencher dropdowns de seleção na UI de correção.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento
+        coluna: Nome da coluna (ex: 'Bandeira', 'Forma_de_pagamento')
+
+    Returns:
+        Lista de valores únicos ordenados
+    """
+    try:
+        sql = f"""
+            SELECT DISTINCT {coluna} as valor
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND {coluna} IS NOT NULL
+            ORDER BY {coluna}
+        """
+
+        resultados = fetch_all(engine, sql, {"pid": processamentoid})
+        valores = [r["valor"] for r in resultados]
+
+        print(
+            f"[DEBUG listar_valores_unicos] Coluna '{coluna}': {len(valores)} valores únicos"
+        )
+        return valores
+
+    except Exception as e:
+        print(
+            f"[ERROR listar_valores_unicos] Erro ao listar valores de '{coluna}': {e}"
+        )
+        return []
+
+
+def listar_historico_correcoes(
+    engine: Engine,
+    processamentoid: Optional[str] = None,
+    usuario: Optional[str] = None,
+    limite: int = 100,
+) -> List[Dict[str, Any]]:
+    """
+    Lista histórico de correções realizadas.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: Filtrar por processamento específico (opcional)
+        usuario: Filtrar por usuário específico (opcional)
+        limite: Número máximo de registros a retornar
+
+    Returns:
+        Lista de dicionários com histórico de correções
+    """
+    try:
+        where_clauses = []
+        params = {"limite": limite}
+
+        if processamentoid:
+            where_clauses.append("processamentoid = :pid")
+            params["pid"] = processamentoid
+
+        if usuario:
+            where_clauses.append("usuario = :usuario")
+            params["usuario"] = usuario
+
+        where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+        sql = f"""
+            SELECT 
+                id,
+                processamentoid,
+                tipo_correcao,
+                valor_antigo,
+                valor_novo,
+                linhas_afetadas,
+                usuario,
+                data_correcao
+            FROM log_correcoes_importacao
+            {where_sql}
+            ORDER BY data_correcao DESC
+            LIMIT :limite
+        """
+
+        resultados = fetch_all(engine, sql, params)
+        print(
+            f"[DEBUG listar_historico_correcoes] {len(resultados)} registros encontrados"
+        )
+        return resultados
+
+    except Exception as e:
+        print(
+            f"[WARNING listar_historico_correcoes] Tabela de log pode não existir: {e}"
+        )
+        return []
+
+
+def listar_resumo_processamento(
+    engine: Engine, processamentoid: str
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Lista resumo de formas de pagamento e bandeiras de um processamento.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento
+
+    Returns:
+        Dicionário com listas de formas_pagamento e bandeiras com suas quantidades
+    """
+    try:
+        # Listar formas de pagamento com contagem
+        sql_formas = """
+            SELECT 
+                Forma_de_pagamento as valor,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Forma_de_pagamento IS NOT NULL
+            GROUP BY Forma_de_pagamento
+            ORDER BY quantidade DESC
+        """
+
+        formas_pagamento = fetch_all(engine, sql_formas, {"pid": processamentoid})
+
+        # Listar bandeiras com contagem
+        sql_bandeiras = """
+            SELECT 
+                Bandeira as valor,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Bandeira IS NOT NULL
+            GROUP BY Bandeira
+            ORDER BY quantidade DESC
+        """
+
+        bandeiras = fetch_all(engine, sql_bandeiras, {"pid": processamentoid})
+
+        # Listar status com contagem
+        sql_status = """
+            SELECT 
+                status_da_venda as valor,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND status_da_venda IS NOT NULL
+            GROUP BY status_da_venda
+            ORDER BY quantidade DESC
+        """
+
+        status = fetch_all(engine, sql_status, {"pid": processamentoid})
+
+        print(
+            f"[DEBUG listar_resumo_processamento] {len(formas_pagamento)} formas de pagamento, {len(bandeiras)} bandeiras, {len(status)} status"
+        )
+
+        return {
+            "formas_pagamento": formas_pagamento,
+            "bandeiras": bandeiras,
+            "status": status,
+        }
+
+    except Exception as e:
+        print(f"[ERROR listar_resumo_processamento] Erro: {e}")
+        return {"formas_pagamento": [], "bandeiras": []}
+
+
+# ==============================
+# Funções de Correção para Recebíveis
+# ==============================
+
+
+def listar_resumo_recebiveis_processamento(
+    engine: Engine, processamentoid: str
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Lista resumo de tipos de lançamento de um processamento de recebíveis.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento
+
+    Returns:
+        Dicionário com lista de lancamentos com suas quantidades
+    """
+    try:
+        # Listar tipos de lançamento com contagem
+        sql_lancamentos = """
+            SELECT 
+                lancamento as valor,
+                COUNT(*) as quantidade,
+                SUM(valor_recebivel) as valor_total
+            FROM recebiveis_processados
+            WHERE processamentoid = :pid AND lancamento IS NOT NULL
+            GROUP BY lancamento
+            ORDER BY quantidade DESC
+        """
+
+        lancamentos = fetch_all(engine, sql_lancamentos, {"pid": processamentoid})
+
+        print(
+            f"[DEBUG listar_resumo_recebiveis_processamento] {len(lancamentos)} tipos de lançamento"
+        )
+
+        return {"lancamentos": lancamentos}
+
+    except Exception as e:
+        print(f"[ERROR listar_resumo_recebiveis_processamento] Erro: {e}")
+        return {"lancamentos": []}
+
+
+def atualizar_lancamento_recebiveis_processamento(
+    engine: Engine,
+    processamentoid: str,
+    lancamento_antigo: str,
+    lancamento_novo: str,
+    usuario: str = "sistema",
+) -> Tuple[bool, str, int]:
+    """
+    Atualiza o tipo de lançamento de recebíveis em um processamento específico.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento a corrigir
+        lancamento_antigo: Tipo de lançamento atual
+        lancamento_novo: Novo tipo de lançamento
+        usuario: Usuário que está fazendo a correção
+
+    Returns:
+        Tupla (sucesso, mensagem, linhas_afetadas)
+    """
+    try:
+        print(
+            f"[DEBUG atualizar_lancamento_recebiveis] Processamento: {processamentoid}"
+        )
+        print(
+            f"[DEBUG atualizar_lancamento_recebiveis] De: '{lancamento_antigo}' -> Para: '{lancamento_novo}'"
+        )
+
+        # Contar linhas que serão afetadas
+        sql_count = """
+            SELECT COUNT(*) as total
+            FROM recebiveis_processados
+            WHERE processamentoid = :pid AND lancamento = :lanc_antigo
+        """
+        result = fetch_one(
+            engine,
+            sql_count,
+            {"pid": processamentoid, "lanc_antigo": lancamento_antigo},
+        )
+        linhas_afetadas = result.get("total", 0) if result else 0
+
+        if linhas_afetadas == 0:
+            return (
+                False,
+                f"Nenhuma linha encontrada com lançamento '{lancamento_antigo}'",
+                0,
+            )
+
+        # Executar UPDATE
+        sql_update = """
+            UPDATE recebiveis_processados
+            SET lancamento = :lanc_novo
+            WHERE processamentoid = :pid AND lancamento = :lanc_antigo
+        """
+
+        exec_sql(
+            engine,
+            sql_update,
+            {
+                "pid": processamentoid,
+                "lanc_antigo": lancamento_antigo,
+                "lanc_novo": lancamento_novo,
+            },
+        )
+
+        # Registrar log de auditoria
+        sql_log = f"""
+            INSERT INTO log_correcoes_importacao 
+            (processamentoid, tipo_correcao, valor_antigo, valor_novo, linhas_afetadas, usuario, data_correcao)
+            VALUES (:pid, 'atualizacao_lancamento_recebiveis', :val_antigo, :val_novo, :linhas, :usuario, {_current_timestamp_sql(engine)})
+        """
+
+        try:
+            exec_sql(
+                engine,
+                sql_log,
+                {
+                    "pid": processamentoid,
+                    "val_antigo": lancamento_antigo,
+                    "val_novo": lancamento_novo,
+                    "linhas": linhas_afetadas,
+                    "usuario": usuario,
+                },
+            )
+        except Exception as e_log:
+            print(f"[WARNING] Erro ao registrar log (tabela pode não existir): {e_log}")
+
+        msg = f"Atualização concluída: {linhas_afetadas} linhas de '{lancamento_antigo}' para '{lancamento_novo}'"
+        print(f"[SUCCESS atualizar_lancamento_recebiveis] {msg}")
+        return True, msg, linhas_afetadas
+
+    except Exception as e:
+        msg = f"Erro ao atualizar lançamento de recebíveis: {str(e)}"
+        print(f"[ERROR atualizar_lancamento_recebiveis] {msg}")
+        return False, msg, 0
+
+
+def remover_linhas_lancamento_recebiveis(
+    engine: Engine, processamentoid: str, lancamento: str, usuario: str = "sistema"
+) -> Tuple[bool, str, int]:
+    """
+    Remove todas as linhas de um tipo de lançamento específico em um processamento de recebíveis.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento a corrigir
+        lancamento: Tipo de lançamento a remover
+        usuario: Usuário que está fazendo a correção
+
+    Returns:
+        Tupla (sucesso, mensagem, linhas_removidas)
+    """
+    try:
+        print(
+            f"[DEBUG remover_linhas_lancamento_recebiveis] Processamento: {processamentoid}"
+        )
+        print(
+            f"[DEBUG remover_linhas_lancamento_recebiveis] Lançamento: '{lancamento}'"
+        )
+
+        # Contar quantas linhas serão removidas
+        sql_count = """
+            SELECT COUNT(*) as total
+            FROM recebiveis_processados
+            WHERE processamentoid = :pid AND lancamento = :lancamento
+        """
+        result = fetch_one(
+            engine, sql_count, {"pid": processamentoid, "lancamento": lancamento}
+        )
+        linhas_removidas = result.get("total", 0) if result else 0
+
+        if linhas_removidas == 0:
+            return (
+                False,
+                f"Nenhuma linha encontrada com lançamento '{lancamento}'",
+                0,
+            )
+
+        # Mover para recebiveis_filtrados ao invés de deletar
+        # ⚠️ CRÍTICO: Especificar colunas (excluindo 'id' AUTO_INCREMENT) para evitar conflito de chaves
+        sql_insert = """
+            INSERT IGNORE INTO recebiveis_filtrados (
+                data_pagamento, data_recebivel, lancamento, recebivel_id, 
+                adquirente, valor_recebivel, valor_liquido, descricao, 
+                banco, agencia, conta, processamentoid, cliente_id, ec_id,
+                data_processamento, usuario_processamento, arquivo_origem
+            )
+            SELECT 
+                data_pagamento, data_recebivel, lancamento, recebivel_id, 
+                adquirente, valor_recebivel, valor_liquido, descricao, 
+                banco, agencia, conta, processamentoid, cliente_id, ec_id,
+                data_processamento, usuario_processamento, arquivo_origem
+            FROM recebiveis_processados
+            WHERE processamentoid = :pid AND lancamento = :lancamento
+        """
+
+        sql_delete = """
+            DELETE FROM recebiveis_processados
+            WHERE processamentoid = :pid AND lancamento = :lancamento
+        """
+
+        print(f"[DEBUG] Movendo {linhas_removidas} linhas para recebiveis_filtrados...")
+
+        # 1. Insere em recebiveis_filtrados (sem o campo 'id')
+        exec_sql(engine, sql_insert, {"pid": processamentoid, "lancamento": lancamento})
+        print(f"[DEBUG] ✓ Linhas inseridas em recebiveis_filtrados")
+
+        # 2. Remove de recebiveis_processados
+        exec_sql(engine, sql_delete, {"pid": processamentoid, "lancamento": lancamento})
+        print(f"[DEBUG] ✓ Linhas removidas de recebiveis_processados")
+
+        # Registrar log de auditoria
+        sql_log = f"""
+            INSERT INTO log_correcoes_importacao 
+            (processamentoid, tipo_correcao, valor_antigo, valor_novo, linhas_afetadas, usuario, data_correcao)
+            VALUES (:pid, 'remocao_lancamento_recebiveis', :val_antigo, NULL, :linhas, :usuario, {_current_timestamp_sql(engine)})
+        """
+
+        try:
+            exec_sql(
+                engine,
+                sql_log,
+                {
+                    "pid": processamentoid,
+                    "val_antigo": lancamento,
+                    "linhas": linhas_removidas,
+                    "usuario": usuario,
+                },
+            )
+        except Exception as e_log:
+            print(f"[WARNING] Erro ao registrar log (tabela pode não existir): {e_log}")
+
+        msg = f"Remoção concluída: {linhas_removidas} linhas com lançamento '{lancamento}' movidas para recebiveis_filtrados"
+        print(f"[SUCCESS remover_linhas_lancamento_recebiveis] {msg}")
+        return True, msg, linhas_removidas
+
+    except Exception as e:
+        msg = f"Erro ao remover linhas de lançamento de recebíveis: {str(e)}"
+        print(f"[ERROR remover_linhas_lancamento_recebiveis] {msg}")
+        return False, msg, 0
+
+
+# ==============================
+# Funções de Correção para Status
+# ==============================
+
+
+def atualizar_status_processamento(
+    engine: Engine,
+    processamentoid: str,
+    status_antigo: str,
+    status_novo: str,
+    usuario: str = "sistema",
+) -> Tuple[bool, str, int]:
+    """
+    Atualiza todas as linhas de um status específico em um processamento.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento a corrigir
+        status_antigo: Status atual que será substituído
+        status_novo: Novo status
+        usuario: Usuário que está fazendo a correção
+
+    Returns:
+        Tupla (sucesso, mensagem, linhas_afetadas)
+    """
+    try:
+        print(f"[DEBUG atualizar_status] Processamento: {processamentoid}")
+        print(f"[DEBUG atualizar_status] De: '{status_antigo}' Para: '{status_novo}'")
+
+        # Contar quantas linhas serão afetadas
+        sql_count = """
+            SELECT COUNT(*) as total
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND status_da_venda = :status_antigo
+        """
+        result = fetch_one(
+            engine,
+            sql_count,
+            {"pid": processamentoid, "status_antigo": status_antigo},
+        )
+        linhas_afetadas = result.get("total", 0) if result else 0
+
+        if linhas_afetadas == 0:
+            return (
+                False,
+                f"Nenhuma linha encontrada com status '{status_antigo}'",
+                0,
+            )
+
+        # Realizar atualização
+        sql_update = """
+            UPDATE vendas_processadas
+            SET status_da_venda = :status_novo
+            WHERE processamentoid = :pid AND status_da_venda = :status_antigo
+        """
+
+        exec_sql(
+            engine,
+            sql_update,
+            {
+                "pid": processamentoid,
+                "status_antigo": status_antigo,
+                "status_novo": status_novo,
+            },
+        )
+
+        # Registrar log de auditoria
+        sql_log = f"""
+            INSERT INTO log_correcoes_importacao 
+            (processamentoid, tipo_correcao, valor_antigo, valor_novo, linhas_afetadas, usuario, data_correcao)
+            VALUES (:pid, 'status_venda', :val_antigo, :val_novo, :linhas, :usuario, {_current_timestamp_sql(engine)})
+        """
+
+        try:
+            exec_sql(
+                engine,
+                sql_log,
+                {
+                    "pid": processamentoid,
+                    "val_antigo": status_antigo,
+                    "val_novo": status_novo,
+                    "linhas": linhas_afetadas,
+                    "usuario": usuario,
+                },
+            )
+        except Exception as e_log:
+            print(f"[WARNING] Erro ao registrar log (tabela pode não existir): {e_log}")
+
+        msg = f"Atualização concluída: {linhas_afetadas} linhas alteradas de '{status_antigo}' para '{status_novo}'"
+        print(f"[SUCCESS atualizar_status] {msg}")
+        return True, msg, linhas_afetadas
+
+    except Exception as e:
+        msg = f"Erro ao atualizar status: {str(e)}"
+        print(f"[ERROR atualizar_status] {msg}")
+        return False, msg, 0
+
+
+def remover_linhas_status(
+    engine: Engine, processamentoid: str, status: str, usuario: str = "sistema"
+) -> Tuple[bool, str, int]:
+    """
+    Remove todas as linhas de um status específico em um processamento.
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamentoid: ID do processamento a corrigir
+        status: Status a remover
+        usuario: Usuário que está fazendo a correção
+
+    Returns:
+        Tupla (sucesso, mensagem, linhas_removidas)
+    """
+    try:
+        print(f"[DEBUG remover_linhas_status] Processamento: {processamentoid}")
+        print(f"[DEBUG remover_linhas_status] Status: '{status}'")
+
+        # Contar quantas linhas serão removidas
+        sql_count = """
+            SELECT COUNT(*) as total
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND status_da_venda = :status
+        """
+        result = fetch_one(
+            engine, sql_count, {"pid": processamentoid, "status": status}
+        )
+        linhas_removidas = result.get("total", 0) if result else 0
+
+        if linhas_removidas == 0:
+            return (
+                False,
+                f"Nenhuma linha encontrada com status '{status}'",
+                0,
+            )
+
+        # ⚠️ CRÍTICO: Deletar cálculos primeiro (FK constraint)
+        sql_delete_calculos = """
+            DELETE FROM vendas_calculos
+            WHERE id_venda IN (
+                SELECT id FROM vendas_processadas
+                WHERE processamentoid = :pid AND status_da_venda = :status
+            )
+        """
+
+        # Mover para vendas_filtradas ao invés de deletar
+        # ⚠️ CRÍTICO: Especificar colunas (excluindo 'id' AUTO_INCREMENT) para evitar conflito
+        sql_insert = """
+            INSERT IGNORE INTO vendas_filtradas (
+                Data_da_venda, Data_da_autorização_da_venda, status_da_venda, Adquirente,
+                Bandeira, Forma_de_pagamento, Quantidade_de_parcelas, Resumo_da_operação,
+                Valor_da_venda, Taxas_Perc, Valor_descontado, Taxas_RR, Valor_RR,
+                Previsão_de_pagamento, Valor_líquido_da_venda, Número_da_máquina,
+                Código_de_autorização, NSU, Número_do_cartão, Receba_rápido, Status,
+                Tratar_ou_Ignorar, Filtrado, arquivo_origem, processamentoid,
+                cliente_id, ec_id, data_processamento, usuario_processamento
+            )
+            SELECT 
+                Data_da_venda, Data_da_autorização_da_venda, status_da_venda, Adquirente,
+                Bandeira, Forma_de_pagamento, Quantidade_de_parcelas, Resumo_da_operação,
+                Valor_da_venda, Taxas_Perc, Valor_descontado, Taxas_RR, Valor_RR,
+                Previsão_de_pagamento, Valor_líquido_da_venda, Número_da_máquina,
+                Código_de_autorização, NSU, Número_do_cartão, Receba_rápido, Status,
+                Tratar_ou_Ignorar, Filtrado, arquivo_origem, processamentoid,
+                cliente_id, ec_id, data_processamento, usuario_processamento
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND status_da_venda = :status
+        """
+
+        sql_delete = """
+            DELETE FROM vendas_processadas
+            WHERE processamentoid = :pid AND status_da_venda = :status
+        """
+
+        print(f"[DEBUG] Movendo {linhas_removidas} linhas para vendas_filtradas...")
+
+        # 1. Deletar cálculos associados (evita erro FK)
+        exec_sql(
+            engine, sql_delete_calculos, {"pid": processamentoid, "status": status}
+        )
+        print(f"[DEBUG] ✓ Cálculos deletados")
+
+        # 2. Insere em vendas_filtradas (sem o campo 'id')
+        exec_sql(engine, sql_insert, {"pid": processamentoid, "status": status})
+        print(f"[DEBUG] ✓ Linhas inseridas em vendas_filtradas")
+
+        # 3. Remove de vendas_processadas
+        exec_sql(engine, sql_delete, {"pid": processamentoid, "status": status})
+        print(f"[DEBUG] ✓ Linhas removidas de vendas_processadas")
+
+        # Registrar log de auditoria
+        sql_log = f"""
+            INSERT INTO log_correcoes_importacao 
+            (processamentoid, tipo_correcao, valor_antigo, valor_novo, linhas_afetadas, usuario, data_correcao)
+            VALUES (:pid, 'remocao_status', :val_antigo, NULL, :linhas, :usuario, {_current_timestamp_sql(engine)})
+        """
+
+        try:
+            exec_sql(
+                engine,
+                sql_log,
+                {
+                    "pid": processamentoid,
+                    "val_antigo": status,
+                    "linhas": linhas_removidas,
+                    "usuario": usuario,
+                },
+            )
+        except Exception as e_log:
+            print(f"[WARNING] Erro ao registrar log (tabela pode não existir): {e_log}")
+
+        msg = f"Remoção concluída: {linhas_removidas} linhas com status '{status}' movidas para vendas_filtradas"
+        print(f"[SUCCESS remover_linhas_status] {msg}")
+        return True, msg, linhas_removidas
+
+    except Exception as e:
+        msg = f"Erro ao remover linhas de status: {str(e)}"
+        print(f"[ERROR remover_linhas_status] {msg}")
+        return False, msg, 0

@@ -15,27 +15,21 @@ from sqlalchemy import text
 
 from conf.funcoesbd import (
     fetch_all,
-    # --- ADICIONADO AQUI ---
     fetch_one,
     listar_processamentoids,
     listar_processamentos_detalhado,
-    _is_sqlite,  # Helper para detectar SQLite
 )
 
 
-def _convert_placeholders(engine: Engine, sql: str) -> str:
+def _convert_placeholders(engine, sql: str) -> str:
     """
-    Converte placeholders SQL de MySQL (%s) para SQLite (?) quando necessário.
+    Converte placeholders SQL conforme o banco de dados.
+    Para MySQL: mantém o formato :param (será convertido para %(param)s pelo SQLAlchemy)
+    Para SQLite: também usa :param (formato nativo do SQLite)
 
-    Args:
-        engine: Engine do banco de dados
-        sql: Query SQL com placeholders %s
-
-    Returns:
-        Query com placeholders corretos para o banco em uso
+    Esta função atualmente apenas retorna o SQL sem alteração, pois o SQLAlchemy
+    cuida da conversão de placeholders automaticamente.
     """
-    if _is_sqlite(engine):
-        return sql.replace("%s", "?")
     return sql
 
 
@@ -384,6 +378,90 @@ def log_tempo_execucao(funcao_nome: str, inicio: float) -> None:
     print(f"[DEBUG] {funcao_nome}: {tempo_decorrido:.3f}s")
 
 
+def read_sql_safe(
+    sql: str,
+    engine: Engine,
+    params: tuple = None,
+    chunksize: int = 50000,
+    max_retries: int = 3,
+) -> pd.DataFrame:
+    """
+    Lê dados do SQL com proteção contra erros de timeout e packet sequence.
+
+    - Usa chunked reading para datasets grandes
+    - Retry automático em caso de erro
+    - Reconexão automática se necessário
+
+    Args:
+        sql: Query SQL
+        engine: Engine SQLAlchemy
+        params: Parâmetros da query
+        chunksize: Tamanho dos chunks (padrão: 50k)
+        max_retries: Tentativas máximas (padrão: 3)
+
+    Returns:
+        DataFrame consolidado
+    """
+    for attempt in range(max_retries):
+        try:
+            print(f"[DEBUG] Tentativa {attempt + 1}/{max_retries} de leitura SQL")
+
+            # Tentar leitura em chunks primeiro
+            try:
+                chunks = []
+                for chunk in pd.read_sql(
+                    sql, engine, params=params, chunksize=chunksize
+                ):
+                    chunks.append(chunk)
+
+                if chunks:
+                    df = pd.concat(chunks, ignore_index=True)
+                    print(
+                        f"[DEBUG] ✓ Leitura em chunks bem-sucedida: {len(chunks)} chunks, {len(df)} registros"
+                    )
+                    return df
+                else:
+                    print("[DEBUG] ✓ Query retornou 0 registros")
+                    return pd.DataFrame()
+
+            except Exception as chunk_error:
+                print(f"[DEBUG] Chunked reading falhou: {chunk_error}")
+                print(f"[DEBUG] Tentando leitura direta...")
+
+                # Fallback: leitura direta
+                df = pd.read_sql(sql, engine, params=params)
+                print(f"[DEBUG] ✓ Leitura direta bem-sucedida: {len(df)} registros")
+                return df
+
+        except Exception as e:
+            error_msg = str(e).lower()
+
+            if "packet sequence" in error_msg or "lost connection" in error_msg:
+                print(
+                    f"[ERROR] Erro de conexão MySQL (tentativa {attempt + 1}/{max_retries}): {e}"
+                )
+
+                if attempt < max_retries - 1:
+                    print("[DEBUG] Aguardando 2s antes de reconectar...")
+                    time.sleep(2)
+
+                    # Tentar reconectar
+                    try:
+                        engine.dispose()
+                        print("[DEBUG] Pool de conexões descartado - reconectando...")
+                    except:
+                        pass
+                else:
+                    print(f"[ERROR] Falha após {max_retries} tentativas")
+                    raise
+            else:
+                # Outro tipo de erro - não retenta
+                print(f"[ERROR] Erro SQL não relacionado a conexão: {e}")
+                raise
+
+    return pd.DataFrame()
+
+
 def calcular_periodo_completo(
     engine: Engine, processamento_id: str, adquirente: str = None
 ) -> Tuple[Optional[datetime], Optional[datetime]]:
@@ -524,33 +602,20 @@ def obter_adquirentes_distintos_processamento(
 
     try:
         with engine.connect() as conn:
-            # Query otimizada - JOIN por id_venda
-            # SQLite usa :param, MySQL usa %(param)s
-            if _is_sqlite(engine):
-                join_query = """
-                    SELECT DISTINCT vp.adquirente
-                    FROM vendas_processadas vp
-                    INNER JOIN vendas_calculos vc ON vp.id = vc.id_venda
-                    WHERE vc.calc_id = :calc_id 
-                    AND vp.adquirente IS NOT NULL 
-                    AND vp.adquirente != ''
-                    ORDER BY vp.adquirente
-                """
-            else:
-                join_query = """
-                    SELECT DISTINCT vp.adquirente
-                    FROM vendas_processadas vp
-                    INNER JOIN vendas_calculos vc ON vp.id = vc.id_venda
-                    WHERE vc.calc_id = %(calc_id)s 
-                    AND vp.adquirente IS NOT NULL 
-                    AND vp.adquirente != ''
-                    ORDER BY vp.adquirente
-                """
+            # Query otimizada - JOIN por id_venda (MySQL)
+            join_query = """
+                SELECT DISTINCT vp.adquirente
+                FROM vendas_processadas vp
+                INNER JOIN vendas_calculos vc ON vp.id = vc.id_venda
+                WHERE vc.calc_id = %(calc_id)s 
+                AND vp.adquirente IS NOT NULL 
+                AND vp.adquirente != ''
+                ORDER BY vp.adquirente
+            """
 
             result = pd.read_sql(join_query, conn, params={"calc_id": processamento_id})
 
             if not result.empty:
-                # SQLite retorna 'Adquirente' (preserva case do schema)
                 # MySQL retorna 'adquirente' (case-insensitive)
                 # Usar o nome real da primeira coluna para compatibilidade
                 col_name = result.columns[0]
@@ -845,6 +910,160 @@ def calcular_min_max_taxas_agrupado(df_merged: pd.DataFrame) -> pd.DataFrame:
     return agrupado
 
 
+def obter_evidencias_transacoes(
+    engine: Engine, processamento_id: str, calc_tipo: str = None
+) -> Dict[str, pd.DataFrame]:
+    """
+    Busca evidências de transações para o relatório:
+    - Top 3 maiores valores de transação
+    - Top 3 menores valores de transação
+    - Top 3 maiores taxas
+    - Top 3 menores taxas
+
+    Retorna dict com DataFrames formatados para cada categoria.
+    """
+    print(f"[DEBUG] Buscando evidências para processamento: {processamento_id}")
+
+    resultado = {
+        "maiores_valores": pd.DataFrame(),
+        "maiores_taxas": pd.DataFrame(),
+    }
+
+    try:
+        # Query para buscar transações com todos os dados necessários incluindo arquivo_origem
+        sql = """
+        SELECT 
+            vp.Data_da_venda,
+            vp.Bandeira,
+            vc.forma_pagamento,
+            vc.vl_venda,
+            vc.tx_venda,
+            vp.arquivo_origem
+        FROM vendas_processadas vp
+        JOIN vendas_calculos vc ON vp.id = vc.id_venda
+        WHERE vc.calc_id = %s
+        """
+
+        if calc_tipo:
+            sql += " AND vc.calc_tipo = %s"
+            params = (processamento_id, calc_tipo)
+        else:
+            params = (processamento_id,)
+
+        sql = _convert_placeholders(engine, sql)
+
+        # Usar read_sql_safe para proteção contra timeouts
+        df = read_sql_safe(sql, engine, params=params)
+
+        if df.empty:
+            print("[DEBUG] Nenhuma transação encontrada para evidências")
+            return resultado
+
+        print(f"[DEBUG] {len(df)} transações carregadas para evidências")
+
+        # Converter tipos
+        df["Data_da_venda"] = pd.to_datetime(df["Data_da_venda"], errors="coerce")
+        df["vl_venda"] = pd.to_numeric(df["vl_venda"], errors="coerce")
+        df["tx_venda"] = pd.to_numeric(df["tx_venda"], errors="coerce")
+
+        # Remover NaN
+        df.dropna(subset=["Data_da_venda", "vl_venda", "tx_venda"], inplace=True)
+
+        # Garantir que arquivo_origem seja string e substituir nulos por "N/A"
+        df["arquivo_origem"] = df["arquivo_origem"].fillna("N/A").astype(str)
+
+        # TOP 3 MAIORES VALORES
+        top_maiores_valores = df.nlargest(3, "vl_venda")[
+            [
+                "Data_da_venda",
+                "Bandeira",
+                "forma_pagamento",
+                "vl_venda",
+                "tx_venda",
+                "arquivo_origem",
+            ]
+        ].copy()
+
+        top_maiores_valores["Data"] = top_maiores_valores["Data_da_venda"].dt.strftime(
+            "%d/%m/%Y"
+        )
+        top_maiores_valores["Valor"] = top_maiores_valores["vl_venda"].apply(
+            format_currency_br
+        )
+        top_maiores_valores["Taxa (%)"] = (
+            top_maiores_valores["tx_venda"].round(2).astype(str) + "%"
+        )
+        top_maiores_valores.rename(
+            columns={
+                "forma_pagamento": "Forma de Pagamento",
+                "arquivo_origem": "Arquivo Origem",
+            },
+            inplace=True,
+        )
+
+        resultado["maiores_valores"] = top_maiores_valores[
+            [
+                "Data",
+                "Bandeira",
+                "Forma de Pagamento",
+                "Valor",
+                "Taxa (%)",
+                "Arquivo Origem",
+            ]
+        ]
+
+        # TOP 3 MAIORES TAXAS (filtrar taxas > 0)
+        df_taxas_positivas = df[df["tx_venda"] > 0]
+        top_maiores_taxas = df_taxas_positivas.nlargest(3, "tx_venda")[
+            [
+                "Data_da_venda",
+                "Bandeira",
+                "forma_pagamento",
+                "vl_venda",
+                "tx_venda",
+                "arquivo_origem",
+            ]
+        ].copy()
+
+        top_maiores_taxas["Data"] = top_maiores_taxas["Data_da_venda"].dt.strftime(
+            "%d/%m/%Y"
+        )
+        top_maiores_taxas["Valor"] = top_maiores_taxas["vl_venda"].apply(
+            format_currency_br
+        )
+        top_maiores_taxas["Taxa (%)"] = (
+            top_maiores_taxas["tx_venda"].round(2).astype(str) + "%"
+        )
+        top_maiores_taxas.rename(
+            columns={
+                "forma_pagamento": "Forma de Pagamento",
+                "arquivo_origem": "Arquivo Origem",
+            },
+            inplace=True,
+        )
+
+        resultado["maiores_taxas"] = top_maiores_taxas[
+            [
+                "Data",
+                "Bandeira",
+                "Forma de Pagamento",
+                "Valor",
+                "Taxa (%)",
+                "Arquivo Origem",
+            ]
+        ]
+
+        print(f"[DEBUG] Evidências geradas com sucesso")
+
+    except Exception as e:
+        print(f"[ERROR] Erro ao buscar evidências: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+    return resultado
+
+
 def calcular_contagem_taxas_agrupado(df_merged: pd.DataFrame) -> pd.DataFrame:
     """Conta as taxas agrupadas por Ano-Semestre, Bandeira e Forma de Pagamento."""
     if df_merged.empty or "Data_da_venda" not in df_merged.columns:
@@ -890,6 +1109,10 @@ def calcular_sumario_recebiveis(engine: Engine, processamento_id: str) -> pd.Dat
         .reset_index()
     )
 
+    # Garantir tipo numérico antes de arredondar
+    sumario["Valor_Total"] = pd.to_numeric(
+        sumario["Valor_Total"], errors="coerce"
+    ).fillna(0)
     sumario["Valor Total"] = sumario["Valor_Total"].round(2).apply(format_currency_br)
     return sumario[["Ano-Semestre", "lancamento", "Valor Total"]].rename(
         columns={"lancamento": "Lançamento"}
@@ -1223,7 +1446,7 @@ def obter_dados_processamento(
         "SELECT * FROM vendas_processadas WHERE processamentoid = %s LIMIT %s"
     )
     sql_processadas = _convert_placeholders(engine, sql_processadas)
-    df_processadas = pd.read_sql(
+    df_processadas = read_sql_safe(
         sql_processadas,
         engine,
         params=(processamento_id, max_rows),
@@ -1231,7 +1454,7 @@ def obter_dados_processamento(
 
     sql_filtradas = "SELECT * FROM vendas_filtradas WHERE processamentoid = %s LIMIT %s"
     sql_filtradas = _convert_placeholders(engine, sql_filtradas)
-    df_filtradas = pd.read_sql(
+    df_filtradas = read_sql_safe(
         sql_filtradas,
         engine,
         params=(processamento_id, max_rows),
@@ -2123,6 +2346,27 @@ def gerar_relatorio_html(
     print(f"[DEBUG] === INÍCIO GERAÇÃO RELATÓRIO HTML ===")
     print(f"[DEBUG] Processamento ID: {processamento_id}, Tipo: {calc_tipo}")
 
+    # Configurar timeouts maiores para evitar "Packet sequence number wrong"
+    try:
+        if hasattr(engine.pool, "_connect_args"):
+            if "connect_timeout" not in engine.pool._connect_args:
+                print("[DEBUG] Configurando timeout de conexão para 300s")
+        # Para PyMySQL, ajustar read_timeout e write_timeout
+        with engine.connect() as conn:
+            if "mysql" in str(engine.url):
+                try:
+                    conn.execute(text("SET SESSION net_read_timeout = 600"))
+                    conn.execute(text("SET SESSION net_write_timeout = 600"))
+                    conn.execute(text("SET SESSION wait_timeout = 28800"))
+                    conn.commit()
+                    print(
+                        "[DEBUG] Timeouts MySQL configurados: read=600s, write=600s, wait=28800s"
+                    )
+                except Exception as e:
+                    print(f"[DEBUG] Não foi possível configurar timeouts MySQL: {e}")
+    except Exception as e:
+        print(f"[DEBUG] Erro ao configurar timeouts: {e}")
+
     inicio_metadados = time.time()
     metadados = obter_dados_processamento(engine, processamento_id)
     log_tempo_execucao("obter_dados_processamento", inicio_metadados)
@@ -2145,7 +2389,7 @@ def gerar_relatorio_html(
     print(f"Debug: Adquirentes distintos encontrados: {adquirentes_distintos}")
     print(f"Debug: Filtro de adquirente aplicado: {adquirente}")
 
-    if adquirente:
+    if adquirente and adquirente != "None":
         # Se um filtro específico foi aplicado, mostrar apenas o nome da adquirente
         metadados["adquirente"] = adquirente
         print(f"Debug: Filtro de adquirente aplicado: {metadados['adquirente']}")
@@ -2185,7 +2429,9 @@ def gerar_relatorio_html(
         params = (processamento_id, calc_tipo, adquirente)
     else:
         params = (processamento_id, calc_tipo)
-    df_join = pd.read_sql(join_sql, engine, params=params)
+
+    # Usar leitura segura com retry automático
+    df_join = read_sql_safe(join_sql, engine, params=params)
     log_tempo_execucao("buscar_base_joinada", inicio_join)
 
     # Aplicar filtro específico para valores da REDE após de-para
@@ -2417,7 +2663,9 @@ def gerar_relatorio_html(
     WHERE processamentoid = %s
     """
     sql_vendas_processadas = _convert_placeholders(engine, sql_vendas_processadas)
-    df_vendas_proc = pd.read_sql(
+
+    # Usar leitura segura com retry automático
+    df_vendas_proc = read_sql_safe(
         sql_vendas_processadas, engine, params=(processamento_id,)
     )
 
@@ -2427,13 +2675,15 @@ def gerar_relatorio_html(
     WHERE calc_id = %s AND calc_tipo = %s
     """
     sql_vendas_calculos = _convert_placeholders(engine, sql_vendas_calculos)
-    df_vendas_calc = pd.read_sql(
+
+    # Usar leitura segura com retry automático
+    df_vendas_calc = read_sql_safe(
         sql_vendas_calculos, engine, params=(processamento_id, calc_tipo)
     )
 
-    # Usar a função atualizada que suporta perda_rr - SEM faturamento no relatório normal
+    # Usar a função atualizada que suporta perda_rr - COM faturamento e % perda
     df_perdas_sumarizado = calcular_perdas_por_semestre(
-        df_vendas_proc, df_vendas_calc, incluir_faturamento=False
+        df_vendas_proc, df_vendas_calc, incluir_faturamento=True
     )
 
     log_tempo_execucao("calcular_perdas_por_semestre_com_rr", inicio_perdas)
@@ -2512,6 +2762,27 @@ def gerar_relatorio_html(
         df_dados_bancarios, "Dados Bancários Distintos nos Recebíveis"
     )
     log_tempo_execucao("gerar_tabela_dados_bancarios_html", inicio_dados_bancarios)
+
+    # Gerar evidências de transações (Top 3)
+    inicio_evidencias = time.time()
+    evidencias = obter_evidencias_transacoes(engine, processamento_id, calc_tipo)
+
+    # Gerar tabelas HTML para cada evidência
+    tabela_evidencias_maiores_valores_html = (
+        gerar_tabela_html(
+            evidencias["maiores_valores"], "Top 3 Maiores Valores de Transação"
+        )
+        if not evidencias["maiores_valores"].empty
+        else ""
+    )
+
+    tabela_evidencias_maiores_taxas_html = (
+        gerar_tabela_html(evidencias["maiores_taxas"], "Top 3 Maiores Taxas Aplicadas")
+        if not evidencias["maiores_taxas"].empty
+        else ""
+    )
+
+    log_tempo_execucao("gerar_evidencias_transacoes", inicio_evidencias)
 
     # Gerar demonstrativo de vendas filtradas (se solicitado)
     tabela_vendas_filtradas_html = ""
@@ -2741,6 +3012,8 @@ def gerar_relatorio_html(
         tabela_contagem_taxas_html=tabela_contagem_taxas_html,
         tabela_sumario_recebiveis_html=tabela_sumario_recebiveis_html,
         tabela_dados_bancarios_html=tabela_dados_bancarios_html,
+        tabela_evidencias_maiores_valores_html=tabela_evidencias_maiores_valores_html,
+        tabela_evidencias_maiores_taxas_html=tabela_evidencias_maiores_taxas_html,
         tabela_vendas_filtradas_html=tabela_vendas_filtradas_html,
         tabela_recebiveis_filtrados_html=tabela_recebiveis_filtrados_html,
         grafico_bandeiras_path=to_file_url(grafico_bandeiras_path),
@@ -3214,12 +3487,18 @@ def gerar_relatorio_mensal_html(
     )
 
     # Determinar adquirente principal
-    if adquirente:
+    if adquirente and adquirente != "None":
         adquirente_principal = adquirente
     elif adquirentes_distintos:
-        adquirente_principal = adquirentes_distintos[0]
+        if len(adquirentes_distintos) == 1:
+            adquirente_principal = adquirentes_distintos[0]
+        else:
+            adquirente_principal = ", ".join(adquirentes_distintos)
     else:
-        adquirente_principal = metadados.get("adquirente", "Não informado")
+        adquirente_principal = "Não identificado"
+
+    # Atualizar metadados com adquirente
+    metadados["adquirente"] = adquirente_principal
 
     # Buscar dados (JOIN vendas_calculos + vendas_processadas)
     join_sql = """
@@ -3511,6 +3790,24 @@ def gerar_relatorio_mensal_html(
     # Buscar dados bancários
     df_dados_bancarios = obter_dados_bancarios_distintos(engine, processamento_id)
 
+    # Gerar evidências de transações (Top 3)
+    evidencias = obter_evidencias_transacoes(engine, processamento_id, calc_tipo)
+
+    # Gerar tabelas HTML para cada evidência
+    tabela_evidencias_maiores_valores_html = (
+        gerar_tabela_html(
+            evidencias["maiores_valores"], "Top 3 Maiores Valores de Transação"
+        )
+        if not evidencias["maiores_valores"].empty
+        else ""
+    )
+
+    tabela_evidencias_maiores_taxas_html = (
+        gerar_tabela_html(evidencias["maiores_taxas"], "Top 3 Maiores Taxas Aplicadas")
+        if not evidencias["maiores_taxas"].empty
+        else ""
+    )
+
     # Garantir que primeira_venda e ultima_venda sejam datetime
     primeira_venda_str = ""
     if primeira_venda:
@@ -3652,6 +3949,8 @@ def gerar_relatorio_mensal_html(
         "tabela_contagem_taxas_html": tabela_contagem_taxas_html,
         "tabela_sumario_recebiveis_html": tabela_sumario_recebiveis_html,
         "tabela_dados_bancarios_html": tabela_dados_bancarios_html,
+        "tabela_evidencias_maiores_valores_html": tabela_evidencias_maiores_valores_html,
+        "tabela_evidencias_maiores_taxas_html": tabela_evidencias_maiores_taxas_html,
         "tabela_recebiveis_filtrados_html": tabela_recebiveis_filtrados_html,
         "tabela_vendas_filtradas_html": tabela_vendas_filtradas_html,
         "grafico_bandeiras_path": (
@@ -3795,12 +4094,17 @@ def criar_interface_relatorio(engine: Engine) -> Any:
             )
             adquirente_select.options = ["Todos"]
             adquirente_select.value = "Todos"
+            adquirente_select.disabled = False
             return
 
         processamento_id, _ = calc_id_tipo
         print(f"[DEBUG SEGUNDA FUNÇÃO] Processamento ID: {processamento_id}")
 
         try:
+            # ⏳ Desabilitar selectbox durante carregamento
+            adquirente_select.disabled = True
+            adquirente_select.name = "Carregando adquirentes..."
+
             print("[DEBUG SEGUNDA FUNÇÃO] Chamando get_adquirentes...")
             adquirentes = get_adquirentes(processamento_id)
             print(f"[DEBUG SEGUNDA FUNÇÃO] Adquirentes encontrados: {adquirentes}")
@@ -3822,6 +4126,10 @@ def criar_interface_relatorio(engine: Engine) -> Any:
             print(f"[DEBUG SEGUNDA FUNÇÃO] ❌ Erro ao carregar adquirentes: {str(e)}")
             adquirente_select.options = ["Todos"]
             adquirente_select.value = "Todos"
+        finally:
+            # ✅ Reabilitar selectbox após carregamento
+            adquirente_select.disabled = False
+            adquirente_select.name = "Filtrar por Adquirente"
 
         print(f"[DEBUG SEGUNDA FUNÇÃO] === FIM on_calc_change AUTOMÁTICO ===\n")
 

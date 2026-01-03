@@ -26,7 +26,12 @@ from conf.funcoesbd import (
     listar_processamentos_detalhado_por_id,
     agregar_bandeiras_db,
     agregar_formas_pagamento_db,
+    agregar_formas_pagamento_por_ano_db,
     agregar_periodos_db,
+    agregar_periodos_bandeira_forma_db,
+    agregar_semestral_db,
+    agregar_trimestral_db,
+    agregar_anual_db,
     agregar_recebiveis_db,
     obter_total_registros_processamento,
 )
@@ -475,18 +480,10 @@ def make_analista_view(
 
     # Seleção de análise existente
     analises_select = pn.widgets.Select(
-        name="Continuar Análise Existente", options=[], value=None
+        name="Análises Existentes", options=[], value=None, width=400
     )
-
-    btn_nova_analise = pn.widgets.Button(name="Nova Análise", button_type="primary")
     btn_carregar_analise = pn.widgets.Button(
-        name="Carregar Análise", button_type="light"
-    )
-    btn_salvar_analise = pn.widgets.Button(
-        name="💾 Salvar Análise", button_type="success", disabled=True
-    )
-    btn_finalizar_analise = pn.widgets.Button(
-        name="✅ Finalizar Análise", button_type="primary", disabled=True
+        name="Carregar Análise", button_type="primary"
     )
 
     # Upload de arquivos
@@ -505,15 +502,80 @@ def make_analista_view(
         page_size=10,
     )
 
-    # Resultados
-    tab_resultados = pn.Tabs(
-        ("Bandeiras", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
-        ("Formas de Pagamento", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
-        ("Tipos de Recebíveis", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
-        ("Períodos - Mês", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
-        ("Períodos - Trimestre", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
-        ("Períodos - Semestre", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
-        ("Períodos - Ano", pn.widgets.Tabulator(pd.DataFrame(), height=300)),
+    # Resultados - Tabulators individuais
+    tabulator_bandeiras = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=300,
+        sizing_mode="stretch_width",
+        name="Bandeiras",
+    )
+    tabulator_formas = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=300,
+        sizing_mode="stretch_width",
+        name="Formas de Pagamento",
+    )
+    tabulator_recebiveis = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=300,
+        sizing_mode="stretch_width",
+        name="Tipos de Recebíveis",
+    )
+    tabulator_periodos_mes = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=300,
+        sizing_mode="stretch_width",
+        name="Períodos - Mês",
+    )
+    tabulator_periodos_trimestre = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=300,
+        sizing_mode="stretch_width",
+        name="Períodos - Trimestre",
+    )
+    tabulator_periodos_semestre = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=300,
+        sizing_mode="stretch_width",
+        name="Períodos - Semestre",
+    )
+    tabulator_periodos_ano = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=300,
+        sizing_mode="stretch_width",
+        name="Períodos - Ano",
+    )
+    tabulator_formas_por_ano = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=400,
+        sizing_mode="stretch_width",
+        name="Formas de Pagamento por Ano",
+    )
+
+    # Tabulators de períodos detalhados (período + bandeira + forma)
+    tabulator_completo = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=400,
+        sizing_mode="stretch_width",
+        name="Visão Completa",
+    )
+    tabulator_anual = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=400,
+        sizing_mode="stretch_width",
+        name="Análise Anual",
+    )
+    tabulator_semestral = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=400,
+        sizing_mode="stretch_width",
+        name="Análise Semestral",
+    )
+    tabulator_trimestral = pn.widgets.Tabulator(
+        pd.DataFrame(),
+        height=400,
+        sizing_mode="stretch_width",
+        name="Análise Trimestral",
     )
 
     status_pane = pn.pane.Markdown("", sizing_mode="stretch_width")
@@ -554,8 +616,7 @@ def make_analista_view(
             )
             analise_atual["id"] = analise_id
             analise_atual["nome"] = nome
-            btn_salvar_analise.disabled = False
-            btn_finalizar_analise.disabled = False
+
             btn_processar_arquivos.disabled = False
             status_pane.object = f"✅ **Análise criada:** {nome} (ID: {analise_id})"
             _notify("success", f"Análise '{nome}' criada com sucesso!")
@@ -579,31 +640,29 @@ def make_analista_view(
             nome_analise_input.value = analise["nome_analise"]
             descricao_input.value = analise.get("descricao", "") or ""
 
-            btn_salvar_analise.disabled = False
-            btn_finalizar_analise.disabled = analise["status"] != "finalizada"
-            btn_processar_arquivos.disabled = analise["status"] == "finalizada"
-
             # Carregar resultados salvos
             resultados = analise_obter_resultados(engine, analise_id)
             resultados_atuais.update(resultados)
 
             # Atualizar tabs
             if resultados["bandeiras"]:
-                tab_resultados[0].value = pd.DataFrame(resultados["bandeiras"])
+                tabulator_bandeiras.value = pd.DataFrame(resultados["bandeiras"])
             else:
-                tab_resultados[0].value = pd.DataFrame()
+                tabulator_bandeiras.value = pd.DataFrame()
             if resultados["formas_pagamento"]:
-                tab_resultados[1].value = pd.DataFrame(resultados["formas_pagamento"])
+                tabulator_formas.value = pd.DataFrame(resultados["formas_pagamento"])
             else:
-                tab_resultados[1].value = pd.DataFrame()
+                tabulator_formas.value = pd.DataFrame()
             if resultados["tipos_recebiveis"]:
-                tab_resultados[2].value = pd.DataFrame(resultados["tipos_recebiveis"])
+                tabulator_recebiveis.value = pd.DataFrame(
+                    resultados["tipos_recebiveis"]
+                )
             else:
-                tab_resultados[2].value = pd.DataFrame()
+                tabulator_recebiveis.value = pd.DataFrame()
             if resultados["periodos"]:
-                tab_resultados[3].value = pd.DataFrame(resultados["periodos"])
+                tabulator_periodos_mes.value = pd.DataFrame(resultados["periodos"])
             else:
-                tab_resultados[3].value = pd.DataFrame()
+                tabulator_periodos_mes.value = pd.DataFrame()
 
             # Carregar arquivos
             if resultados["arquivos"]:
@@ -751,69 +810,219 @@ def make_analista_view(
                     f"[DEBUG] DataFrame bandeiras: {len(df_bandeiras)} linhas x {len(df_bandeiras.columns)} colunas"
                 )
                 print(f"[DEBUG] Colunas bandeiras: {list(df_bandeiras.columns)}")
-                tab_resultados[0].value = df_bandeiras
+                print(f"[DEBUG] Tipo df_bandeiras: {type(df_bandeiras)}")
+                print(f"[DEBUG] Primeiras 2 linhas:\n{df_bandeiras.head(2)}")
+                tabulator_bandeiras.value = df_bandeiras.reset_index(drop=True)
+                print(f"[DEBUG] Tabulator bandeiras atualizado!")
             else:
                 print(f"[DEBUG] Nenhuma bandeira")
-                tab_resultados[0].value = pd.DataFrame()
+                tabulator_bandeiras.value = pd.DataFrame()
 
             print(f"[DEBUG] Atualizando tab de formas...")
             if formas:
                 df_formas = pd.DataFrame(formas)
                 print(f"[DEBUG] DataFrame formas: {len(df_formas)} linhas")
-                tab_resultados[1].value = df_formas
+                print(f"[DEBUG] Colunas formas: {list(df_formas.columns)}")
+                tabulator_formas.value = df_formas.reset_index(drop=True)
+                print(f"[DEBUG] Tabulator formas atualizado!")
             else:
                 print(f"[DEBUG] Nenhuma forma")
-                tab_resultados[1].value = pd.DataFrame()
+                tabulator_formas.value = pd.DataFrame()
 
             # Tab de tipos de recebíveis
             print(f"[DEBUG] Atualizando tab de tipos de recebíveis...")
             if recebiveis:
                 df_recebiveis = pd.DataFrame(recebiveis)
                 print(f"[DEBUG] DataFrame recebíveis: {len(df_recebiveis)} linhas")
-                tab_resultados[2].value = df_recebiveis
+                tabulator_recebiveis.value = df_recebiveis.reset_index(drop=True)
             else:
                 print(f"[DEBUG] Nenhum recebível")
-                tab_resultados[2].value = pd.DataFrame()
+                tabulator_recebiveis.value = pd.DataFrame()
 
             print(f"[DEBUG] Atualizando tabs de períodos...")
             if periodos:
                 df_periodos = pd.DataFrame(periodos)
                 print(f"[DEBUG] DataFrame períodos: {len(df_periodos)} linhas")
-                
+
                 # Separar por tipo de período
-                df_mes = df_periodos[df_periodos['tipo_periodo'] == 'mes'].copy()
-                df_trimestre = df_periodos[df_periodos['tipo_periodo'] == 'trimestre'].copy()
-                df_semestre = df_periodos[df_periodos['tipo_periodo'] == 'semestre'].copy()
-                df_ano = df_periodos[df_periodos['tipo_periodo'] == 'ano'].copy()
-                
-                # Formatar valores para exibição
-                for df in [df_mes, df_trimestre, df_semestre, df_ano]:
-                    if not df.empty and 'valor_total' in df.columns:
-                        df['valor_total'] = df['valor_total'].apply(lambda x: f"R$ {x:,.2f}" if pd.notna(x) else "R$ 0,00")
-                    if not df.empty and 'valor_medio' in df.columns:
-                        df['valor_medio'] = df['valor_medio'].apply(lambda x: f"R$ {x:,.2f}" if pd.notna(x) else "R$ 0,00")
-                
-                tab_resultados[3].value = df_mes if not df_mes.empty else pd.DataFrame()
-                tab_resultados[4].value = df_trimestre if not df_trimestre.empty else pd.DataFrame()
-                tab_resultados[5].value = df_semestre if not df_semestre.empty else pd.DataFrame()
-                tab_resultados[6].value = df_ano if not df_ano.empty else pd.DataFrame()
-                
-                print(f"[DEBUG] Períodos - Mês: {len(df_mes)}, Trimestre: {len(df_trimestre)}, Semestre: {len(df_semestre)}, Ano: {len(df_ano)}")
+                df_mes = df_periodos[df_periodos["tipo_periodo"] == "mes"].copy()
+                df_trimestre = df_periodos[
+                    df_periodos["tipo_periodo"] == "trimestre"
+                ].copy()
+                df_semestre = df_periodos[
+                    df_periodos["tipo_periodo"] == "semestre"
+                ].copy()
+                df_ano = df_periodos[df_periodos["tipo_periodo"] == "ano"].copy()
+
+                print(f"[DEBUG] Períodos mensais filtrados: {len(df_mes)} linhas")
+                print(
+                    f"[DEBUG] Colunas períodos mensais: {list(df_mes.columns) if not df_mes.empty else 'vazio'}"
+                )
+
+                # Atualizar tabulators básicos
+                if not df_mes.empty:
+                    tabulator_periodos_mes.value = df_mes.reset_index(drop=True)
+                    print(
+                        f"[DEBUG] Tabulator períodos mensais atualizado com {len(df_mes)} linhas"
+                    )
+                else:
+                    tabulator_periodos_mes.value = pd.DataFrame()
+
+                if not df_trimestre.empty:
+                    tabulator_periodos_trimestre.value = df_trimestre.reset_index(
+                        drop=True
+                    )
+                    print(
+                        f"[DEBUG] Tabulator períodos trimestrais atualizado com {len(df_trimestre)} linhas"
+                    )
+                else:
+                    tabulator_periodos_trimestre.value = pd.DataFrame()
+
+                if not df_semestre.empty:
+                    tabulator_periodos_semestre.value = df_semestre.reset_index(
+                        drop=True
+                    )
+                    print(
+                        f"[DEBUG] Tabulator períodos semestrais atualizado com {len(df_semestre)} linhas"
+                    )
+                else:
+                    tabulator_periodos_semestre.value = pd.DataFrame()
+
+                if not df_ano.empty:
+                    tabulator_periodos_ano.value = df_ano.reset_index(drop=True)
+                    print(
+                        f"[DEBUG] Tabulator períodos anuais atualizado com {len(df_ano)} linhas"
+                    )
+                else:
+                    tabulator_periodos_ano.value = pd.DataFrame()
             else:
                 print(f"[DEBUG] Nenhum período")
-                tab_resultados[3].value = pd.DataFrame()
-                tab_resultados[4].value = pd.DataFrame()
-                tab_resultados[5].value = pd.DataFrame()
-                tab_resultados[6].value = pd.DataFrame()
+                tabulator_periodos_mes.value = pd.DataFrame()
+                tabulator_periodos_trimestre.value = pd.DataFrame()
+                tabulator_periodos_semestre.value = pd.DataFrame()
+                tabulator_periodos_ano.value = pd.DataFrame()
 
-            print(f"[DEBUG] Todas as tabs atualizadas!")
-            
+            # Carregar agregações detalhadas por período
+            print(f"[DEBUG] Carregando agregações por trimestre...")
+            periodos_trimestral = agregar_trimestral_db(engine, pid)
+            if periodos_trimestral:
+                df_trim = pd.DataFrame(periodos_trimestral)
+                print(f"[DEBUG] Trimestral: {len(df_trim)} linhas")
+                print(f"[DEBUG] Colunas trimestral: {list(df_trim.columns)}")
+                df_trim_reset = df_trim.reset_index(drop=True)
+                print(
+                    f"[DEBUG] Trimestral após reset: shape={df_trim_reset.shape}, columns={list(df_trim_reset.columns)}"
+                )
+                print(
+                    f"[DEBUG] Primeiras 2 linhas trimestral:\n{df_trim_reset.head(2)}"
+                )
+                tabulator_trimestral.value = df_trim_reset
+                print(f"[DEBUG] Tabulator trimestral atualizado!")
+            else:
+                tabulator_trimestral.value = pd.DataFrame()
+
+            print(f"[DEBUG] Carregando agregações por semestre...")
+            periodos_semestral = agregar_semestral_db(engine, pid)
+            if periodos_semestral:
+                df_sem = pd.DataFrame(periodos_semestral)
+                print(f"[DEBUG] Semestral: {len(df_sem)} linhas")
+                print(f"[DEBUG] Colunas semestral: {list(df_sem.columns)}")
+                df_sem_reset = df_sem.reset_index(drop=True)
+                print(
+                    f"[DEBUG] Semestral após reset: shape={df_sem_reset.shape}, columns={list(df_sem_reset.columns)}"
+                )
+                print(f"[DEBUG] Primeiras 2 linhas semestral:\n{df_sem_reset.head(2)}")
+                tabulator_semestral.value = df_sem_reset
+                print(f"[DEBUG] Tabulator semestral atualizado!")
+            else:
+                tabulator_semestral.value = pd.DataFrame()
+
+            print(f"[DEBUG] Carregando agregações por ano...")
+            periodos_anual = agregar_anual_db(engine, pid)
+            if periodos_anual:
+                df_ano = pd.DataFrame(periodos_anual)
+                print(f"[DEBUG] Anual: {len(df_ano)} linhas")
+                print(f"[DEBUG] Colunas anual: {list(df_ano.columns)}")
+                df_ano_reset = df_ano.reset_index(drop=True)
+                print(
+                    f"[DEBUG] Anual após reset: shape={df_ano_reset.shape}, columns={list(df_ano_reset.columns)}"
+                )
+                print(f"[DEBUG] Primeiras 2 linhas anual:\n{df_ano_reset.head(2)}")
+                tabulator_anual.value = df_ano_reset
+                print(f"[DEBUG] Tabulator anual atualizado!")
+            else:
+                tabulator_anual.value = pd.DataFrame()
+
+            print(f"[DEBUG] Carregando formas de pagamento por ano...")
+            formas_por_ano = agregar_formas_pagamento_por_ano_db(engine, pid)
+            if formas_por_ano:
+                df_formas_ano = pd.DataFrame(formas_por_ano)
+                print(f"[DEBUG] Formas por ano: {len(df_formas_ano)} linhas")
+                print(f"[DEBUG] Colunas formas por ano: {list(df_formas_ano.columns)}")
+                tabulator_formas_por_ano.value = df_formas_ano.reset_index(drop=True)
+                print(f"[DEBUG] Tabulator formas por ano atualizado!")
+            else:
+                tabulator_formas_por_ano.value = pd.DataFrame()
+
+            # Carregar visão completa (todas as agregações combinadas)
+            print(f"[DEBUG] Criando visão completa...")
+            df_completo_list = []
+
+            if periodos_trimestral:
+                df_t = pd.DataFrame(periodos_trimestral)
+                df_t["tipo_agregacao"] = "Trimestral"
+                # Renomear coluna específica para "periodo"
+                df_t = df_t.rename(columns={"trimestre": "periodo"})
+                df_completo_list.append(df_t)
+
+            if periodos_semestral:
+                df_s = pd.DataFrame(periodos_semestral)
+                df_s["tipo_agregacao"] = "Semestral"
+                # Renomear coluna específica para "periodo"
+                df_s = df_s.rename(columns={"semestre": "periodo"})
+                df_completo_list.append(df_s)
+
+            if periodos_anual:
+                df_a = pd.DataFrame(periodos_anual)
+                df_a["tipo_agregacao"] = "Anual"
+                # Renomear coluna específica para "periodo"
+                df_a = df_a.rename(columns={"ano": "periodo"})
+                df_completo_list.append(df_a)
+
+            if df_completo_list:
+                df_completo = pd.concat(df_completo_list, ignore_index=True)
+                # Reordenar colunas: tipo_agregacao, periodo, bandeira, forma_pagamento, valores...
+                cols_order = [
+                    "tipo_agregacao",
+                    "periodo",
+                    "bandeira",
+                    "forma_pagamento",
+                    "valor_total",
+                    "quantidade",
+                    "taxa_perc_minima",
+                ]
+                # Usar apenas colunas que existem
+                cols = [c for c in cols_order if c in df_completo.columns]
+                df_completo = df_completo[cols]
+                print(f"[DEBUG] Visão completa: {len(df_completo)} linhas")
+                print(f"[DEBUG] Colunas visão completa: {list(df_completo.columns)}")
+                tabulator_completo.value = df_completo.reset_index(drop=True)
+                print(f"[DEBUG] Tabulator completo atualizado!")
+            else:
+                tabulator_completo.value = pd.DataFrame()
+
+            print(f"[DEBUG] Todos os tabulators atualizados!")
+
             # Contar períodos por tipo
-            n_mes = len([p for p in periodos if p.get('tipo_periodo') == 'mes'])
-            n_trim = len([p for p in periodos if p.get('tipo_periodo') == 'trimestre'])
-            n_sem = len([p for p in periodos if p.get('tipo_periodo') == 'semestre'])
-            n_ano = len([p for p in periodos if p.get('tipo_periodo') == 'ano'])
-            
+            n_mes = (
+                len([p for p in periodos if p.get("tipo_periodo") == "mes"])
+                if periodos
+                else 0
+            )
+            n_trim = len(periodos_trimestral) if periodos_trimestral else 0
+            n_sem = len(periodos_semestral) if periodos_semestral else 0
+            n_ano = len(periodos_anual) if periodos_anual else 0
+
             status_pane.object = f"""✅ **Processamento {pid} carregado!** 
             
 📊 **Resumo:**
@@ -825,7 +1034,7 @@ def make_analista_view(
 """
             _notify(
                 "success",
-                f"Processamento {pid} carregado! {total_registros:,} registros | {len(recebiveis)} tipos de recebíveis",
+                f"Processamento {pid} carregado! {total_registros:,} registros",
             )
 
         except Exception as e:
@@ -1052,13 +1261,15 @@ def make_analista_view(
 
             # Atualizar interface
             if todas_bandeiras:
-                tab_resultados[0].value = pd.DataFrame(list(todas_bandeiras.values()))
+                tabulator_bandeiras.value = pd.DataFrame(list(todas_bandeiras.values()))
             if todas_formas:
-                tab_resultados[1].value = pd.DataFrame(list(todas_formas.values()))
+                tabulator_formas.value = pd.DataFrame(list(todas_formas.values()))
             if todos_tipos:
-                tab_resultados[2].value = pd.DataFrame(list(todos_tipos.values()))
+                tabulator_recebiveis.value = pd.DataFrame(list(todos_tipos.values()))
             if todos_periodos:
-                tab_resultados[3].value = pd.DataFrame(list(todos_periodos.values()))
+                tabulator_periodos_mes.value = pd.DataFrame(
+                    list(todos_periodos.values())
+                )
 
             # Atualizar lista de arquivos
             arquivos_df = pd.DataFrame(
@@ -1118,7 +1329,6 @@ def make_analista_view(
 
         try:
             analise_atualizar(engine, analise_atual["id"], status="finalizada")
-            btn_finalizar_analise.disabled = True
             btn_processar_arquivos.disabled = True
             status_pane.object = f"✅ **Análise finalizada:** {analise_atual['nome']}"
             _notify("success", "Análise finalizada com sucesso!")
@@ -1127,51 +1337,36 @@ def make_analista_view(
             _notify("error", f"Erro ao finalizar análise: {e}")
 
     # Eventos
-    btn_nova_analise.on_click(lambda e: criar_nova_analise())
-    btn_carregar_analise.on_click(lambda e: carregar_analise())
-    btn_salvar_analise.on_click(lambda e: salvar_analise())
-    btn_finalizar_analise.on_click(lambda e: finalizar_analise())
     btn_processar_arquivos.on_click(lambda e: processar_arquivos())
     btn_carregar_processamento.on_click(lambda e: carregar_processamento_existente())
+    btn_carregar_analise.on_click(lambda e: carregar_analise())
 
-    # Carregar lista inicial
-    atualizar_lista_analises()
+    # Carregar lista inicial (com try/except para evitar erro se não houver análises)
+    try:
+        atualizar_lista_analises()
+    except Exception as e:
+        print(f"Aviso: Não foi possível carregar lista de análises: {e}")
 
     return pn.Column(
         pn.pane.Markdown("## 📊 Analista de Arquivos"),
         pn.Card(
             pn.Column(
+                pn.pane.Markdown("### 💾 Análises Salvas"),
                 pn.Row(
-                    nome_analise_input, descricao_input, sizing_mode="stretch_width"
-                ),
-                pn.Row(
-                    contexto_select, tipo_arquivo_select, sizing_mode="stretch_width"
-                ),
-                pn.Row(
-                    btn_nova_analise, btn_carregar_analise, sizing_mode="stretch_width"
-                ),
-                pn.Row(analises_select, sizing_mode="stretch_width"),
-            ),
-            title="Criar/Carregar Análise",
-            sizing_mode="stretch_width",
-        ),
-        pn.Card(
-            pn.Column(
-                pn.Row(
-                    btn_salvar_analise,
-                    btn_finalizar_analise,
+                    analises_select,
+                    btn_carregar_analise,
                     sizing_mode="stretch_width",
                 ),
                 pn.layout.Divider(),
                 pn.pane.Markdown("### 📁 Upload de Arquivos"),
                 pn.Row(file_input, btn_processar_arquivos, sizing_mode="stretch_width"),
-                pn.pane.Markdown("### Ou carregar processamento já importado"),
+                pn.pane.Markdown("### 📦 Ou carregar processamento já importado"),
                 pn.Row(
                     processamentoid_select,
                     btn_carregar_processamento,
                     sizing_mode="stretch_width",
                 ),
-                pn.pane.Markdown("### Arquivos Processados"),
+                pn.pane.Markdown("### 📋 Arquivos Processados"),
                 arquivos_tabulator,
             ),
             title="Processar Arquivos",
@@ -1179,6 +1374,73 @@ def make_analista_view(
         ),
         status_pane,
         pn.pane.Markdown("### 📈 Resultados da Análise"),
-        tab_resultados,
+        pn.pane.Markdown("#### Agregações Básicas"),
+        pn.Card(
+            tabulator_bandeiras,
+            title="Bandeiras",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
+        pn.Card(
+            tabulator_formas,
+            title="Formas de Pagamento",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
+        pn.Card(
+            tabulator_formas_por_ano,
+            title="Formas de Pagamento por Ano",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
+        pn.Card(
+            tabulator_recebiveis,
+            title="Tipos de Recebíveis",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
+        pn.Card(
+            tabulator_periodos_mes,
+            title="Períodos Mensais",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
+        pn.Card(
+            tabulator_periodos_trimestre,
+            title="Períodos Trimestrais",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
+        pn.Card(
+            tabulator_periodos_semestre,
+            title="Períodos Semestrais",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
+        pn.Card(
+            tabulator_periodos_ano,
+            title="Períodos Anuais",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
+        pn.pane.Markdown("#### Análises por Período (Bandeira + Forma de Pagamento)"),
+        pn.Card(
+            tabulator_anual,
+            title="📅 Análise Anual",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
+        pn.Card(
+            tabulator_semestral,
+            title="📆 Análise Semestral",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
+        pn.Card(
+            tabulator_trimestral,
+            title="📊 Análise Trimestral",
+            collapsed=False,
+            sizing_mode="stretch_width",
+        ),
         sizing_mode="stretch_width",
     )

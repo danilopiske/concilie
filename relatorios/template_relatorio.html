@@ -214,6 +214,31 @@
         {{ tabela_sumario_recebiveis_html | safe }}
         {{ tabela_dados_bancarios_html | safe }}
         
+        <!-- Seção de Evidências -->
+        {% if tabela_evidencias_maiores_valores_html or tabela_evidencias_maiores_taxas_html %}
+        <div class="report-section" style="page-break-before: always;">
+            <h3>Evidências de Transações</h3>
+            <p style="font-size: 0.9em; margin-bottom: 15px; color: #555;">
+                Esta seção apresenta as <strong>transações mais relevantes</strong> identificadas durante a análise, 
+                incluindo os valores e taxas mais altos aplicados.
+            </p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                {% if tabela_evidencias_maiores_valores_html %}
+                <div>
+                    {{ tabela_evidencias_maiores_valores_html | safe }}
+                </div>
+                {% endif %}
+                
+                {% if tabela_evidencias_maiores_taxas_html %}
+                <div>
+                    {{ tabela_evidencias_maiores_taxas_html | safe }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
         {% if tabela_vendas_filtradas_html %}
         {{ tabela_vendas_filtradas_html | safe }}
         {% endif %}

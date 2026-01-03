@@ -25,6 +25,7 @@ from conf.funcoesbd import (
     taxas_por_ec,
     taxa_adicionar,
     taxa_excluir,
+    taxas_copiar,
 )
 
 
@@ -447,7 +448,9 @@ def _make_tab_bandeiras_cadastro(engine: Engine) -> pn.viewable.Viewable:
     )
 
     nome_input = pn.widgets.TextInput(name="Nome da Bandeira", placeholder="Ex: VISA")
-    padrao_checkbox = pn.widgets.Checkbox(name="Padrão (ativada por padrão para novos ECs)", value=False)
+    padrao_checkbox = pn.widgets.Checkbox(
+        name="Padrão (ativada por padrão para novos ECs)", value=False
+    )
 
     btn_novo = pn.widgets.Button(name="Novo", button_type="light")
     btn_salvar = pn.widgets.Button(name="Salvar", button_type="success")
@@ -462,7 +465,9 @@ def _make_tab_bandeiras_cadastro(engine: Engine) -> pn.viewable.Viewable:
             df = pd.DataFrame(bandeiras)
             if not df.empty:
                 df["padrao"] = df["padrao"].astype(int)
-            grid.value = df if not df.empty else pd.DataFrame(columns=["nome", "padrao"])
+            grid.value = (
+                df if not df.empty else pd.DataFrame(columns=["nome", "padrao"])
+            )
             grid.selection = []
             btn_excluir.disabled = True
         except Exception as e:
@@ -494,13 +499,17 @@ def _make_tab_bandeiras_cadastro(engine: Engine) -> pn.viewable.Viewable:
         try:
             if nome_selecionado[0]:
                 # Atualizar
-                if bandeira_disponivel_atualizar(engine, nome_selecionado[0], nome, 1 if padrao_checkbox.value else 0):
+                if bandeira_disponivel_atualizar(
+                    engine, nome_selecionado[0], nome, 1 if padrao_checkbox.value else 0
+                ):
                     _notify("success", f"Bandeira '{nome}' atualizada com sucesso.")
                 else:
                     _notify("error", "Erro ao atualizar bandeira.")
             else:
                 # Inserir
-                if bandeira_disponivel_inserir(engine, nome, 1 if padrao_checkbox.value else 0):
+                if bandeira_disponivel_inserir(
+                    engine, nome, 1 if padrao_checkbox.value else 0
+                ):
                     _notify("success", f"Bandeira '{nome}' criada com sucesso.")
                 else:
                     _notify("error", "Erro ao criar bandeira. Verifique se já existe.")
@@ -516,7 +525,9 @@ def _make_tab_bandeiras_cadastro(engine: Engine) -> pn.viewable.Viewable:
 
         try:
             if bandeira_disponivel_deletar(engine, nome_selecionado[0]):
-                _notify("success", f"Bandeira '{nome_selecionado[0]}' excluída com sucesso.")
+                _notify(
+                    "success", f"Bandeira '{nome_selecionado[0]}' excluída com sucesso."
+                )
                 _load_grid()
                 _limpar_formulario()
             else:
@@ -681,13 +692,23 @@ def _make_tab_taxas(engine: Engine) -> pn.viewable.Viewable:
     contexto_select = _make_contexto_select(engine)
 
     # --- Widgets do Formulário de Inserção ---
+    taxa_generica_checkbox = pn.widgets.Checkbox(
+        name="Taxa Genérica (todas as bandeiras)",
+        value=False,
+        width=300,
+        styles={
+            "fontWeight": "bold",
+            "fontSize": "14px",
+            "color": "#1976d2",
+        },
+    )
     bandeira_input = pn.widgets.TextInput(name="Bandeira", placeholder="Ex: Visa")
     forma_pgto_input = pn.widgets.TextInput(
         name="Forma de Pagamento", placeholder="Ex: CREDITO A VISTA"
     )
     parcelado_select = pn.widgets.RadioButtonGroup(
         name="Parcelado",
-        options=[("Não", "N"), ("Sim", "S")],
+        options={"Não": "N", "Sim": "S"},
         button_type="success",
         orientation="horizontal",
         value="N",
@@ -754,22 +775,51 @@ def _make_tab_taxas(engine: Engine) -> pn.viewable.Viewable:
         taxas_select.value = None
 
     # --- Ações dos Botões ---
+    def on_taxa_generica_change(event):
+        """Desabilita/habilita campo bandeira conforme checkbox"""
+        if event.new:
+            bandeira_input.disabled = True
+            bandeira_input.value = ""  # Limpar valor
+        else:
+            bandeira_input.disabled = False
+
+    taxa_generica_checkbox.param.watch(on_taxa_generica_change, "value")
+
     def on_inserir(_=None):
-        if not all(
-            [
-                ec_select.value,
-                bandeira_input.value,
-                forma_pgto_input.value,
-                taxa_input.value > 0,
-            ]
-        ):
-            return _notify("warning", "Preencha os campos obrigatórios para inserir.")
+        # Validação: se taxa genérica, não precisa de bandeira
+        if taxa_generica_checkbox.value:
+            if not all(
+                [
+                    ec_select.value,
+                    forma_pgto_input.value,
+                    taxa_input.value > 0,
+                ]
+            ):
+                return _notify("warning", "Preencha EC, Forma de Pagamento e Taxa.")
+        else:
+            if not all(
+                [
+                    ec_select.value,
+                    bandeira_input.value,
+                    forma_pgto_input.value,
+                    taxa_input.value > 0,
+                ]
+            ):
+                return _notify(
+                    "warning", "Preencha os campos obrigatórios para inserir."
+                )
+
         try:
+            # Se taxa genérica, bandeira = NULL (enviar None ou string vazia)
+            bandeira_valor = (
+                None if taxa_generica_checkbox.value else bandeira_input.value.strip()
+            )
+
             taxa_adicionar(
                 engine,
                 {
                     "ec": ec_select.value,
-                    "bandeira": bandeira_input.value.strip(),
+                    "bandeira": bandeira_valor,
                     "forma_pagamento": forma_pgto_input.value.strip(),
                     "parcelado": parcelado_select.value,
                     "parcelas_ini": p_ini_input.value,
@@ -780,7 +830,12 @@ def _make_tab_taxas(engine: Engine) -> pn.viewable.Viewable:
                 },
                 contexto=contexto_select.value if contexto_select.value else "padrao",
             )
-            _notify("success", "Taxa inserida!")
+            tipo_taxa = (
+                "genérica (todas bandeiras)"
+                if taxa_generica_checkbox.value
+                else "específica"
+            )
+            _notify("success", f"Taxa {tipo_taxa} inserida!")
             _load_taxas()
         except Exception as e:
             _notify("error", f"Erro ao inserir taxa: {e}")
@@ -808,22 +863,27 @@ def _make_tab_taxas(engine: Engine) -> pn.viewable.Viewable:
 
     # --- Layout da View ---
     form_inserir = pn.Card(
-        pn.Row(
-            pn.Column(
-                bandeira_input,
-                forma_pgto_input,
-                parcelado_select,
-                sizing_mode="fixed",
-                width=260,
+        pn.Column(
+            taxa_generica_checkbox,
+            pn.Row(
+                pn.Column(
+                    bandeira_input,
+                    forma_pgto_input,
+                    parcelado_select,
+                    sizing_mode="fixed",
+                    width=260,
+                ),
+                pn.Column(
+                    p_ini_input, p_fim_input, taxa_input, sizing_mode="fixed", width=220
+                ),
+                pn.Column(
+                    data_ini_input, data_fim_input, sizing_mode="fixed", width=220
+                ),
+                pn.Column(btn_inserir, sizing_mode="fixed", width=180, align="end"),
+                sizing_mode="stretch_width",
+                align="center",
+                margin=(10, 0, 10, 0),
             ),
-            pn.Column(
-                p_ini_input, p_fim_input, taxa_input, sizing_mode="fixed", width=220
-            ),
-            pn.Column(data_ini_input, data_fim_input, sizing_mode="fixed", width=220),
-            pn.Column(btn_inserir, sizing_mode="fixed", width=180, align="end"),
-            sizing_mode="stretch_width",
-            align="center",
-            margin=(10, 0, 10, 0),
         ),
         title="➕ Adicionar Nova Taxa",
         sizing_mode="stretch_width",
@@ -842,12 +902,149 @@ def _make_tab_taxas(engine: Engine) -> pn.viewable.Viewable:
         min_width=600,
     )
 
+    # --- Widgets para Copiar Taxas ---
+    ec_origem_select = pn.widgets.Select(name="EC de Origem", options=[], width=200)
+    ecs_destino_selector = pn.widgets.MultiChoice(
+        name="ECs de Destino (selecione um ou mais)", options=[], height=120, width=400
+    )
+    sobrescrever_checkbox = pn.widgets.Checkbox(
+        name="Sobrescrever taxas existentes nos ECs de destino", value=False, width=400
+    )
+    btn_copiar = pn.widgets.Button(
+        name="Copiar Taxas", button_type="success", width=150
+    )
+    resultado_copia_text = pn.pane.Markdown("", height=80)
+
+    # --- Lógica de Cópia ---
+    def _load_ecs_copiar(*events):
+        """Carrega a lista de todos os ECs disponíveis para copiar taxas."""
+        try:
+            _clientes = clientes_listar(engine)
+            todos_ecs = []
+            for cliente in _clientes:
+                ecs = ecs_por_cliente(engine, cliente["cliente_id"])
+                todos_ecs.extend([str(ec) for ec in ecs])
+
+            # Remove duplicatas e ordena
+            todos_ecs = sorted(list(set(todos_ecs)))
+
+            ec_origem_select.options = todos_ecs
+            ecs_destino_selector.options = todos_ecs
+
+            # Limpa seleção anterior
+            if todos_ecs:
+                ec_origem_select.value = todos_ecs[0]
+            ecs_destino_selector.value = []
+
+        except Exception as e:
+            _notify("error", f"Erro ao carregar ECs: {e}")
+
+    def on_copiar(event):
+        """Executa a cópia de taxas entre ECs."""
+        ec_origem = ec_origem_select.value
+        ecs_destino = ecs_destino_selector.value
+        sobrescrever = sobrescrever_checkbox.value
+        contexto = contexto_select.value
+
+        # Validações
+        if not ec_origem:
+            _notify("warning", "Selecione um EC de origem.")
+            return
+
+        if not ecs_destino:
+            _notify("warning", "Selecione pelo menos um EC de destino.")
+            return
+
+        try:
+            # Executa a cópia
+            resultado = taxas_copiar(
+                engine, ec_origem, ecs_destino, contexto, sobrescrever
+            )
+
+            # Exibe resultado
+            msg_parts = []
+            if resultado["copiadas"] > 0:
+                msg_parts.append(
+                    f"✅ **{resultado['copiadas']} taxas copiadas com sucesso!**"
+                )
+
+            if resultado["removidas"] > 0:
+                msg_parts.append(
+                    f"🗑️ {resultado['removidas']} taxas removidas (sobrescrever ativado)"
+                )
+
+            if resultado["erros"]:
+                msg_parts.append(f"⚠️ **Erros encontrados:**")
+                for erro in resultado["erros"][:5]:  # Limita a 5 erros
+                    msg_parts.append(f"- {erro}")
+                if len(resultado["erros"]) > 5:
+                    msg_parts.append(
+                        f"- ... e mais {len(resultado['erros']) - 5} erros"
+                    )
+
+            resultado_copia_text.object = (
+                "\n\n".join(msg_parts) if msg_parts else "Nenhuma operação realizada."
+            )
+
+            # Notificação
+            if resultado["copiadas"] > 0 and not resultado["erros"]:
+                _notify(
+                    "success",
+                    f"{resultado['copiadas']} taxas copiadas de {ec_origem} para {len(ecs_destino)} EC(s)",
+                )
+            elif resultado["erros"]:
+                _notify(
+                    "warning", f"Cópia concluída com {len(resultado['erros'])} erro(s)"
+                )
+            else:
+                _notify("info", "Nenhuma taxa foi copiada")
+
+            # Recarrega a grid se estiver visualizando um dos ECs afetados
+            if ec_select.value in ecs_destino or ec_select.value == ec_origem:
+                _load_taxas()
+
+        except Exception as e:
+            _notify("error", f"Erro ao copiar taxas: {e}")
+            resultado_copia_text.object = f"❌ **Erro:** {str(e)}"
+
+    # Vincula eventos
+    btn_copiar.on_click(on_copiar)
+
+    # Carrega ECs ao trocar de contexto
+    contexto_select.param.watch(_load_ecs_copiar, "value")
+
+    form_copiar = pn.Card(
+        pn.Column(
+            pn.pane.Markdown(
+                "Copie todas as taxas de um EC para outros ECs. "
+                "Útil para replicar configurações entre estabelecimentos."
+            ),
+            pn.Row(
+                pn.Column(ec_origem_select, sizing_mode="fixed", width=220),
+                pn.Column(ecs_destino_selector, sizing_mode="fixed", width=420),
+                sizing_mode="stretch_width",
+            ),
+            sobrescrever_checkbox,
+            pn.Row(btn_copiar, align="start"),
+            resultado_copia_text,
+            sizing_mode="stretch_width",
+        ),
+        title="📋 Copiar Taxas entre ECs",
+        sizing_mode="stretch_width",
+        min_width=700,
+        collapsed=True,
+    )
+
+    # Carga inicial dos ECs para copiar
+    _load_ecs_copiar()
+
     return pn.Column(
         pn.pane.Markdown("### Gestão de Taxas por EC"),
         pn.Row(cliente_select, ec_select, contexto_select),
         pn.layout.Divider(),
         form_inserir,
         form_deletar,
+        form_copiar,
         pn.layout.Divider(),
         pn.pane.Markdown("#### Taxas Cadastradas para o EC/Contexto Selecionado"),
         grid_taxas,
@@ -893,14 +1090,22 @@ def _make_tab_contextos(engine: Engine) -> pn.viewable.Viewable:
     btn_excluir = pn.widgets.Button(name="Excluir", button_type="danger", disabled=True)
 
     def _load_grid(*events):
+        print("[DEBUG Contextos _load_grid] Iniciando carregamento do grid")
         try:
             from conf.funcoesbd import contextos_listar
 
             dados = contextos_listar(engine, incluir_inativos=True)
+            print(f"[DEBUG Contextos _load_grid] Dados recebidos: {dados}")
             grid.value = pd.DataFrame(dados)
-            _notify("success", "Contextos carregados com sucesso")
+            print(
+                f"[DEBUG Contextos _load_grid] {len(dados)} contextos carregados no grid"
+            )
         except Exception as e:
             _notify("error", f"Erro ao carregar contextos: {str(e)}")
+            print(f"[DEBUG Contextos _load_grid] ERRO ao carregar: {e}")
+            import traceback
+
+            traceback.print_exc()
 
     def _limpar_formulario(*events):
         contexto_id.value = 0
@@ -922,6 +1127,13 @@ def _make_tab_contextos(engine: Engine) -> pn.viewable.Viewable:
         btn_excluir.disabled = False
 
     def _salvar(*events):
+        print("=" * 80)
+        print("[DEBUG Contextos _salvar] Botão salvar clicado")
+        print(f"[DEBUG Contextos _salvar] ID atual: {contexto_id.value}")
+        print(f"[DEBUG Contextos _salvar] Nome: '{nome.value}'")
+        print(f"[DEBUG Contextos _salvar] Descrição: '{descricao.value}'")
+        print(f"[DEBUG Contextos _salvar] Ativo: {ativo.value}")
+
         try:
             from conf.funcoesbd import contexto_inserir, contexto_atualizar
 
@@ -931,46 +1143,102 @@ def _make_tab_contextos(engine: Engine) -> pn.viewable.Viewable:
                 "ativo": int(ativo.value),
             }
 
+            print(f"[DEBUG Contextos _salvar] Dados preparados: {dados}")
+
             if not dados["nome"]:
+                print("[DEBUG Contextos _salvar] Nome vazio, abortando")
                 _notify("error", "Nome do contexto é obrigatório")
                 return
 
             if contexto_id.value > 0:
-                contexto_atualizar(engine, contexto_id.value, **dados)
+                print(f"[DEBUG Contextos _salvar] Modo UPDATE - ID {contexto_id.value}")
+                resultado = contexto_atualizar(engine, contexto_id.value, **dados)
+                print(f"[DEBUG Contextos _salvar] Resultado UPDATE: {resultado}")
                 _notify("success", f"Contexto '{dados['nome']}' atualizado com sucesso")
             else:
-                contexto_inserir(engine, criado_por=None, **dados)
+                print(f"[DEBUG Contextos _salvar] Modo INSERT")
+                resultado = contexto_inserir(engine, criado_por=None, **dados)
+                print(f"[DEBUG Contextos _salvar] Resultado INSERT: {resultado}")
                 _notify("success", f"Contexto '{dados['nome']}' criado com sucesso")
 
+            print("[DEBUG Contextos _salvar] Recarregando grid...")
             _load_grid()
+            print("[DEBUG Contextos _salvar] Limpando formulário...")
             _limpar_formulario()
+            print("[DEBUG Contextos _salvar] Salvamento concluído com sucesso")
+            print("=" * 80)
 
         except Exception as e:
             _notify("error", f"Erro ao salvar contexto: {str(e)}")
+            print(f"[DEBUG Contextos _salvar] EXCEÇÃO: {e}")
+            import traceback
+
+            traceback.print_exc()
+            print("=" * 80)
 
     def _excluir(*events):
+        print("=" * 80)
+        print("[DEBUG Contextos _excluir] Botão excluir clicado")
+        print(f"[DEBUG Contextos _excluir] ID do contexto: {contexto_id.value}")
+        print(f"[DEBUG Contextos _excluir] Nome do contexto: '{nome.value}'")
+
         if not contexto_id.value:
+            print("[DEBUG Contextos _excluir] ID vazio, abortando")
+            _notify("warning", "Selecione um contexto para excluir")
+            print("=" * 80)
             return
 
         try:
             from conf.funcoesbd import contexto_deletar, contexto_pode_deletar
 
-            if not contexto_pode_deletar(engine, contexto_id.value):
+            nome_ctx = nome.value
+            ctx_id = contexto_id.value
+            print(
+                f"[DEBUG Contextos _excluir] Tentando excluir ID {ctx_id} - '{nome_ctx}'"
+            )
+
+            print(f"[DEBUG Contextos _excluir] Verificando se pode deletar...")
+            pode_deletar = contexto_pode_deletar(engine, ctx_id)
+            print(
+                f"[DEBUG Contextos _excluir] Pode deletar? {pode_deletar} (tipo: {type(pode_deletar)})"
+            )
+
+            if not pode_deletar:
+                print(f"[DEBUG Contextos _excluir] Bloqueado - existem dependências")
                 _notify(
                     "error",
-                    "Não é possível excluir este contexto pois existem de/para associados a ele",
+                    f"Não é possível excluir '{nome_ctx}' pois existem de/para associados a ele",
                 )
+                print("=" * 80)
                 return
 
-            if contexto_deletar(engine, contexto_id.value):
-                _notify("success", "Contexto excluído com sucesso")
+            print(f"[DEBUG Contextos _excluir] Executando deleção...")
+            resultado = contexto_deletar(engine, ctx_id)
+            print(
+                f"[DEBUG Contextos _excluir] Resultado da deleção: {resultado} (tipo: {type(resultado)})"
+            )
+
+            if resultado:
+                print(f"[DEBUG Contextos _excluir] Deleção bem-sucedida")
+                _notify("success", f"Contexto '{nome_ctx}' excluído com sucesso")
+                print("[DEBUG Contextos _excluir] Recarregando grid...")
                 _load_grid()
+                print("[DEBUG Contextos _excluir] Limpando formulário...")
                 _limpar_formulario()
+                print("[DEBUG Contextos _excluir] Exclusão concluída com sucesso")
             else:
-                _notify("error", "Não foi possível excluir o contexto")
+                print(f"[DEBUG Contextos _excluir] Deleção retornou False ou None")
+                _notify("error", f"Não foi possível excluir o contexto '{nome_ctx}'")
+
+            print("=" * 80)
 
         except Exception as e:
             _notify("error", f"Erro ao excluir contexto: {str(e)}")
+            print(f"[DEBUG Contextos _excluir] EXCEÇÃO: {e}")
+            import traceback
+
+            traceback.print_exc()
+            print("=" * 80)
 
     # Event bindings
     grid.param.watch(lambda e: _preencher_formulario(e.new), "selection")
