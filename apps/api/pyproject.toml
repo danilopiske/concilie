@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "financial-checker-api"
+version = "1.0.0"
+description = "Financial Checker API"
+authors = ["Financial Checker Team"]
+packages = [{include = "app"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.34.0"}
+sqlalchemy = "^2.0.36"
+pandas = "^2.2.3"
+pydantic = "^2.10.4"
+pydantic-settings = "^2.7.0"
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+python-multipart = "^0.0.20"
+openpyxl = "^3.1.5"
+xlrd = "^2.0.1"
+pymysql = "^1.1.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pytest-asyncio = "^0.24.0"
+black = "^24.10.0"
+isort = "^5.13.2"
+httpx = "^0.28.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
