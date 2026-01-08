@@ -280,6 +280,7 @@ def criar_ui_correcao(engine: Engine, usuario_atual: str = "sistema") -> pn.Colu
             tabulator_bandeiras.value = None
             tabulator_lancamentos.value = None
             tabulator_status.value = None
+            tabulator_historico.value = None
             btn_atualizar_formas.disabled = True
             btn_remover_formas.disabled = True
             btn_atualizar_bandeiras.disabled = True
@@ -293,6 +294,8 @@ def criar_ui_correcao(engine: Engine, usuario_atual: str = "sistema") -> pn.Colu
         try:
             pane_mensagens.object = "🔍 Carregando resumo do processamento..."
             atualizar_resumo_processamento()
+            # Carregar histórico automaticamente
+            ver_historico(None)
             pane_mensagens.object = (
                 "✅ Resumo carregado! Marque os checkboxes para selecionar itens."
             )
@@ -971,13 +974,11 @@ def criar_ui_correcao(engine: Engine, usuario_atual: str = "sistema") -> pn.Colu
     def ver_historico(event):
         """Carrega e exibe histórico de correções"""
         try:
-            pane_mensagens.object = "🔍 Carregando histórico de correções..."
-
             # Buscar histórico (últimos 100 registros)
             historico = listar_historico_correcoes(engine, limite=100)
 
             if not historico:
-                pane_mensagens.object = "ℹ️ Nenhum histórico de correção encontrado. A tabela de log pode não existir ainda."
+                # Não mostrar mensagem de erro, apenas limpar tabela
                 tabulator_historico.value = None
                 return
 
@@ -1007,12 +1008,12 @@ def criar_ui_correcao(engine: Engine, usuario_atual: str = "sistema") -> pn.Colu
             )
 
             tabulator_historico.value = df
-            pane_mensagens.object = (
-                f"✅ {len(historico)} correções encontradas no histórico."
-            )
 
         except Exception as e:
-            pane_mensagens.object = f"❌ Erro ao carregar histórico: {str(e)}"
+            print(f"Erro ao carregar histórico: {e}")
+            import traceback
+
+            traceback.print_exc()
             tabulator_historico.value = None
 
     def refresh_resumo(event):
@@ -1206,7 +1207,7 @@ def criar_ui_correcao(engine: Engine, usuario_atual: str = "sistema") -> pn.Colu
         ),
         # Seção 7: Histórico de Correções
         pn.Card(
-            tabulator_historico, title="📜 7. Histórico de Correções", collapsed=True
+            tabulator_historico, title="📜 7. Histórico de Correções", collapsed=False
         ),
         sizing_mode="stretch_width",
     )

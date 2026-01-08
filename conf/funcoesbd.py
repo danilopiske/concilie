@@ -571,8 +571,68 @@ def cliente_detalhes_por_id(
 
 
 def cliente_deletar(engine: Engine, cliente_id: int) -> None:
-    sql = "DELETE FROM clientes WHERE cliente_id = :cliente_id"
-    exec_sql(engine, sql, {"cliente_id": cliente_id})
+    """
+    Deleta um cliente e todos os seus dados relacionados.
+    Usa abordagem em duas etapas para evitar problemas de collation:
+    1. Busca ECs do cliente
+    2. Deleta dados relacionados aos ECs
+    3. Deleta outros dados do cliente
+    4. Deleta o cliente
+    """
+    with get_conn(engine) as conn:
+        # Passo 1: Obter lista de ECs do cliente
+        result = conn.execute(
+            text("SELECT ec_id FROM ecs_cliente WHERE cliente_id = :cliente_id"),
+            {"cliente_id": cliente_id},
+        )
+        ecs = [row[0] for row in result.fetchall()]
+
+        # Passo 2: Deletar dados relacionados aos ECs (se houver)
+        if ecs:
+            # Criar string com lista de ECs entre aspas para evitar problema de collation
+            ecs_str = "', '".join(ecs)
+            ecs_list = f"'{ecs_str}'"
+
+            # 2.1. Deletar termos filtráveis
+            conn.execute(
+                text(f"DELETE FROM termos_filtraveis WHERE ec IN ({ecs_list})")
+            )
+
+            # 2.2. Deletar taxas
+            conn.execute(text(f"DELETE FROM taxas WHERE ec IN ({ecs_list})"))
+
+            # 2.3. Deletar bandeiras
+            conn.execute(
+                text(f"DELETE FROM bandeiras_cliente WHERE ec IN ({ecs_list})")
+            )
+
+        # Passo 3: Deletar ECs do cliente
+        conn.execute(
+            text("DELETE FROM ecs_cliente WHERE cliente_id = :cliente_id"),
+            {"cliente_id": cliente_id},
+        )
+
+        # Passo 4: Deletar outros dados do cliente
+        conn.execute(
+            text("DELETE FROM enderecos WHERE cliente_id = :cliente_id"),
+            {"cliente_id": cliente_id},
+        )
+
+        conn.execute(
+            text("DELETE FROM contatos WHERE cliente_id = :cliente_id"),
+            {"cliente_id": cliente_id},
+        )
+
+        conn.execute(
+            text("DELETE FROM dados_bancarios WHERE cliente_id = :cliente_id"),
+            {"cliente_id": cliente_id},
+        )
+
+        # Passo 5: Deletar cliente
+        conn.execute(
+            text("DELETE FROM clientes WHERE cliente_id = :cliente_id"),
+            {"cliente_id": cliente_id},
+        )
 
 
 def cliente_salvar(engine: Engine, dados: Dict[str, Any], is_update: bool = False):
@@ -1583,6 +1643,9 @@ def contexto_atualizar(
     ativo: int = 1,
 ) -> None:
     """Atualiza um contexto existente."""
+    # Força conversão para int nativo do Python
+    contexto_id = int(contexto_id)
+
     sql = """
     UPDATE contextos
     SET nome = :nome,
@@ -1598,9 +1661,12 @@ def contexto_atualizar(
         "ativo": int(ativo),
     }
     print(f"[DEBUG contexto_atualizar] Atualizando ID {contexto_id} com: {params}")
+    adapted_sql = _adapt_sql(engine, sql)
+    print(f"[DEBUG contexto_atualizar] SQL adaptado: {adapted_sql}")
+    print(f"[DEBUG contexto_atualizar] Parâmetros: {params}")
     try:
         with engine.begin() as conn:
-            result = conn.execute(text(_adapt_sql(engine, sql)), params)
+            result = conn.execute(text(adapted_sql), params)
             print(f"[DEBUG contexto_atualizar] Linhas atualizadas: {result.rowcount}")
         print(f"[DEBUG contexto_atualizar] COMMIT realizado com sucesso")
     except Exception as e:
@@ -1639,20 +1705,7 @@ def contexto_deletar(engine: Engine, contexto_id: int) -> bool:
 
         # Usar UMA ÚNICA transação para tudo
         with engine.begin() as conn:
-            # 1. Verifica dependências
-            check_deps_sql = "SELECT COUNT(*) as total FROM depara_colunas WHERE UPPER(contexto) = UPPER((SELECT nome FROM contextos WHERE id = :id))"
-            deps_result = conn.execute(
-                text(_adapt_sql(engine, check_deps_sql)), {"id": contexto_id_int}
-            )
-            deps_row = deps_result.fetchone()
-            total_deps = deps_row[0] if deps_row else 0
-            print(f"[DEBUG contexto_deletar] Dependências encontradas: {total_deps}")
-
-            if total_deps > 0:
-                print(f"[DEBUG contexto_deletar] Bloqueado - contexto em uso")
-                return False
-
-            # 2. Verifica se o registro existe
+            # 1. Verifica se o registro existe e obtém o nome
             check_sql = "SELECT id, nome FROM contextos WHERE id = :id"
             print(f"[DEBUG contexto_deletar] Executando query: {check_sql}")
             print(
@@ -1673,6 +1726,21 @@ def contexto_deletar(engine: Engine, contexto_id: int) -> bool:
                 print(
                     f"[DEBUG contexto_deletar] ERRO: Registro ID {contexto_id_int} não existe!"
                 )
+                return False
+
+            # 2. Verifica dependências usando o nome obtido (evita subquery e problema de collation)
+            contexto_nome = registro[1]
+            check_deps_sql = "SELECT COUNT(*) as total FROM depara_colunas WHERE UPPER(contexto) = UPPER(:contexto_nome)"
+            deps_result = conn.execute(
+                text(_adapt_sql(engine, check_deps_sql)),
+                {"contexto_nome": contexto_nome},
+            )
+            deps_row = deps_result.fetchone()
+            total_deps = deps_row[0] if deps_row else 0
+            print(f"[DEBUG contexto_deletar] Dependências encontradas: {total_deps}")
+
+            if total_deps > 0:
+                print(f"[DEBUG contexto_deletar] Bloqueado - contexto em uso")
                 return False
 
             # 3. Deleta
@@ -1986,8 +2054,16 @@ def analise_obter_resultados(engine: Engine, analise_id: int) -> Dict[str, Any]:
 
 def contexto_pode_deletar(engine: Engine, contexto_id: int) -> bool:
     """Verifica se um contexto pode ser deletado (não tem dependências)."""
-    sql = "SELECT COUNT(*) as total FROM depara_colunas WHERE UPPER(contexto) = UPPER((SELECT nome FROM contextos WHERE id = :id))"
-    result = fetch_one(engine, sql, {"id": contexto_id})
+    # Primeiro busca o nome do contexto para evitar problema de collation
+    sql_contexto = "SELECT nome FROM contextos WHERE id = :id"
+    contexto_result = fetch_one(engine, sql_contexto, {"id": contexto_id})
+
+    if not contexto_result:
+        return True  # Se o contexto não existe, pode "deletar"
+
+    # Agora verifica dependências usando o nome obtido
+    sql_deps = "SELECT COUNT(*) as total FROM depara_colunas WHERE UPPER(contexto) = UPPER(:contexto_nome)"
+    result = fetch_one(engine, sql_deps, {"contexto_nome": contexto_result["nome"]})
     return result["total"] == 0 if result else True
 
 
@@ -2895,7 +2971,7 @@ def listar_historico_correcoes(
     """
     try:
         where_clauses = []
-        params = {"limite": limite}
+        params = {}
 
         if processamentoid:
             where_clauses.append("processamentoid = :pid")
@@ -2907,6 +2983,7 @@ def listar_historico_correcoes(
 
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
+        # MySQL e SQLite suportam LIMIT, mas vamos usar de forma compatível
         sql = f"""
             SELECT 
                 id,
@@ -2920,8 +2997,11 @@ def listar_historico_correcoes(
             FROM log_correcoes_importacao
             {where_sql}
             ORDER BY data_correcao DESC
-            LIMIT :limite
+            LIMIT {limite}
         """
+
+        print(f"[DEBUG listar_historico_correcoes] SQL: {sql}")
+        print(f"[DEBUG listar_historico_correcoes] Params: {params}")
 
         resultados = fetch_all(engine, sql, params)
         print(
@@ -2930,9 +3010,10 @@ def listar_historico_correcoes(
         return resultados
 
     except Exception as e:
-        print(
-            f"[WARNING listar_historico_correcoes] Tabela de log pode não existir: {e}"
-        )
+        print(f"[WARNING listar_historico_correcoes] Erro ao buscar histórico: {e}")
+        import traceback
+
+        traceback.print_exc()
         return []
 
 

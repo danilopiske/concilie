@@ -1,43 +1,55 @@
 @echo off
-title Financial Checker - Instalacao Kaleido
+title Financial Checker - Atualizacao do Sistema
 echo ========================================
-echo INSTALACAO DO KALEIDO
+echo ATUALIZACAO DO FINANCIAL CHECKER
 echo ========================================
 echo.
-echo Este script vai instalar o pacote Kaleido
-echo necessario para geracao de graficos
+echo Este script vai:
+echo   1. Atualizar codigo via Git (se disponivel)
+echo   2. Atualizar dependencias Python
 echo.
 echo ========================================
 echo.
 
-REM Ativar ambiente virtual
-echo Ativando ambiente virtual...
-call .venv\Scripts\activate.bat
+REM Verificar Poetry
+poetry --version >nul 2>&1
 if errorlevel 1 (
-    echo.
-    echo ERRO: Nao foi possivel ativar ambiente virtual
-    echo Execute primeiro o Instalar.bat
+    echo [ERRO] Poetry nao encontrado!
+    echo Execute "Instalar.bat" primeiro
     pause
     exit /b 1
 )
-echo   OK Ambiente ativado
+
+REM Atualizar código via Git
+echo [1/2] Atualizando codigo via Git...
+git --version >nul 2>&1
+if errorlevel 1 (
+    echo   [AVISO] Git nao encontrado - pulando atualizacao de codigo
+) else (
+    git pull
+    if errorlevel 1 (
+        echo   [AVISO] Nao foi possivel atualizar via Git
+    ) else (
+        echo   OK Codigo atualizado
+    )
+)
 echo.
 
-REM Instalar kaleido
-echo Instalando kaleido...
-pip install kaleido
+REM Atualizar dependências
+echo [2/2] Atualizando dependencias Python...
+poetry install --only main
 if errorlevel 1 (
     echo.
-    echo ERRO: Nao foi possivel instalar kaleido
+    echo [ERRO] Falha na atualizacao de dependencias
     pause
     exit /b 1
 )
-echo.
-echo   OK Kaleido instalado com sucesso
-echo.
 
+echo.
 echo ========================================
-echo INSTALACAO CONCLUIDA
+echo ATUALIZACAO CONCLUIDA COM SUCESSO!
 echo ========================================
+echo.
+echo Execute "Iniciar Sistema.bat" para reiniciar o sistema
 echo.
 pause

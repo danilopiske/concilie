@@ -24,18 +24,18 @@ goto invalido
 :mysql
 echo.
 echo Configurando para MySQL...
-python configure_db.py mysql
+poetry run python configure_db.py mysql
 goto fim
 
 :sqlite
 echo.
 echo Configurando para SQLite...
-python configure_db.py sqlite
+poetry run python configure_db.py sqlite
 goto fim
 
 :status
 echo.
-python configure_db.py status
+poetry run python configure_db.py status
 goto fim
 
 :invalido

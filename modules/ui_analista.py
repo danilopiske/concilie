@@ -461,7 +461,7 @@ def make_analista_view(
         name="Descrição", placeholder="Descrição opcional da análise", height=80
     )
     contexto_select = pn.widgets.Select(
-        name="Contexto", options=["padrao"], value="padrao"
+        name="Contexto", options=[]
     )
     tipo_arquivo_select = pn.widgets.Select(
         name="Tipo de Arquivo",
@@ -472,9 +472,9 @@ def make_analista_view(
     # Carregar contextos
     try:
         contextos = contextos_listar(engine)
-        contexto_select.options = ["padrao"] + [
-            c["nome"] for c in contextos if c["nome"] != "padrao"
-        ]
+        contexto_select.options = [c["nome"] for c in contextos]
+        if contexto_select.options:
+            contexto_select.value = contexto_select.options[0]
     except:
         pass
 

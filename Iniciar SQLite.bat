@@ -1,9 +1,9 @@
 @echo off
-title Financial Checker - Sistema de Conciliacao v2.0
+title Financial Checker - Modo SQLite (Single User)
 cls
 echo ========================================
 echo    FINANCIAL CHECKER v2.0
-echo    Sistema de Conciliacao Financeira
+echo    MODO: SQLITE (SINGLE USER)
 echo ========================================
 echo.
 
@@ -11,19 +11,23 @@ REM Verificar Poetry
 poetry --version >nul 2>&1
 if errorlevel 1 (
     echo [ERRO] Poetry nao encontrado!
-    echo.
     echo Execute "Instalar.bat" primeiro
-    echo.
     pause
     exit /b 1
 )
 
-echo [INFO] Iniciando sistema...
+REM Configurar para SQLite
+echo [1/2] Configurando para SQLite...
+poetry run python configure_db.py sqlite
+
+REM Iniciar sistema
+echo [2/2] Iniciando sistema...
 echo.
 echo ========================================
 echo   INFORMACOES DE ACESSO
 echo ========================================
 echo.
+echo   Modo: SQLITE (Single User)
 echo   URL: http://localhost:8500
 echo.
 echo   Usuario: admin
@@ -31,19 +35,15 @@ echo   Senha: 1234
 echo.
 echo ========================================
 echo.
-echo Pressione Ctrl+C para encerrar o sistema
-echo.
-echo ========================================
+echo Pressione Ctrl+C para encerrar
 echo.
 
-REM Iniciar aplicação via Poetry
-poetry run python main.py --mode singleuser
+poetry run python main.py
 
 if errorlevel 1 (
     echo.
     echo ========================================
     echo [ERRO] Sistema encerrado com erro
     echo ========================================
-    echo.
     pause
 )

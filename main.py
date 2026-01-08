@@ -268,12 +268,12 @@ def do_login(_=None):
         "Gestão",
         "Importar",
         "Correção",
+        "Analista",
         "Cálculos",
         "Relatórios",
-        "Analista",
     ]
-    menu_select.value = "Importar"
-    _go_to("Importar")
+    menu_select.value = "Gestão"
+    _go_to("Gestão")
     _notify_success(f"Bem-vindo, {user.get('nome') or user['usuario']}.")
 
 
@@ -512,3 +512,13 @@ Exemplos de uso:
         print(f"\nErro ao iniciar o servidor: {e}")
         print("\nPressione qualquer tecla para sair...")
         input()
+
+
+def main():
+    """Entry point principal do sistema para Poetry"""
+    # O código de inicialização já é executado no nível do módulo acima
+    pass
+
+
+if __name__ == "__main__":
+    main()

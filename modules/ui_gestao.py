@@ -49,11 +49,13 @@ def _make_contexto_select(engine: Engine) -> pn.widgets.Select:
     """Cria um componente de seleção de contexto padronizado."""
     try:
         contextos = contextos_listar(engine)
-        opts = ["padrao"] + [c["nome"] for c in contextos if c["nome"] != "padrao"]
+        opts = [c["nome"] for c in contextos]
     except Exception:
-        opts = ["padrao"]
+        opts = []
 
-    return pn.widgets.Select(name="Contexto", options=opts, value="padrao", width=200)
+    return pn.widgets.Select(
+        name="Contexto", options=opts, value=(opts[0] if opts else None), width=200
+    )
 
 
 # =========================
@@ -336,7 +338,7 @@ def _make_tab_termos_filtraveis(engine: Engine) -> pn.viewable.Viewable:
 
     def _load_grid_termos(*events):
         ec = ec_select.value
-        contexto = contexto_select.value if contexto_select.value else "padrao"
+        contexto = contexto_select.value
         if not ec:
             grid.value = pd.DataFrame(columns=["id", "ec", "termo"])
             return
@@ -365,7 +367,7 @@ def _make_tab_termos_filtraveis(engine: Engine) -> pn.viewable.Viewable:
             if isinstance(tipo_input.value, tuple)
             else tipo_input.value
         )
-        contexto = contexto_select.value if contexto_select.value else "padrao"
+        contexto = contexto_select.value
         if not ec or not termo:
             return _notify(
                 "warning", "Selecione um EC e digite um termo para adicionar."
@@ -382,7 +384,7 @@ def _make_tab_termos_filtraveis(engine: Engine) -> pn.viewable.Viewable:
             _notify("error", f"Falha ao adicionar termo: {e}")
 
     def excluir_termo_action(event):
-        contexto = contexto_select.value if contexto_select.value else "padrao"
+        contexto = contexto_select.value
         if grid.selection:
             try:
                 for idx in grid.selection:
@@ -759,7 +761,7 @@ def _make_tab_taxas(engine: Engine) -> pn.viewable.Viewable:
             taxas_select.options = {}
             return
 
-        contexto = contexto_select.value if contexto_select.value else "padrao"
+        contexto = contexto_select.value
         taxas = taxas_por_ec(engine, str(ec), contexto)
         df_taxas = pd.DataFrame(taxas)
         if not df_taxas.empty and "taxa" in df_taxas.columns:
@@ -828,7 +830,7 @@ def _make_tab_taxas(engine: Engine) -> pn.viewable.Viewable:
                     "data_fim": data_fim_input.value,
                     "taxa": taxa_input.value,
                 },
-                contexto=contexto_select.value if contexto_select.value else "padrao",
+                contexto=contexto_select.value,
             )
             tipo_taxa = (
                 "genérica (todas bandeiras)"

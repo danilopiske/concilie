@@ -162,9 +162,7 @@ def _make_tab_depara(
 
             # Obter contextos da tabela de contextos (não apenas os usados em depara_colunas)
             contextos = contextos_listar(engine)
-            contexto_select.options = ["padrao"] + [
-                c["nome"] for c in contextos if c["nome"] != "padrao"
-            ]
+            contexto_select.options = [c["nome"] for c in contextos]
 
             # Buscar apenas colunas mapeáveis da tabela depara_controle
             import sqlalchemy
@@ -474,11 +472,9 @@ def _make_tab_importar(
 
     try:
         contextos_list = contextos_listar(engine)
-        contextos = ["padrao"] + [
-            c["nome"] for c in contextos_list if c["nome"] != "padrao"
-        ]
+        contextos = [c["nome"] for c in contextos_list]
     except Exception:
-        contextos = ["padrao", "CIELO", "REDE"]
+        contextos = ["CIELO", "REDE"]
 
     try:
         _clientes = clientes_listar(engine)
@@ -505,9 +501,7 @@ def _make_tab_importar(
     cliente_select.param.watch(_load_ecs, "value", onlychanged=True)
     pn.state.onload(_load_ecs)
 
-    contexto_select = pn.widgets.Select(
-        name="Contexto (Layout)", options=[""] + contextos
-    )
+    contexto_select = pn.widgets.Select(name="Contexto (Layout)", options=contextos)
     tipo_select = pn.widgets.Select(
         name="Tipo de Arquivo",
         options={"Venda": "V", "Lançamento": "L", "Recebíveis": "R"},
@@ -941,6 +935,8 @@ def _make_tab_gestao_processamentos(
     def carregar_processamentos():
         """Carrega a lista de processamentos com detalhes"""
         try:
+            from datetime import datetime
+
             dados = listar_processamentos_detalhado(engine)
 
             if not dados:
@@ -960,6 +956,25 @@ def _make_tab_gestao_processamentos(
             # Preparar DataFrame
             df_dados = []
             for item in dados:
+                # Converter datas de string para datetime se necessário
+                primeira_data = item["primeira_data"]
+                if primeira_data and isinstance(primeira_data, str):
+                    try:
+                        primeira_data = datetime.strptime(
+                            primeira_data, "%Y-%m-%d %H:%M:%S"
+                        )
+                    except:
+                        primeira_data = None
+
+                ultima_data = item["ultima_data"]
+                if ultima_data and isinstance(ultima_data, str):
+                    try:
+                        ultima_data = datetime.strptime(
+                            ultima_data, "%Y-%m-%d %H:%M:%S"
+                        )
+                    except:
+                        ultima_data = None
+
                 df_dados.append(
                     {
                         "ProcessamentoID": item["processamentoid"],
@@ -967,13 +982,13 @@ def _make_tab_gestao_processamentos(
                         "Filtradas": item["qtd_filtradas"],
                         "Total": item["total_linhas"],
                         "Primeira Data": (
-                            item["primeira_data"].strftime("%d/%m/%Y %H:%M")
-                            if item["primeira_data"]
+                            primeira_data.strftime("%d/%m/%Y %H:%M")
+                            if primeira_data
                             else "-"
                         ),
                         "Última Data": (
-                            item["ultima_data"].strftime("%d/%m/%Y %H:%M")
-                            if item["ultima_data"]
+                            ultima_data.strftime("%d/%m/%Y %H:%M")
+                            if ultima_data
                             else "-"
                         ),
                     }

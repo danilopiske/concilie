@@ -1,47 +1,71 @@
 @echo off
-title Financial Checker - Instalacao
+title Financial Checker - Instalacao via Poetry
 echo ========================================
 echo INSTALACAO DO FINANCIAL CHECKER
+echo Sistema de Conciliacao Financeira v2.0
 echo ========================================
 echo.
 echo Este script vai:
-echo   1. Criar ambiente virtual Python
-echo   2. Ativar o ambiente
-echo   3. Instalar dependencias
+echo   1. Verificar Poetry
+echo   2. Instalar dependencias
+echo   3. Configurar banco de dados
 echo.
 echo ========================================
 echo.
 
-REM Criar ambiente virtual
-echo [1/3] Criando ambiente virtual...
-python -m venv .venv
+REM Verificar se Poetry está instalado
+echo [1/3] Verificando Poetry...
+poetry --version >nul 2>&1
 if errorlevel 1 (
     echo.
-    echo ERRO: Nao foi possivel criar ambiente virtual
-    echo Verifique se Python esta instalado corretamente
+    echo [ERRO] Poetry nao encontrado!
+    echo.
+    echo Por favor, instale Poetry primeiro:
+    echo   https://python-poetry.org/docs/#installation
+    echo.
+    echo Ou execute no PowerShell:
+    echo   pip install poetry
+    echo.
     pause
     exit /b 1
 )
-echo   OK Ambiente .venv criado
+echo   OK Poetry encontrado
 echo.
 
-REM Ativar ambiente virtual e instalar
-echo [2/3] Ativando ambiente e instalando...
-call .venv\Scripts\activate.bat
+REM Instalar dependências
+echo [2/3] Instalando dependencias...
+echo (Isso pode levar alguns minutos...)
+echo.
+poetry install --only main
 if errorlevel 1 (
     echo.
-    echo ERRO: Nao foi possivel ativar ambiente virtual
+    echo [ERRO] Falha na instalacao de dependencias
+    echo.
     pause
     exit /b 1
 )
-echo   OK Ambiente ativado
+echo.
+echo   OK Dependencias instaladas
 echo.
 
-REM Executar instalacao
-echo [3/3] Executando instalacao...
+REM Configurar banco de dados
+echo [3/3] Configurando banco de dados...
 echo.
-python install.py
+poetry run python configure_db.py
+if errorlevel 1 (
+    echo.
+    echo [AVISO] Configuracao do banco pode precisar de ajustes manuais
+    echo.
+)
 
+echo.
+echo ========================================
+echo INSTALACAO CONCLUIDA COM SUCESSO!
+echo ========================================
+echo.
+echo Proximos passos:
+echo   1. Execute "Configurar Banco.bat" se necessario
+echo   2. Execute "Iniciar Sistema.bat" para iniciar
 echo.
 echo ========================================
 echo.

@@ -43,6 +43,7 @@ def get_db_config():
             except:
                 pass
 
+    # Se ainda não tem db_type, usa detecção automática
     if not db_type:
         # Detecção automática: se existe concilie.db, usa SQLite
         sqlite_path = os.path.join(
@@ -74,11 +75,11 @@ def set_db_type_for_distribution():
 def set_db_type_for_development():
     """
     Configura o sistema para usar MySQL (modo desenvolvimento).
-    Remove arquivo .db_config se existir.
+    Cria arquivo .db_config com 'mysql'.
     """
     config_file = os.path.join(os.path.dirname(__file__), "..", ".db_config")
-    if os.path.exists(config_file):
-        os.remove(config_file)
+    with open(config_file, "w") as f:
+        f.write("mysql")
     print("[SETTINGS] Sistema configurado para MySQL (desenvolvimento)")
 
 

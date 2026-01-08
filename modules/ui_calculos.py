@@ -1,122 +1,4 @@
 from sqlalchemy import text
-
-
-# ============================================================================
-# ⚠️  VERSÃO ANTIGA (COMPLEXA) - BACKUP PARA ROLLBACK SE NECESSÁRIO
-# ============================================================================
-# COMO DESFAZER A REFATORAÇÃO:
-# 1. Descomentar TODO o código abaixo (linhas 9-176)
-# 2. Procurar "UPDATE LOG INLINE" no código principal (linha ~1250)
-# 3. Substituir bloco inline por: update_log_tx_calc_em_lotes(engine, proc_id, tipo_taxa, lote=10000, conn_externa=conn)
-# 4. Comentar/remover função dummy abaixo
-# ============================================================================
-#
-# def update_log_tx_calc_em_lotes(engine, proc_id, tipo_taxa, lote=10000, conn_externa=None):
-#     """Atualiza tx_calc usando MIN(tx_venda) por período"""
-#     # Definir campos de período
-#     if tipo_taxa == "log_mensal":
-#         periodo_field = "DATE_FORMAT(vp2.Data_da_venda, '%Y-%m')"
-#         periodo_join = "DATE_FORMAT(vp.Data_da_venda, '%Y-%m')"
-#     elif tipo_taxa == "log_trimestral":
-#         periodo_field = "CONCAT(YEAR(vp2.Data_da_venda), '-Q', QUARTER(vp2.Data_da_venda))"
-#         periodo_join = "CONCAT(YEAR(vp.Data_da_venda), '-Q', QUARTER(vp.Data_da_venda))"
-#     elif tipo_taxa == "log_semestral":
-#         periodo_field = "CONCAT(YEAR(vp2.Data_da_venda), '-S', CEILING(MONTH(vp2.Data_da_venda)/6))"
-#         periodo_join = "CONCAT(YEAR(vp.Data_da_venda), '-S', CEILING(MONTH(vp.Data_da_venda)/6))"
-#     else:  # log_anual
-#         periodo_field = "YEAR(vp2.Data_da_venda)"
-#         periodo_join = "YEAR(vp.Data_da_venda)"
-#
-#     # Buscar IDs
-#     if conn_externa:
-#         ids = conn_externa.execute(text("""
-#             SELECT vc.id_venda FROM vendas_calculos vc
-#             WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo AND vc.tx_calc IS NULL
-#             ORDER BY vc.id_venda
-#         """), {"calc_id": proc_id, "calc_tipo": tipo_taxa}).fetchall()
-#     else:
-#         with engine.connect() as conn:
-#             ids = conn.execute(text("""
-#                 SELECT vc.id_venda FROM vendas_calculos vc
-#                 WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo AND vc.tx_calc IS NULL
-#                 ORDER BY vc.id_venda
-#             """), {"calc_id": proc_id, "calc_tipo": tipo_taxa}).fetchall()
-#
-#     id_list = [row[0] for row in ids]
-#     if conn_externa:
-#         print(f"[DEBUG] 🔗 Usando conexão externa")
-#     else:
-#         print(f"[DEBUG] ⚠️  Nova conexão")
-#     print(f"[DEBUG] 📊 Total: {len(id_list)} vendas LOG ({tipo_taxa})")
-#
-#     if len(id_list) == 0:
-#         print(f"[DEBUG] ❌ Nenhum registro tx_calc IS NULL")
-#         return
-#
-#     # Processar lotes
-#     total_lotes = (len(id_list) + lote - 1) // lote
-#     registros_atualizados_total = 0
-#     for i in range(0, len(id_list), lote):
-#         ids_lote = id_list[i : i + lote]
-#         if not ids_lote:
-#             continue
-#         lote_num = i // lote + 1
-#         percentual = (i / len(id_list)) * 100
-#         print(f"[DEBUG]   Lote {lote_num}/{total_lotes} ({percentual:.1f}%) - {len(ids_lote)} vendas...")
-#         ids_str = ",".join(str(x) for x in ids_lote)
-#
-#         update_sql = f"""
-#             UPDATE vendas_calculos vc
-#             JOIN vendas_processadas vp ON vc.id_venda = vp.id
-#             JOIN (
-#                 SELECT {periodo_field} AS periodo, vc2.forma_pagamento, vc2.bandeira, MIN(vc2.tx_venda) AS min_tx_venda
-#                 FROM vendas_calculos vc2
-#                 JOIN vendas_processadas vp2 ON vc2.id_venda = vp2.id
-#                 WHERE vc2.calc_id = :calc_id AND vc2.calc_tipo = :calc_tipo AND vc2.id_venda IN ({ids_str})
-#                 GROUP BY periodo, vc2.forma_pagamento, vc2.bandeira
-#             ) agg ON agg.periodo = {periodo_join} AND agg.forma_pagamento = vc.forma_pagamento AND agg.bandeira = vc.bandeira
-#             SET vc.tx_calc = agg.min_tx_venda
-#             WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo AND vc.id_venda IN ({ids_str})
-#         """
-#
-#         if conn_externa:
-#             result = conn_externa.execute(text(update_sql), {"calc_id": proc_id, "calc_tipo": tipo_taxa})
-#             registros_atualizados_total += result.rowcount
-#             if result.rowcount == 0:
-#                 print(f"[DEBUG]      ⚠️  0 registros")
-#             else:
-#                 print(f"[DEBUG]      ✅ {result.rowcount} registros")
-#         else:
-#             with engine.begin() as conn:
-#                 result = conn.execute(text(update_sql), {"calc_id": proc_id, "calc_tipo": tipo_taxa})
-#                 registros_atualizados_total += result.rowcount
-#                 if result.rowcount == 0:
-#                     print(f"[DEBUG]      ⚠️  0 registros")
-#                 else:
-#                     print(f"[DEBUG]      ✅ {result.rowcount} registros")
-#
-#     print(f"\n[DEBUG] 🎯 Resumo LOG:")
-#     print(f"[DEBUG]    Total processado: {len(id_list)}")
-#     print(f"[DEBUG]    Total atualizado: {registros_atualizados_total}")
-#     if registros_atualizados_total < len(id_list):
-#         print(f"[DEBUG]    ⚠️  {len(id_list) - registros_atualizados_total} sem match")
-#
-# ============================================================================
-
-
-# --- Função dummy (previne erro se código antigo tentar chamar) ---
-def update_log_tx_calc_em_lotes(
-    engine, proc_id, tipo_taxa, lote=10000, conn_externa=None
-):
-    """
-    [DEPRECATED] Função substituída por código inline (linha ~1250).
-    Mantida para evitar erro se código antigo tentar chamar.
-    """
-    raise NotImplementedError(
-        "❌ Função descontinuada! UPDATE LOG agora é inline no bloco principal (veja linha ~1250)."
-    )
-
-
 import panel as pn
 import pandas as pd
 from datetime import datetime
@@ -133,169 +15,155 @@ def _remove_update_alias_if_sqlite(engine, sql: str) -> str:
     return sql
 
 
-def _convert_update_join_for_sqlite(engine, sql: str) -> str:
-    """MySQL: UPDATE JOIN é suportado nativamente - retorna SQL sem alteração"""
-    return sql
+def _convert_agg_update_simple_for_sqlite(
+    engine, sql: str, periodo_field: str, periodo_join: str
+) -> str:
+    """Converte UPDATE JOIN com agregação (MIN) para sintaxe SQLite - SEM JOIN com vendas_processadas"""
+    from conf.sql_adapter import get_db_type
 
-
-def _convert_simple_join_update_for_sqlite(sql: str) -> str:
-    """Converte UPDATE JOIN simples (apenas com vendas_processadas) para SQLite usando CTE"""
-    import re
-
-    # Extrair SET clause
-    set_match = re.search(r"SET\s+(.+?)\s+WHERE", sql, re.DOTALL | re.IGNORECASE)
-    if not set_match:
+    # Se não for SQLite, retorna SQL original
+    if get_db_type(engine) != "sqlite":
         return sql
 
-    set_clause = set_match.group(1).strip()
-
-    # Extrair WHERE clause
-    where_match = re.search(r"WHERE\s+(.+)$", sql, re.DOTALL | re.IGNORECASE)
-    where_clause = where_match.group(1).strip() if where_match else "1=1"
-
-    # Ajustar SET clause: trocar vc. por vazio (já estamos no contexto de vendas_calculos)
-    # e criar subqueries para valores que vem de vp
-    set_clause_adjusted = set_clause
-    set_clause_adjusted = re.sub(r"\bvc\.", "", set_clause_adjusted)
-
-    # Construir query SQLite com CTE
-    # A ideia é criar uma CTE que faça o JOIN e depois usar ela no UPDATE
-    cte_sql = f"""
-        WITH venda_data AS (
-            SELECT 
-                vc.rowid as vc_rowid,
-                vp.Valor_da_venda,
-                vc.tx_calc,
-                vc.tx_venda,
-                vc.vl_liq_venda,
-                vc.tx_rr_calc,
-                vc.vl_rr_venda,
-                vc.calc_id,
-                vc.calc_tipo
-            FROM vendas_calculos vc
-            JOIN vendas_processadas vp ON vc.id_venda = vp.id
-        )
-        UPDATE vendas_calculos
-        SET
-            {set_clause_adjusted}
-        WHERE rowid IN (
-            SELECT vc_rowid 
-            FROM venda_data 
-            WHERE {where_clause.replace('vc.', '')}
-        )
-        """
-
-    # Substituir referências a vp.Valor_da_venda por subquery
-    # Isso é complexo, então vamos fazer diferente:
-    # Usar múltiplas subqueries inline
-
-    # Para simplificar, gerar UPDATE com subquery inline para cada campo que precisa de vp
-    if "vp.Valor_da_venda" in set_clause:
-        # Precisa reescrever com subqueries
-        # Exemplo: desc_calc = ... vp.Valor_da_venda ...
-        # Se torna: desc_calc = ... (SELECT vp.Valor_da_venda FROM vendas_processadas vp WHERE vp.id = vendas_calculos.id_venda) ...
-
-        set_clause_final = re.sub(
-            r"vp\.Valor_da_venda",
-            "(SELECT vp.Valor_da_venda FROM vendas_processadas vp WHERE vp.id = vendas_calculos.id_venda)",
-            set_clause_adjusted,
-        )
-
-        final_sql = f"""
-            UPDATE vendas_calculos
-            SET
-                {set_clause_final}
-            WHERE {where_clause.replace('vc.', '')}
-            """
-
-        return final_sql
-
-    return cte_sql
-
-
-def _convert_taxas_update_for_sqlite(sql: str) -> str:
-    """Converte UPDATE JOIN com tabela taxas para SQLite"""
-    import re
-
-    # Extrair parâmetros SET
-    set_match = re.search(r"SET\s+(.+?)\s+WHERE", sql, re.DOTALL | re.IGNORECASE)
-    if not set_match:
-        return sql
-
-    set_clause = set_match.group(1).strip()
-
-    # Extrair condição WHERE final
-    where_match = re.search(
-        r"WHERE\s+vc\.calc_id\s*=\s*:calc_id\s+AND\s+vc\.calc_tipo\s*=\s*:calc_tipo",
-        sql,
-        re.IGNORECASE,
-    )
-    if not where_match:
-        return sql
-
-    # Construir query SQLite usando UPDATE com subquery
+    # SQLite: usar subquery correlacionada (data_venda já está em vendas_calculos!)
     sqlite_sql = f"""
         UPDATE vendas_calculos
-        SET
-            {set_clause}
-        WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
-        AND EXISTS (
-            SELECT 1
+        SET tx_calc = (
+            SELECT MIN(vc2.tx_venda)
+            FROM vendas_calculos vc2
+            WHERE vc2.calc_id = :calc_id 
+              AND vc2.calc_tipo = :calc_tipo
+              AND {periodo_field} = {periodo_join.replace('vc.', 'vendas_calculos.')}
+              AND vc2.forma_pagamento = vendas_calculos.forma_pagamento
+              AND vc2.bandeira = vendas_calculos.bandeira
+        )
+        WHERE calc_id = :calc_id 
+          AND calc_tipo = :calc_tipo
+          AND tx_calc IS NULL
+    """
+    return sqlite_sql
+
+
+def _convert_update_join_for_sqlite(engine, sql: str) -> str:
+    """Converte UPDATE JOIN do MySQL para sintaxe compatível com SQLite usando subqueries"""
+    from conf.sql_adapter import get_db_type
+
+    # Se não for SQLite, retorna SQL original (MySQL suporta UPDATE JOIN)
+    if get_db_type(engine) != "sqlite":
+        return sql
+
+    import re
+
+    # Detectar se é UPDATE com JOIN de taxas (mais complexo)
+    if "JOIN taxas t" in sql:
+        # Detectar se é taxa genérica (bandeira IS NULL) ou específica (bandeira IS NOT NULL)
+        is_generic = "IS NULL" in sql and "t.bandeira IS NULL" in sql
+
+        # Construir condições do JOIN com taxas
+        if is_generic:
+            # Taxa genérica: sem condição de bandeira
+            join_conditions = """
+            AND LOWER(t.contexto) = LOWER(vp.Adquirente)
+            AND LOWER(t.forma_pagamento) = LOWER(vp.Forma_de_pagamento)
+            AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
+            AND t.bandeira IS NULL
+"""
+        else:
+            # Taxa específica: com bandeira
+            join_conditions = """
+            AND LOWER(t.contexto) = LOWER(vp.Adquirente)
+            AND LOWER(t.bandeira) = LOWER(vp.Bandeira)
+            AND LOWER(t.forma_pagamento) = LOWER(vp.Forma_de_pagamento)
+            AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
+            AND t.bandeira IS NOT NULL
+"""
+
+        # Construir SQL compatível com SQLite usando subqueries
+        sqlite_sql = f"""
+UPDATE vendas_calculos
+SET
+    tx_calc = (
+        SELECT t.taxa
+        FROM vendas_processadas vp
+        JOIN taxas t ON t.ec = vp.ec_id{join_conditions}
+        WHERE vp.id = vendas_calculos.id_venda
+        LIMIT 1
+    ),
+    desc_calc = (
+        SELECT vp.Valor_da_venda * t.taxa / 100
+        FROM vendas_processadas vp
+        JOIN taxas t ON t.ec = vp.ec_id{join_conditions}
+        WHERE vp.id = vendas_calculos.id_venda
+        LIMIT 1
+    ),
+    vl_liq_calc = (
+        SELECT vp.Valor_da_venda - (vp.Valor_da_venda * t.taxa / 100)
+        FROM vendas_processadas vp
+        JOIN taxas t ON t.ec = vp.ec_id{join_conditions}
+        WHERE vp.id = vendas_calculos.id_venda
+        LIMIT 1
+    ),
+    perda = CASE
+        WHEN tx_venda IS NULL OR tx_venda = 0 THEN 0
+        ELSE vl_liq_venda - (
+            SELECT vp.Valor_da_venda - (vp.Valor_da_venda * t.taxa / 100)
             FROM vendas_processadas vp
-            JOIN taxas t ON t.ec = vp.ec_id 
-                AND LOWER(t.contexto) = LOWER(vp.Adquirente)
-                AND LOWER(t.bandeira) = LOWER(vp.Bandeira)
-                AND LOWER(t.forma_pagamento) = LOWER(vp.Forma_de_pagamento)
-                AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
-            WHERE vendas_calculos.id_venda = vp.id
+            JOIN taxas t ON t.ec = vp.ec_id{join_conditions}
+            WHERE vp.id = vendas_calculos.id_venda
+            LIMIT 1
         )
-        """
+    END
+WHERE 
+    calc_id = :calc_id 
+    AND calc_tipo = :calc_tipo
+    AND EXISTS (
+        SELECT 1
+        FROM vendas_processadas vp
+        JOIN taxas t ON t.ec = vp.ec_id{join_conditions}
+        WHERE vp.id = vendas_calculos.id_venda
+    )
+"""
+        return sqlite_sql
 
-    # Ajustar referências de alias vc para vendas_calculos
-    sqlite_sql = sqlite_sql.replace("vc.tx_calc", "tx_calc")
-    sqlite_sql = sqlite_sql.replace("vc.desc_calc", "desc_calc")
-    sqlite_sql = sqlite_sql.replace("vc.vl_liq_calc", "vl_liq_calc")
-    sqlite_sql = sqlite_sql.replace("vc.perda", "perda")
-    sqlite_sql = sqlite_sql.replace("vc.tx_venda", "tx_venda")
-    sqlite_sql = sqlite_sql.replace("vc.vl_liq_venda", "vl_liq_venda")
+    # JOIN simples com vendas_processadas (sem taxas)
+    elif "JOIN vendas_processadas vp" in sql and "JOIN taxas" not in sql:
+        # Converter UPDATE vc JOIN vp ... SET vc.campo = vp.campo para SQLite
+        # Extrair a cláusula SET
+        set_match = re.search(r"SET\s+(.+?)\s+WHERE", sql, re.DOTALL | re.IGNORECASE)
+        if not set_match:
+            return sql
 
-    # Precisamos incluir os valores de t.taxa e vp.Valor_da_venda via subquery
-    # Isso é complexo, melhor usar abordagem WITH CTE
+        set_clause = set_match.group(1).strip()
 
-    # Extrair lógica do SET para reconstruir com subqueries
-    cte_sql = f"""
-        WITH matched_records AS (
-            SELECT 
-                vc.rowid as vc_rowid,
-                t.taxa,
-                vp.Valor_da_venda,
-                vc.tx_venda,
-                vc.vl_liq_venda
-            FROM vendas_calculos vc
-            JOIN vendas_processadas vp ON vc.id_venda = vp.id
-            JOIN taxas t ON t.ec = vp.ec_id 
-                AND LOWER(t.contexto) = LOWER(vp.Adquirente)
-                AND LOWER(t.bandeira) = LOWER(vp.Bandeira)
-                AND LOWER(t.forma_pagamento) = LOWER(vp.Forma_de_pagamento)
-                AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
-            WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
-        )
-        UPDATE vendas_calculos
-        SET
-            tx_calc = (SELECT taxa FROM matched_records WHERE vc_rowid = vendas_calculos.rowid),
-            desc_calc = (SELECT Valor_da_venda * taxa / 100 FROM matched_records WHERE vc_rowid = vendas_calculos.rowid),
-            vl_liq_calc = (SELECT Valor_da_venda - (Valor_da_venda * taxa / 100) FROM matched_records WHERE vc_rowid = vendas_calculos.rowid),
-            perda = (SELECT 
-                CASE 
-                    WHEN tx_venda IS NULL OR tx_venda = 0 THEN 0
-                    ELSE vl_liq_venda - (Valor_da_venda - (Valor_da_venda * taxa / 100))
-                END
-                FROM matched_records WHERE vc_rowid = vendas_calculos.rowid)
-        WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
-        AND rowid IN (SELECT vc_rowid FROM matched_records)
-        """
+        # Extrair a cláusula WHERE
+        where_match = re.search(r"WHERE\s+(.+)$", sql, re.DOTALL | re.IGNORECASE)
+        where_clause = where_match.group(1).strip() if where_match else "1=1"
 
-    return cte_sql
+        # Remover prefixo "vc." das colunas no SET (já estamos no contexto de vendas_calculos)
+        set_clause = re.sub(r"\bvc\.", "", set_clause)
+
+        # Substituir "vp.campo" por subqueries
+        # Criar subquery base: SELECT campo FROM vendas_processadas WHERE id = vendas_calculos.id_venda
+        def replace_vp_field(match):
+            field = match.group(1)
+            return f"(SELECT {field} FROM vendas_processadas WHERE id = vendas_calculos.id_venda)"
+
+        set_clause = re.sub(r"vp\.(\w+)", replace_vp_field, set_clause)
+
+        # Remover prefixo "vc." do WHERE também
+        where_clause = re.sub(r"\bvc\.", "", where_clause)
+
+        # Montar SQL SQLite
+        sqlite_sql = f"""
+UPDATE vendas_calculos
+SET
+    {set_clause}
+WHERE {where_clause}
+"""
+        return sqlite_sql
+
+    # Para outros padrões, retornar original
+    return sql
 
 
 def _convert_min_tx_update_for_sqlite(sql: str) -> str:
@@ -764,8 +632,10 @@ def make_calculos_view(engine):
                 engine,
                 """
                 SELECT id, Bandeira, Forma_de_pagamento, data_processamento, 
+                       Data_da_venda, Adquirente,
                        Valor_da_venda, Valor_líquido_da_venda, Quantidade_de_parcelas, 
-                       ec_id, Taxas_Perc, Valor_descontado, Taxas_RR, Valor_RR
+                       ec_id, Taxas_Perc, Valor_descontado, Taxas_RR, Valor_RR,
+                       arquivo_origem
                 FROM vendas_processadas 
                 WHERE processamentoid = :proc_id
                 ORDER BY data_processamento, id
@@ -789,11 +659,15 @@ def make_calculos_view(engine):
                 """
                 INSERT INTO vendas_calculos (
                     id_venda, calc_id, calc_tipo, calc_usuario, bandeira, forma_pagamento, calc_data,
+                    data_venda, ec_id, adquirente, arquivo_origem,
+                    nsu, cod_autorizacao,
                     vl_venda, tx_venda, desc_venda, vl_liq_venda,
                     tx_rr_venda, vl_rr_venda,
                     tx_calc, desc_calc, vl_liq_calc, tx_rr_calc, vl_rr_calc, perda_rr
                 ) VALUES (
                     :id_venda, :calc_id, :calc_tipo, :calc_usuario, :bandeira, :forma_pagamento, :calc_data,
+                    :data_venda, :ec_id, :adquirente, :arquivo_origem,
+                    :nsu, :cod_autorizacao,
                     :vl_venda, :tx_venda, :desc_venda, :vl_liq_venda,
                     :tx_rr_venda, :vl_rr_venda,
                     NULL, NULL, NULL, NULL, NULL, NULL
@@ -821,6 +695,16 @@ def make_calculos_view(engine):
                     "bandeira": row.get("Bandeira"),
                     "forma_pagamento": row.get("Forma_de_pagamento"),
                     "calc_data": data_atual,
+                    "data_venda": row.get("Data_da_venda"),  # ⚡ Data para evitar JOINs
+                    "ec_id": row.get("ec_id"),  # ⚡ EC para queries RR
+                    "adquirente": row.get("Adquirente"),  # ⚡ Adquirente/contexto
+                    "arquivo_origem": row.get(
+                        "arquivo_origem"
+                    ),  # ⚡ Arquivo para auditoria
+                    "nsu": row.get("NSU"),  # ⚡ NSU para evidências
+                    "cod_autorizacao": row.get(
+                        "Código_de_autorização"
+                    ),  # ⚡ Cód.Aut para evidências
                     "vl_venda": vl_venda,
                     "tx_venda": tx_venda,
                     "desc_venda": desc_venda_calc,
@@ -950,23 +834,23 @@ def make_calculos_view(engine):
                     print(
                         f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Aplicando Taxa CAD (camada 1: específica)..."
                     )
+                    # ⚡ NOVO: Sem JOIN com vendas_processadas! Usa campos locais
                     # CAMADA 1: Tentar taxa específica (forma + bandeira)
                     update_sql_raw = f"""
                         UPDATE vendas_calculos vc
-                        JOIN vendas_processadas vp ON vc.id_venda = vp.id
-                        JOIN taxas t ON t.ec = vp.ec_id 
-                            AND LOWER(t.contexto) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Adquirente) COLLATE utf8mb4_0900_ai_ci
-                            AND LOWER(t.bandeira) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Bandeira) COLLATE utf8mb4_0900_ai_ci
-                            AND LOWER(t.forma_pagamento) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Forma_de_pagamento) COLLATE utf8mb4_0900_ai_ci
-                            AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
+                        JOIN taxas t ON t.ec = vc.ec_id 
+                            AND LOWER(t.contexto) COLLATE utf8mb4_0900_ai_ci = LOWER(vc.adquirente) COLLATE utf8mb4_0900_ai_ci
+                            AND LOWER(t.bandeira) COLLATE utf8mb4_0900_ai_ci = LOWER(vc.bandeira) COLLATE utf8mb4_0900_ai_ci
+                            AND LOWER(t.forma_pagamento) COLLATE utf8mb4_0900_ai_ci = LOWER(vc.forma_pagamento) COLLATE utf8mb4_0900_ai_ci
+                            AND vc.data_venda BETWEEN t.data_ini AND t.data_fim
                             AND t.bandeira IS NOT NULL
                         SET
                             vc.tx_calc = t.taxa,
-                            vc.desc_calc = vp.Valor_da_venda * t.taxa / 100,
-                            vc.vl_liq_calc = vp.Valor_da_venda - (vp.Valor_da_venda * t.taxa / 100),
+                            vc.desc_calc = vc.vl_venda * t.taxa / 100,
+                            vc.vl_liq_calc = vc.vl_venda - (vc.vl_venda * t.taxa / 100),
                             vc.perda = CASE 
                                 WHEN vc.tx_venda IS NULL OR vc.tx_venda = 0 THEN 0
-                                ELSE vc.vl_liq_venda - (vp.Valor_da_venda - (vp.Valor_da_venda * t.taxa / 100))
+                                ELSE vc.vl_liq_venda - (vc.vl_venda - (vc.vl_venda * t.taxa / 100))
                             END
                         WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
                         """
@@ -994,21 +878,21 @@ def make_calculos_view(engine):
                     print(
                         f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Aplicando Taxa CAD (camada 2: genérica)..."
                     )
+                    # ⚡ NOVO: Sem JOIN com vendas_processadas! Usa campos locais
                     update_sql_generica_raw = f"""
                         UPDATE vendas_calculos vc
-                        JOIN vendas_processadas vp ON vc.id_venda = vp.id
-                        JOIN taxas t ON t.ec = vp.ec_id 
-                            AND LOWER(t.contexto) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Adquirente) COLLATE utf8mb4_0900_ai_ci
-                            AND LOWER(t.forma_pagamento) COLLATE utf8mb4_0900_ai_ci = LOWER(vp.Forma_de_pagamento) COLLATE utf8mb4_0900_ai_ci
-                            AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
+                        JOIN taxas t ON t.ec = vc.ec_id 
+                            AND LOWER(t.contexto) COLLATE utf8mb4_0900_ai_ci = LOWER(vc.adquirente) COLLATE utf8mb4_0900_ai_ci
+                            AND LOWER(t.forma_pagamento) COLLATE utf8mb4_0900_ai_ci = LOWER(vc.forma_pagamento) COLLATE utf8mb4_0900_ai_ci
+                            AND vc.data_venda BETWEEN t.data_ini AND t.data_fim
                             AND t.bandeira IS NULL
                         SET
                             vc.tx_calc = t.taxa,
-                            vc.desc_calc = vp.Valor_da_venda * t.taxa / 100,
-                            vc.vl_liq_calc = vp.Valor_da_venda - (vp.Valor_da_venda * t.taxa / 100),
+                            vc.desc_calc = vc.vl_venda * t.taxa / 100,
+                            vc.vl_liq_calc = vc.vl_venda - (vc.vl_venda * t.taxa / 100),
                             vc.perda = CASE 
                                 WHEN vc.tx_venda IS NULL OR vc.tx_venda = 0 THEN 0
-                                ELSE vc.vl_liq_venda - (vp.Valor_da_venda - (vp.Valor_da_venda * t.taxa / 100))
+                                ELSE vc.vl_liq_venda - (vc.vl_venda - (vc.vl_venda * t.taxa / 100))
                             END
                         WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
                         AND vc.tx_calc IS NULL
@@ -1207,28 +1091,58 @@ def make_calculos_view(engine):
                     #    - Substitua este bloco por: update_log_tx_calc_em_lotes(engine, proc_id, tipo_taxa, lote=10000, conn_externa=conn)
                     # ============================================================================
                     # Definir campos de período baseado no tipo_taxa
+                    # ⚡ NOVO: Usar data_venda local (não precisa JOIN com vendas_processadas)
                     if tipo_taxa == "log_mensal":
-                        periodo_field = "DATE_FORMAT(vp2.Data_da_venda, '%Y-%m')"
-                        periodo_join = "DATE_FORMAT(vp.Data_da_venda, '%Y-%m')"
+                        # MySQL
+                        periodo_field_mysql = "DATE_FORMAT(vc2.data_venda, '%Y-%m')"
+                        periodo_join_mysql = "DATE_FORMAT(vc.data_venda, '%Y-%m')"
+                        # SQLite
+                        periodo_field_sqlite = "strftime('%Y-%m', vc2.data_venda)"
+                        periodo_join_sqlite = "strftime('%Y-%m', vc.data_venda)"
                     elif tipo_taxa == "log_trimestral":
-                        periodo_field = "CONCAT(YEAR(vp2.Data_da_venda), '-Q', QUARTER(vp2.Data_da_venda))"
-                        periodo_join = "CONCAT(YEAR(vp.Data_da_venda), '-Q', QUARTER(vp.Data_da_venda))"
+                        # MySQL
+                        periodo_field_mysql = "CONCAT(YEAR(vc2.data_venda), '-Q', QUARTER(vc2.data_venda))"
+                        periodo_join_mysql = (
+                            "CONCAT(YEAR(vc.data_venda), '-Q', QUARTER(vc.data_venda))"
+                        )
+                        # SQLite - aproximação (sem QUARTER nativo)
+                        periodo_field_sqlite = "strftime('%Y', vc2.data_venda) || '-Q' || CAST((CAST(strftime('%m', vc2.data_venda) AS INTEGER) + 2) / 3 AS TEXT)"
+                        periodo_join_sqlite = "strftime('%Y', vc.data_venda) || '-Q' || CAST((CAST(strftime('%m', vc.data_venda) AS INTEGER) + 2) / 3 AS TEXT)"
                     elif tipo_taxa == "log_semestral":
-                        periodo_field = "CONCAT(YEAR(vp2.Data_da_venda), '-S', CEILING(MONTH(vp2.Data_da_venda)/6))"
-                        periodo_join = "CONCAT(YEAR(vp.Data_da_venda), '-S', CEILING(MONTH(vp.Data_da_venda)/6))"
+                        # MySQL
+                        periodo_field_mysql = "CONCAT(YEAR(vc2.data_venda), '-S', CEILING(MONTH(vc2.data_venda)/6))"
+                        periodo_join_mysql = "CONCAT(YEAR(vc.data_venda), '-S', CEILING(MONTH(vc.data_venda)/6))"
+                        # SQLite - aproximação (sem CEILING/MONTH nativos)
+                        periodo_field_sqlite = "strftime('%Y', vc2.data_venda) || '-S' || CAST((CAST(strftime('%m', vc2.data_venda) AS INTEGER) + 5) / 6 AS TEXT)"
+                        periodo_join_sqlite = "strftime('%Y', vc.data_venda) || '-S' || CAST((CAST(strftime('%m', vc.data_venda) AS INTEGER) + 5) / 6 AS TEXT)"
                     else:  # log_anual
-                        periodo_field = "YEAR(vp2.Data_da_venda)"
-                        periodo_join = "YEAR(vp.Data_da_venda)"
+                        # MySQL
+                        periodo_field_mysql = "YEAR(vc2.data_venda)"
+                        periodo_join_mysql = "YEAR(vc.data_venda)"
+                        # SQLite
+                        periodo_field_sqlite = "strftime('%Y', vc2.data_venda)"
+                        periodo_join_sqlite = "strftime('%Y', vc.data_venda)"
 
-                    # ⚡ UPDATE LOG SIMPLIFICADO - Sem loop, query única otimizada
+                    # ⚡ UPDATE LOG SIMPLIFICADO - Sem JOIN com vendas_processadas!
                     print(
-                        f"[DEBUG] 🚀 Executando UPDATE LOG em query única (sem batches)..."
+                        f"[DEBUG] 🚀 Executando UPDATE LOG em query única (sem batches, sem JOINs)..."
                     )
 
-                    # UPDATE direto com subquery de agregação (calcula MIN de TODAS as vendas do período)
-                    update_log_sql = f"""
+                    # Detectar banco de dados
+                    from conf.sql_adapter import get_db_type
+
+                    db_type = get_db_type(engine)
+
+                    if db_type == "sqlite":
+                        periodo_field = periodo_field_sqlite
+                        periodo_join = periodo_join_sqlite
+                    else:
+                        periodo_field = periodo_field_mysql
+                        periodo_join = periodo_join_mysql
+
+                    # UPDATE direto SEM JOIN - usa apenas data_venda local!
+                    update_log_sql_raw = f"""
                         UPDATE vendas_calculos vc
-                        JOIN vendas_processadas vp ON vc.id_venda = vp.id
                         JOIN (
                             SELECT 
                                 {periodo_field} AS periodo,
@@ -1236,7 +1150,6 @@ def make_calculos_view(engine):
                                 vc2.bandeira,
                                 MIN(vc2.tx_venda) AS min_tx_venda
                             FROM vendas_calculos vc2
-                            JOIN vendas_processadas vp2 ON vc2.id_venda = vp2.id
                             WHERE vc2.calc_id = :calc_id 
                               AND vc2.calc_tipo = :calc_tipo
                             GROUP BY periodo, vc2.forma_pagamento, vc2.bandeira
@@ -1249,6 +1162,11 @@ def make_calculos_view(engine):
                           AND vc.calc_tipo = :calc_tipo
                           AND vc.tx_calc IS NULL
                     """
+
+                    # Converter para SQLite se necessário (ainda precisa converter UPDATE JOIN)
+                    update_log_sql = _convert_agg_update_simple_for_sqlite(
+                        engine, update_log_sql_raw, periodo_field, periodo_join
+                    )
 
                     t_log_update_start = time.time()
                     result_log = conn.execute(
@@ -1314,24 +1232,22 @@ def make_calculos_view(engine):
                     print(
                         f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Executando UPDATE desc_calc/perda..."
                     )
+                    # ⚡ NOVO: Sem JOIN! Usa vl_venda que já está em vendas_calculos
                     update_desc_sql_raw = """
-                        UPDATE vendas_calculos vc
-                        JOIN vendas_processadas vp ON vc.id_venda = vp.id
+                        UPDATE vendas_calculos
                         SET
-                            vc.desc_calc = CASE WHEN vc.tx_calc IS NOT NULL THEN vp.Valor_da_venda * vc.tx_calc / 100 ELSE NULL END,
-                            vc.vl_liq_calc = CASE WHEN vc.tx_calc IS NOT NULL THEN vp.Valor_da_venda - (vp.Valor_da_venda * vc.tx_calc / 100) ELSE NULL END,
-                            vc.perda = CASE 
-                                WHEN vc.tx_calc IS NULL THEN NULL
-                                WHEN vc.tx_venda IS NULL OR vc.tx_venda = 0 THEN 0
-                                ELSE vc.vl_liq_venda - (vp.Valor_da_venda - (vp.Valor_da_venda * vc.tx_calc / 100))
+                            desc_calc = CASE WHEN tx_calc IS NOT NULL THEN vl_venda * tx_calc / 100 ELSE NULL END,
+                            vl_liq_calc = CASE WHEN tx_calc IS NOT NULL THEN vl_venda - (vl_venda * tx_calc / 100) ELSE NULL END,
+                            perda = CASE 
+                                WHEN tx_calc IS NULL THEN NULL
+                                WHEN tx_venda IS NULL OR tx_venda = 0 THEN 0
+                                ELSE vl_liq_venda - (vl_venda - (vl_venda * tx_calc / 100))
                             END
-                        WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
-                        AND vc.tx_calc IS NOT NULL
+                        WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
+                        AND tx_calc IS NOT NULL
                         """
-                    update_desc_sql_processed = _convert_update_join_for_sqlite(
-                        engine, update_desc_sql_raw
-                    )
-                    update_desc_sql = text(update_desc_sql_processed)
+                    # Não precisa mais de conversão para SQLite! Sintaxe é idêntica
+                    update_desc_sql = text(update_desc_sql_raw)
                     result2 = conn.execute(
                         update_desc_sql,
                         {
@@ -1377,26 +1293,40 @@ def make_calculos_view(engine):
                         print(
                             f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Iniciando UPDATE tx_rr_calc com período: {periodo_format}"
                         )
+
+                        # Detectar banco de dados para formato de data correto
+                        from conf.sql_adapter import get_db_type
+
+                        db_type = get_db_type(engine)
+
+                        if db_type == "sqlite":
+                            # SQLite: usar strftime
+                            periodo_func = f"strftime('{periodo_format.replace('%', '%').replace('Y', 'Y').replace('m', 'm')}',"
+                            periodo_close = ")"
+                        else:
+                            # MySQL: usar DATE_FORMAT
+                            periodo_func = f"DATE_FORMAT("
+                            periodo_close = f", '{periodo_format}')"
+
+                        # ⚡ NOVO: Sem JOIN com vendas_processadas! Usa campos locais (ec_id, bandeira, forma_pagamento, data_venda, tx_rr_venda)
                         update_tx_rr_sql_raw = f"""
                             UPDATE vendas_calculos vc
-                            JOIN vendas_processadas vp ON vc.id_venda = vp.id
                             JOIN (
                                 SELECT
-                                    vp2.ec_id,
-                                    LOWER(TRIM(vp2.Bandeira)) AS bandeira,
-                                    LOWER(TRIM(vp2.Forma_de_pagamento)) AS forma_pagamento,
-                                    DATE_FORMAT(vp2.Data_da_venda, '{periodo_format}') AS periodo_ini,
-                                    MIN(vp2.Taxas_RR) AS min_tx_rr_venda
-                                FROM vendas_processadas vp2
-                                JOIN vendas_calculos vc2 ON vc2.id_venda = vp2.id
+                                    vc2.ec_id,
+                                    LOWER(TRIM(vc2.bandeira)) AS bandeira,
+                                    LOWER(TRIM(vc2.forma_pagamento)) AS forma_pagamento,
+                                    {periodo_func}vc2.data_venda{periodo_close} AS periodo_ini,
+                                    MIN(vc2.tx_rr_venda) AS min_tx_rr_venda
+                                FROM vendas_calculos vc2
                                 WHERE vc2.calc_id = :calc_id AND vc2.calc_tipo = :calc_tipo 
-                                AND vp2.Taxas_RR IS NOT NULL AND vp2.Taxas_RR > 0
-                                GROUP BY vp2.ec_id, LOWER(TRIM(vp2.Bandeira)), LOWER(TRIM(vp2.Forma_de_pagamento)), periodo_ini
+                                AND vc2.tx_rr_venda IS NOT NULL AND vc2.tx_rr_venda > 0
+                                GROUP BY vc2.ec_id, LOWER(TRIM(vc2.bandeira)), LOWER(TRIM(vc2.forma_pagamento)), periodo_ini
                             ) min_txs_rr
-                            ON vp.ec_id = min_txs_rr.ec_id
-                            AND LOWER(TRIM(vp.Bandeira)) = min_txs_rr.bandeira
-                            AND LOWER(TRIM(vp.Forma_de_pagamento)) = min_txs_rr.forma_pagamento
-                            AND DATE_FORMAT(vp.Data_da_venda, '{periodo_format}') = min_txs_rr.periodo_ini
+                            ON vc.ec_id = min_txs_rr.ec_id
+                            AND LOWER(TRIM(vc.bandeira)) = min_txs_rr.bandeira
+                            AND LOWER(TRIM(vc.forma_pagamento)) = min_txs_rr.forma_pagamento
+                            AND {periodo_func}vc.data_venda{periodo_close} = min_txs_rr.periodo_ini
                             SET vc.tx_rr_calc = min_txs_rr.min_tx_rr_venda
                             WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
                             {condicao_rr}
@@ -1404,9 +1334,25 @@ def make_calculos_view(engine):
                         update_tx_rr_sql_processed = _remove_collate_if_sqlite(
                             engine, update_tx_rr_sql_raw
                         )
-                        update_tx_rr_sql_processed = _convert_update_join_for_sqlite(
-                            engine, update_tx_rr_sql_processed
-                        )
+                        # Converter para SQLite se necessário (ainda precisa converter UPDATE JOIN com subquery)
+                        if db_type == "sqlite":
+                            # Para SQLite, converter para subquery correlacionada
+                            update_tx_rr_sql_processed = f"""
+                                UPDATE vendas_calculos
+                                SET tx_rr_calc = (
+                                    SELECT MIN(vc2.tx_rr_venda)
+                                    FROM vendas_calculos vc2
+                                    WHERE vc2.calc_id = :calc_id AND vc2.calc_tipo = :calc_tipo
+                                    AND vc2.tx_rr_venda IS NOT NULL AND vc2.tx_rr_venda > 0
+                                    AND vc2.ec_id = vendas_calculos.ec_id
+                                    AND LOWER(TRIM(vc2.bandeira)) = LOWER(TRIM(vendas_calculos.bandeira))
+                                    AND LOWER(TRIM(vc2.forma_pagamento)) = LOWER(TRIM(vendas_calculos.forma_pagamento))
+                                    AND {periodo_func}vc2.data_venda{periodo_close} = {periodo_func}vendas_calculos.data_venda{periodo_close}
+                                )
+                                WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
+                                {condicao_rr.replace('vc.', '')}
+                            """
+
                         update_tx_rr_sql = text(update_tx_rr_sql_processed)
                         result_tx_rr = conn.execute(
                             update_tx_rr_sql,
@@ -1427,24 +1373,21 @@ def make_calculos_view(engine):
                             else "AND vc.tx_rr_calc IS NOT NULL"
                         )
                         # Simplificando: se usar_taxa_cad, só atualizar onde tx_rr_calc foi preenchido pelo LOG (não pelo CAD)
-                        # Vamos usar uma abordagem mais simples: atualizar todos que têm tx_rr_calc, mas só se não foi preenchido pelo CAD
-                        # Na verdade, vamos atualizar todos que têm tx_rr_calc, pois o CAD já preencheu os seus
+                        # Vamos usar uma abordagem mais simples: atualizar todos que têm tx_rr_calc, pois o CAD já preencheu os seus
+                        # ⚡ NOVO: Sem JOIN com vendas_processadas! Usa vl_venda local
                         update_rr_calc_sql_raw = """
-                            UPDATE vendas_calculos vc
-                            JOIN vendas_processadas vp ON vc.id_venda = vp.id
+                            UPDATE vendas_calculos
                             SET
-                                vc.vl_rr_calc = CASE WHEN vc.tx_rr_calc IS NOT NULL THEN vp.Valor_da_venda * vc.tx_rr_calc / 100 ELSE NULL END,
-                                vc.perda_rr = CASE 
-                                    WHEN vc.tx_rr_calc IS NOT NULL AND vc.vl_rr_venda IS NOT NULL 
-                                    THEN (vp.Valor_da_venda * vc.tx_rr_calc / 100) - vc.vl_rr_venda
+                                vl_rr_calc = CASE WHEN tx_rr_calc IS NOT NULL THEN vl_venda * tx_rr_calc / 100 ELSE NULL END,
+                                perda_rr = CASE 
+                                    WHEN tx_rr_calc IS NOT NULL AND vl_rr_venda IS NOT NULL 
+                                    THEN (vl_venda * tx_rr_calc / 100) - vl_rr_venda
                                     ELSE NULL 
                                 END
-                            WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo AND vc.tx_rr_calc IS NOT NULL
+                            WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_rr_calc IS NOT NULL
                             """
-                        update_rr_calc_sql_processed = _convert_update_join_for_sqlite(
-                            engine, update_rr_calc_sql_raw
-                        )
-                        update_rr_calc_sql = text(update_rr_calc_sql_processed)
+                        # Não precisa mais de conversão - sintaxe é idêntica em MySQL e SQLite!
+                        update_rr_calc_sql = text(update_rr_calc_sql_raw)
                         result_calc = conn.execute(
                             update_rr_calc_sql,
                             {
@@ -1647,17 +1590,17 @@ def make_calculos_view(engine):
                 f"[DEBUG] [{time.strftime('%M:%S', time.gmtime(time.time()-t_inicio))}] Buscando amostra de 50 registros para exibir..."
             )
             # ⚡ OTIMIZAÇÃO: LIMIT no SQL (não carregar 1.5M registros para mostrar só 50!)
+            # ⚡ NOVO: Sem JOIN! Todas as colunas já estão em vendas_calculos
             df_result = pd.read_sql(
                 text(
                     """
-                    SELECT vc.id, vc.id_venda, vc.bandeira, vc.forma_pagamento, 
-                           vc.vl_venda, vc.tx_venda, vc.desc_venda, vc.vl_liq_venda,
-                           vc.tx_calc, vc.desc_calc, vc.vl_liq_calc, vc.perda,
-                           vc.tx_rr_venda, vc.vl_rr_venda, vc.tx_rr_calc, vc.vl_rr_calc, vc.perda_rr,
-                           vp.Quantidade_de_parcelas, vp.ec_id, vp.data_processamento
-                    FROM vendas_calculos vc
-                    JOIN vendas_processadas vp ON vc.id_venda = vp.id
-                    WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
+                    SELECT id, id_venda, bandeira, forma_pagamento, 
+                           vl_venda, tx_venda, desc_venda, vl_liq_venda,
+                           tx_calc, desc_calc, vl_liq_calc, perda,
+                           tx_rr_venda, vl_rr_venda, tx_rr_calc, vl_rr_calc, perda_rr,
+                           ec_id, data_venda
+                    FROM vendas_calculos
+                    WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
                     LIMIT 50
                 """
                 ),

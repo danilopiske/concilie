@@ -89,16 +89,16 @@ def configure_mysql():
     print("=" * 80)
     print()
 
-    # Remove arquivo .db_config
+    # Cria arquivo .db_config com 'mysql'
     config_file = BASE_DIR / ".db_config"
-    if config_file.exists():
-        config_file.unlink()
-        print("✓ Arquivo .db_config removido")
+    with open(config_file, "w") as f:
+        f.write("mysql")
+    print("✓ Arquivo .db_config criado com 'mysql'")
 
     # Define via settings
     set_db_type_for_development()
 
-    # Define no db_manager
+    # Define no db_manager (limpa cache)
     set_db_type("mysql")
 
     print()

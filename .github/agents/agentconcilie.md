@@ -1,1210 +1,1212 @@
-## Proteção contra Código Duplicado e Erros de Indentação
-
-### ✅ SEMPRE FAZER
-- Antes de salvar ou commitar funções novas ou alteradas:
-  - Revisar se não há blocos duplicados (código colado acidentalmente, prints ou dicionários soltos).
-  - Garantir que cada função tenha apenas o corpo esperado, sem trechos de outras funções.
-  - Conferir a indentação de todos os blocos (especialmente após colagens múltiplas).
-  - Usar ferramentas de lint/format (ex: black, flake8) para detectar indentação e duplicidade.
-  - Se for editar via IA, revisar o diff para garantir que não há inserção de código fora do contexto correto.
-
-### ❌ NUNCA FAZER
-- Nunca colar código de outra função dentro de uma função já existente.
-- Nunca deixar prints, dicionários ou laços soltos fora do corpo de funções.
-- Nunca salvar arquivos com erros de indentação (IndentationError) ou blocos duplicados.
-
-### Resolução Rápida de Problemas
-| Problema | Causa | Solução |
-|----------|-------|---------|
-| IndentationError | Código colado fora do bloco, duplicidade, mistura de funções | Revisar função, remover blocos estranhos, rodar linter |
-| Código duplicado | Colagem acidental, edição IA sem revisão | Conferir diff, remover duplicatas antes de salvar |
-
-# AGENT.MD — FinChecker Copilot Knowledge
-
-## ✨ Missão
-Este agente deve sugerir código **sempre aderente** às seguintes regras técnicas, de arquitetura e estilo. Use este arquivo (`agent.md`) como prompt/contexto ao configurar GitHub Copilot, Codespaces, Cursor AI ou assistente de IA similar.
+# AGENTCONCILIE.md — Guia IA Completo para Financial Checker e Stack Moderno
 
 ---
 
-## 🔸 Stack & Frameworks
-- **Python 3.8+**
-- **Panel (HoloViz)** para UI
-- **SQLAlchemy** para banco de dados (MySQL e SQLite)
-- **Pandas** para ETL/processamento
-- **Plotly** para gráficos
-- **PDFKit** + wkhtmltopdf para PDF
+## 1. Overview: Legado e Futuro
 
-## 🔸 Banco de Dados - CONTEXTO CRÍTICO
+O **Financial Checker v2.0** é uma solução robusta de conciliação financeira (MySQL/SQLite), com pipeline de importação, análise, agregação, cálculo e reporting, preparada para ambientes de alta escala e portabilidade. Este documento unifica:
+- Descrição funcional
+- Fluxos técnicos
+- Práticas de desenvolvimento e testes
+- Problemas históricos e lições aprendidas
+- Regras para agentes IA e contribuintes
+- Plano e padrões para migração ao stack web moderno (Next.js + FastAPI)
 
-### 🎯 **PREMISSA FUNDAMENTAL: COMPATIBILIDADE DUPLA**
-**SEMPRE** desenvolver código compatível com **MySQL E SQLite** simultaneamente:
-- Sistema roda com **MySQL** em produção (servidor)
-- Sistema roda com **SQLite** em distribuição standalone (sem servidor)
-- **NUNCA** usar sintaxe exclusiva de um banco sem abstração
-- **SEMPRE** usar funções helper do `sql_adapter.py` para SQL específico
-- **SEMPRE** testar alterações em ambos os bancos quando possível
-
-### 📋 Diferenças Críticas MySQL vs SQLite
-| Recurso | MySQL | SQLite | Solução |
-|---------|-------|--------|---------|
-| `INSERT IGNORE` | ✅ | ❌ | Usar `INSERT OR IGNORE` (SQLite) - função `_adapt_sql()` converte automaticamente |
-| `NOW()` | ✅ | ❌ | Usar `_current_timestamp_sql(engine)` → retorna `CURRENT_TIMESTAMP` |
-| `DATE_FORMAT()` | ✅ | ❌ | Usar `_date_format_sql(engine, col, fmt)` |
-| `CONCAT()` | ✅ | ❌ | Usar `_concat_sql(engine, *args)` |
-| Comparação case-insensitive | `COLLATE` | `COLLATE NOCASE` ou `UPPER()` | Usar `UPPER(col1) = UPPER(col2)` |
-| UPSERT | `ON DUPLICATE KEY UPDATE` | `ON CONFLICT ... DO UPDATE` | Usar `_upsert_sql(engine, ...)` |
-
-### 🛠️ Boas Práticas de Compatibilidade
-1. **Sempre incluir `engine` como primeiro parâmetro** em funções SQL adapter
-2. **Verificar strings vazias vs NULL**: `if value is not None` (não `if value`)
-3. **Usar `_adapt_sql(engine, sql)`** em `exec_sql()`, `fetch_one()` e `fetch_all()`
-4. **Tipos de dados**: 
-   - Monetários: **DECIMAL(18,2)** nunca DOUBLE/FLOAT
-   - **PROBLEMA COMUM**: DOUBLE causa imprecisão (0.30 → 0.3097)
-   - **SOLUÇÃO**: Sempre usar DECIMAL para valores monetários e percentuais
-
-### 📚 Funções SQL Adapter Disponíveis (conf/funcoesbd.py)
-
-**SEMPRE usar estas funções em vez de SQL direto específico de banco:**
-
-```python
-# Comparação case-insensitive (texto)
-_normalize_text_compare(engine, column, param)
-# MySQL: UPPER(column) = UPPER(:param)
-# SQLite: UPPER(column) = UPPER(:param)
-
-# Formatação de data
-_date_format_sql(engine, column, format_str)
-# MySQL: DATE_FORMAT(column, format_str)
-# SQLite: strftime(format_convertido, column)
-
-# Concatenação
-_concat_sql(engine, *args)
-# MySQL: CONCAT(arg1, arg2, ...)
-# SQLite: arg1 || arg2 || ...
-
-# Insert ignore
-_insert_ignore_sql(engine, table, columns, values)
-# MySQL: INSERT IGNORE INTO...
-# SQLite: INSERT OR IGNORE INTO...
-
-# Timestamp atual
-_current_timestamp_sql(engine)
-# MySQL/SQLite: CURRENT_TIMESTAMP
-
-# UPSERT (insert or update)
-_upsert_sql(engine, table, columns, update_columns)
-# MySQL: INSERT ... ON DUPLICATE KEY UPDATE
-# SQLite: INSERT ... ON CONFLICT DO UPDATE
-
-# Extrair ano/mês/trimestre/semestre
-_year_sql(engine, column)
-_month_sql(engine, column)
-_quarter_sql(engine, column)
-_semester_sql(engine, column)
-
-# Obter colunas de tabela
-_get_table_columns(engine, table_name)
-
-# Adaptar SQL automaticamente (INSERT IGNORE → INSERT OR IGNORE)
-_adapt_sql(engine, sql)
-```
-
-**Exemplo de uso correto:**
-```python
-# ❌ ERRADO - SQL específico do MySQL
-sql = "INSERT IGNORE INTO tabela (a, b) VALUES (:a, :b)"
-
-# ✅ CORRETO - Usando helper
-sql = _insert_ignore_sql(engine, "tabela", "a, b", ":a, :b")
-
-# ❌ ERRADO - NOW() só funciona no MySQL
-sql = "UPDATE tabela SET updated = NOW()"
-
-# ✅ CORRETO - Compatível com ambos
-sql = f"UPDATE tabela SET updated = {_current_timestamp_sql(engine)}"
-
-# ❌ ERRADO - Comparação case-sensitive
-sql = "WHERE contexto = :ctx"
-
-# ✅ CORRETO - Case-insensitive
-sql = f"WHERE {_normalize_text_compare(engine, 'contexto', 'ctx')}"
-```
+>  **Meta**: Este markdown é a base viva de inteligência coletiva do projeto e da automação IA — deve ser retroalimentado a cada ciclo de evolução.
 
 ---
 
-## 🔸 Estrutura de Tabelas do Banco MySQL
+## 2. Arquitetura Atual — Legado Python
+### **Diretórios & Componentes**
+- `main.py`: Painel/tela principal, serve UI Panel + integra processamento.
+- `modules/`: Views e controle UI (importação, gestão, analista, cálculos, gráficos, relatórios)
+- `proc/`: ETL, normalização, bulk insert, classificação, lógica de usuários
+- `conf/`: Autenticação, helpers (abstrações SQL camada dual MySQL/SQLite), settings globais
+- `relatorios/`: Templates de relatórios
+- `dev_tools/`: Scripts CLI para migração, debug, limpeza, análise
 
-### 📊 Tabelas Principais - Vendas
-**vendas_processadas** (principal) | **vendas_filtradas** (rejeitadas) | **vendas_diversas** (casos especiais)
-- `id` INT AUTO_INCREMENT PK
-- `Data_da_venda` DATETIME
-- `Adquirente` VARCHAR(45)
-- `Bandeira` TEXT (⚠️ deveria ser VARCHAR)
-- `Forma_de_pagamento` TEXT (⚠️ deveria ser VARCHAR)
-- `Quantidade_de_parcelas` BIGINT
-- `Valor_da_venda` **DOUBLE** ⚠️ **PROBLEMA: deveria ser DECIMAL(18,2)**
-- `Taxas_Perc` **DOUBLE** ⚠️ **PROBLEMA: deveria ser DECIMAL(18,2)**
-- `Valor_descontado` **DOUBLE** ⚠️ **PROBLEMA: deveria ser DECIMAL(18,2)**
-- `Taxas_RR` **DOUBLE** ⚠️ **PROBLEMA: deveria ser DECIMAL(18,2)**
-- `Valor_RR` **DOUBLE** ⚠️ **PROBLEMA: deveria ser DECIMAL(18,2)**
-- `Valor_líquido_da_venda` **DOUBLE** ⚠️ **PROBLEMA: deveria ser DECIMAL(18,2)**
-- `processamentoid` TEXT
-- `cliente_id` BIGINT
-- `ec_id` BIGINT
-
-**vendas_filtradas** (estrutura otimizada):
-- Mesmas colunas mas com tipos corretos: DECIMAL(12,2) para valores monetários ✅
-- DATE em vez de DATETIME para datas
-
-### 📊 Tabelas Principais - Recebíveis
-**recebiveis_processados** | **recebiveis_filtrados**
-- `id` INT AUTO_INCREMENT PK
-- `recebivel_id` VARCHAR(45)
-- `data_pagamento` DATETIME
-- `data_recebivel` DATETIME
-- `lancamento` TEXT
-- `valor_recebivel` **DOUBLE** ⚠️ **PROBLEMA: deveria ser DECIMAL(18,2)**
-- `valor_liquido` **DOUBLE** ⚠️ **PROBLEMA: deveria ser DECIMAL(18,2)**
-- `adquirente` VARCHAR(50)
-- `processamentoid` TEXT
-- `cliente_id` BIGINT
-- `ec_id` BIGINT
-
-### 📊 Tabela de Cálculos
-**vendas_calculos** (armazena cálculos e comparações)
-- `id` INT AUTO_INCREMENT PK
-- `id_venda` INT (FK para vendas)
-- `calc_id` VARCHAR(50) (identificador do processamento de cálculo)
-- `bandeira` VARCHAR(50)
-- `forma_pagamento` VARCHAR(50)
-- `vl_venda` DECIMAL(15,2) ✅
-- `tx_venda` DECIMAL(10,4) ✅ (taxa original do arquivo)
-- `desc_venda` DECIMAL(15,2) ✅
-- `tx_calc` DECIMAL(10,4) ✅ (taxa calculada/cadastrada)
-- `desc_calc` DECIMAL(15,2) ✅
-- `perda` DECIMAL(15,2) ✅ (diferença entre valores)
-- `tx_rr_calc` DECIMAL(15,2) ✅
-- `vl_rr_calc` DECIMAL(15,2) ✅
-- `perda_rr` DECIMAL(15,2) ✅
-
-### 📊 Gestão de Taxas
-**taxas** (cadastro de taxas por EC)
-- `id` INT AUTO_INCREMENT PK
-- `ec` VARCHAR(20) - estabelecimento comercial
-- `bandeira` VARCHAR(50) NULL - **NULL = taxa genérica (todas as bandeiras)**
-- `forma_pagamento` VARCHAR(50)
-- `parcelado` CHAR(1) - 'S' ou 'N'
-- `parcelas_ini` INT
-- `parcelas_fim` INT
-- `data_ini` DATE
-- `data_fim` DATE
-- `taxa` DECIMAL(10,2) ✅
-- `contexto` VARCHAR(50) - permite múltiplos cenários
-
-### 📊 Gestão de Clientes/ECs
-**clientes**
-- `cliente_id` INT PK
-- `nome_fantasia` VARCHAR(255)
-- `razao_social` VARCHAR(255)
-- `cnpj` VARCHAR(20)
-
-**ecs** (estabelecimentos comerciais)
-- `id` INT AUTO_INCREMENT PK
-- `ec_id` VARCHAR(20) UNIQUE
-- `descricao` VARCHAR(255)
-
-**ecs_cliente** (relacionamento N:N)
-- `cliente_id` INT PK
-- `ec_id` VARCHAR(100) PK
-
-**enderecos**, **contatos**, **dados_bancarios** (relacionados a clientes)
-
-### 📊 De-Para e Configurações
-**depara_colunas** (mapeamento de colunas)
-- `id` INT AUTO_INCREMENT PK
-- `origem_nome` VARCHAR(255) - nome da coluna no arquivo
-- `destino_nome` VARCHAR(255) - nome da coluna no sistema
-- `contexto` VARCHAR(50)
-- `tipo_origem` CHAR(1) - 'V' (vendas), 'L' (lançamentos), 'R' (recebíveis)
-- `tipo_preenchimento` VARCHAR(20) - 'fixo', 'coluna', etc
-- `valor_padrao` VARCHAR(255)
-- `ativo` TINYINT(1)
-
-**depara_controle** (colunas disponíveis)
-- `nome_coluna` VARCHAR(100)
-- `mapeavel` ENUM('mapeavel','nao_mapeavel')
-
-**bandeiras_disponiveis** | **bandeiras_cliente**
-- Gestão de bandeiras aceitas por EC
-
-**termos_filtraveis**
-- Termos que marcam vendas para filtrar (ex: "cancelada", "erro")
-
-### 📊 Contextos e Usuários
-**contextos** (cenários/ambientes diferentes)
-- `id` INT AUTO_INCREMENT PK
-- `nome` VARCHAR(100) UNIQUE
-- `descricao` TEXT
-- `ativo` TINYINT(1)
-
-**usuarios**
-- `id` INT AUTO_INCREMENT PK
-- `usuario` VARCHAR(50) UNIQUE
-- `senha` CHAR(64) - hash SHA256
-- `nome` VARCHAR(100)
-- `empresa` VARCHAR(100)
-- `grupo` VARCHAR(50)
-- `ativo` TINYINT(1)
-
-### 📊 Controle e Logs
-**controle_processamentos**
-- `id_processamento` VARCHAR(50) PK (formato: "EC_SEQUENCIA - DATA")
-- `cliente_id` VARCHAR(50)
-- `ec_id` VARCHAR(50)
-- `adquirente` VARCHAR(100)
-- `data_processamento` DATETIME
-
-**log_correcoes_importacao**
-- Histórico de correções retroativas (bandeiras, formas de pagamento)
-- `tipo_correcao` VARCHAR(50)
-- `valor_antigo` / `valor_novo` VARCHAR(255)
-- `linhas_afetadas` INT
-- `usuario` VARCHAR(100)
-- `data_correcao` DATETIME
-
-### 📊 Análises (feature adicional)
-**analises** + **analises_arquivos** + **analises_bandeiras** + **analises_formas_pagamento** + **analises_periodos** + **analises_tipos_recebiveis**
-- Sistema de análise agregada de múltiplos arquivos
-
-### 📊 Views (consultas pré-calculadas)
-- `vw_grafico_vendas_por_bandeira`
-- `vw_grafico_vendas_por_forma_pagamento`
-- `vw_grafico_vendas_por_mes`
-- `vw_grafico_valor_medio_por_bandeira`
-- `vw_min_max_taxas_semestre`
-- `vw_min_taxa_bandeira_forma_ano`
-- `vw_perdas_por_semestre`
-- `vw_sumario_recebiveis_semestre`
-- `vw_contagem_taxas_bandeira_forma_ano`
-- `vw_contagem_transacoes_ano_bandeira_modalidade`
-
-### ⚠️ PROBLEMAS IDENTIFICADOS NA ESTRUTURA ATUAL
-
-1. **CRÍTICO - Tipos DOUBLE em vez de DECIMAL:**
-   - `vendas_processadas`: Valor_da_venda, Taxas_Perc, Valor_descontado, Taxas_RR, Valor_RR, Valor_líquido
-   - `vendas_diversas`: Mesmas colunas
-   - `recebiveis_processados/filtrados`: valor_recebivel, valor_liquido
-   - **Consequência**: Imprecisão monetária (0.30 vira 0.3097)
-   - **Solução**: ALTER TABLE ... MODIFY COLUMN ... DECIMAL(18,2)
-
-2. **TEXT em vez de VARCHAR:**
-   - `Bandeira`, `Forma_de_pagamento` como TEXT impede indexação eficiente
-   - **Solução**: Alterar para VARCHAR(100) ou VARCHAR(200)
-
-3. **Inconsistência entre tabelas:**
-   - `vendas_filtradas` usa DECIMAL(12,2) corretamente ✅
-   - `vendas_processadas` usa DOUBLE incorretamente ❌
-   - **Solução**: Padronizar DECIMAL(18,2) em todas
-
-### 🔧 Script de Correção (MySQL)
-```sql
--- Corrigir vendas_processadas
-ALTER TABLE vendas_processadas MODIFY COLUMN Valor_da_venda DECIMAL(18,2);
-ALTER TABLE vendas_processadas MODIFY COLUMN Valor_descontado DECIMAL(18,2);
-ALTER TABLE vendas_processadas MODIFY COLUMN Valor_RR DECIMAL(18,2);
-ALTER TABLE vendas_processadas MODIFY COLUMN Taxas_Perc DECIMAL(18,2);
-ALTER TABLE vendas_processadas MODIFY COLUMN Taxas_RR DECIMAL(18,2);
-ALTER TABLE vendas_processadas MODIFY COLUMN Valor_líquido_da_venda DECIMAL(18,2);
-ALTER TABLE vendas_processadas MODIFY COLUMN Bandeira VARCHAR(100);
-ALTER TABLE vendas_processadas MODIFY COLUMN Forma_de_pagamento VARCHAR(200);
-
--- Corrigir vendas_diversas
-ALTER TABLE vendas_diversas MODIFY COLUMN Valor_da_venda DECIMAL(18,2);
-ALTER TABLE vendas_diversas MODIFY COLUMN Valor_descontado DECIMAL(18,2);
-ALTER TABLE vendas_diversas MODIFY COLUMN Valor_RR DECIMAL(18,2);
-ALTER TABLE vendas_diversas MODIFY COLUMN Taxas_Perc DECIMAL(18,2);
-ALTER TABLE vendas_diversas MODIFY COLUMN Taxas_RR DECIMAL(18,2);
-ALTER TABLE vendas_diversas MODIFY COLUMN Valor_líquido_da_venda DECIMAL(18,2);
-ALTER TABLE vendas_diversas MODIFY COLUMN Bandeira VARCHAR(100);
-ALTER TABLE vendas_diversas MODIFY COLUMN Forma_de_pagamento VARCHAR(200);
-
--- Corrigir recebiveis_processados
-ALTER TABLE recebiveis_processados MODIFY COLUMN valor_recebivel DECIMAL(18,2);
-ALTER TABLE recebiveis_processados MODIFY COLUMN valor_liquido DECIMAL(18,2);
-
--- Corrigir recebiveis_filtrados
-ALTER TABLE recebiveis_filtrados MODIFY COLUMN valor_recebivel DECIMAL(18,2);
-ALTER TABLE recebiveis_filtrados MODIFY COLUMN valor_liquido DECIMAL(18,2);
-
--- Opcional: Arredondar valores existentes
-UPDATE vendas_processadas SET 
-    Valor_da_venda = ROUND(Valor_da_venda, 2),
-    Valor_RR = ROUND(Valor_RR, 2),
-    Taxas_Perc = ROUND(Taxas_Perc, 2),
-    Taxas_RR = ROUND(Taxas_RR, 2);
-```
+### **Banco de Dados**
+- MySQL: produção/multiusuário; SQLite: client-side/distribuição
+- Tabelas de vendas, recebíveis, análises, controles, logs, clientes, ECs, taxas, users, contextos, de-para
+- DECIMAL(18,2) obrigatório para monetários; bulk insert sempre com dtype
+- Migração/compatibilidade SQL dual via helpers
 
 ---
 
-## 🔸 Diretrizes Estruturais e de Documentação
-- **conf/**: helpers DB, compatibilidade SQL dual (sempre criar MySQL e SQLite)
-- **modules/**: views/UI (importação, gestão, analista, cálculos, relatórios, correção)
-- **proc/**: processamento de arquivos, lógica de usuários
-- **data/**: bancos SQLite, arquivos processados
-- **requirements.txt**: dependências específicas
-- **Sempre consultar README.md**, consolidar novidades nele,
-  - jamais diluir informações em múltiplos markdowns!
+## 3. Fluxograma e Pipelines Técnicos (Importação→Cálculo→Reporting)
+
+### **Fluxo Principal**
+1. **Upload/importação**: Arquivos (.csv/.xls/.xlsx)→detect/cabeçalho→de-para mapeamento→normalização
+2. **Classificação:** Filtros inteligentes (termos, status), separação processados/filtrados/diversos
+3. **Gravação:** Bulk insert otimizado, dtype/DECIMAL em to_sql; processamentoID único e trackeável
+4. **Cálculo:** Multi-layer (taxa específica→taxa genérica→fallback/min/log), agregações, relatórios
+5. **Visual e Output:** UI Panel, gráficos Plotly, exportações PDF e dashboards
+6. **Validação/Testes:** Automação post-install, checklist multi-modo, troubleshooting guiado e detalhado
+
+### **Checklists Críticos**
+- .round(2) aplicado em ETL/insere/antes de gravação
+- dtype explícito em Pandas→to_sql
+- Validação de consistência pós-importação (valores, log de erros)
 
 ---
 
-## 🔸 FLUXO DE PROCESSAMENTO DE ARQUIVOS
+## 4. Regras Absolutas para Todo Novo Código/Manutenção (AGENTE IA)
+### **Sempre Fazer**
+- Compatibilidade MySQL+SQLite sempre via helpers/adapters (ex.: _concat_sql, _date_format_sql, etc.)
+- Usar DECIMAL(18,2) nas colunas monetárias, nunca DOUBLE/FLOAT/não tipado
+- Atualizar sempre este markdown em qualquer refino estrutural/técnico
+- Docstring obrigatória em toda função não-trivial
+- Teste (manual e, se possível, automatizado) multi-banco
+- Movimentar scripts utilitários/experimentos para dev_tools/ ou /scripts
 
-### 📥 **1. IMPORTAÇÃO (modules/ui_importacao.py → proc/proc_importacao.py)**
+### **Nunca Fazer**
+- Assumir SQL puro de apenas um banco
+- Cometer DOUBLE/FLOAT para dinheiro (leva a bugs graves!)
+- Deixar documentação espalhada ou desatualizada
+- Bulk insert sem especificar dtype
 
-#### **Etapa 1.1: Upload e Leitura do Arquivo**
-```
-UI: FileInput → btn_processar.on_click()
-  ↓
-safe_read_file(path) - Detecta encoding, trata arquivos corrompidos
-  ↓
-detectar_cabecalho(df) - Identifica linha de cabeçalho automaticamente
-  ↓
-preparar_dataframe_de_arquivo(df, contexto) - Aplica de-para de colunas
-```
+### **Arm. comuns a evitar**
+- Deixar sem .round(2) após conversões monetárias
+- Usar placeholders errados (ex.: %s sem adaptar para :param no SQLite)
+- Falhar em inicializar variáveis antes de uso em queries dinâmicas
 
-**Funções-chave:**
-- `safe_read_file()`: Lê .xlsx/.xls/.csv com fallback de encoding
-- `detectar_cabecalho()`: Detecta automaticamente linha de cabeçalho
-- `is_multisheet_rede_file()`: Verifica se é arquivo multi-planilha REDE
-- `safe_read_multisheet_file()`: Lê e consolida múltiplas abas
-
-#### **Etapa 1.2: Aplicação de De-Para**
-```
-preparar_dataframe_de_arquivo(df, ec_id, contexto, tipo_arquivo)
-  ↓
-aplicar_regras_depara(engine, df, contexto, tipo_arquivo, ec_id)
-  ↓
-Carrega regras: depara_listar(engine, contexto, tipo_arquivo, ec_id)
-  ↓
-Aplica transformações:
-  - tipo_preenchimento='importado' → Renomeia coluna origem → destino
-  - tipo_preenchimento='padrão' → Preenche coluna com valor_padrao
-  - tipo_preenchimento='sistema' → Adiciona cliente_id, ec_id, processamentoid
-  - tipo_preenchimento='ignorar' → Remove coluna
-```
-
-**Resultado:** DataFrame com colunas padronizadas do sistema
+### **Checklist Padrão de Nova Feature**
+- [ ] Dual-path testada (MySQL/SQLite)
+- [ ] Docstring/PT-BR
+- [ ] decimal/dtype nos inserts
+- [ ] Teste manual funcional/ETL completo
+- [ ] Documentação / este arquivo atualizado
+- [ ] UI cobre cenário (Panel)
 
 ---
 
-### 🔄 **2. NORMALIZAÇÃO (proc/proc_importacao.py)**
+## 5. Testes, Validação e Troubleshooting ("GUIA_VALIDACAO_TESTES.md" Unificado)
 
-#### **Etapa 2.1: Normalização de Vendas**
-```
-normalizar_dataframe_vendas(df, engine, ec_id, contexto, usuario, tipo_arquivo)
-  ↓
-1. Limpeza de valores infinitos (np.inf → np.nan)
-  ↓
-2. Preenchimento de 'Adquirente' baseado no contexto (CIELO, REDE, etc)
-  ↓
-3. Conversão de datas → datetime
-   - Data_da_venda, Data_da_autorização_da_venda, Previsão_de_pagamento
-  ↓
-4. Conversão de valores monetários → float + ROUND(2) ⚠️ CRÍTICO
-   - Taxas_Perc, Taxas_RR, Valor_da_venda, Valor_descontado, Valor_RR, Valor_líquido
-   - SEMPRE: df[col] = _to_float_br(df[col]).round(2)
-  ↓
-5. Conversão de Quantidade_de_parcelas → int
-  ↓
-6. Cálculo de Valor_RR (se Taxas_RR existe)
-   - df['Valor_RR'] = ((df['Valor_da_venda'] * df['Taxas_RR']) / 100).round(2) ⚠️
-  ↓
-7. Ajustes específicos REDE (multiplicar taxas por 100 se < 1)
-  ↓
-8. Adiciona colunas de metadados:
-   - processamentoid (EC_SEQUENCIA - DATA)
-   - cliente_id, ec_id
-   - data_processamento, usuario_processamento
-```
-
-#### **Etapa 2.2: Normalização de Recebíveis**
-```
-normalizar_dataframe_recebiveis(df, engine, ec_id, contexto, usuario)
-  ↓
-1. Conversão de datas → datetime
-   - data_pagamento, data_recebivel, data_processamento
-  ↓
-2. Conversão de valores monetários → numeric + ROUND(2) ⚠️ CRÍTICO
-   - valor_recebivel, valor_liquido, valor_bruto, valor_taxa
-   - SEMPRE: df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
-  ↓
-3. Preenchimento de 'Adquirente' baseado no contexto
-  ↓
-4. Adiciona metadados (data_processamento, usuario_processamento)
-```
-
-**⚠️ REGRA CRÍTICA DE ARREDONDAMENTO:**
-- **SEMPRE** aplicar `.round(2)` após conversões (_to_float_br, to_numeric)
-- **SEMPRE** aplicar `.round(2)` após cálculos matemáticos
-- **NUNCA** gravar valores sem arredondamento (causa 0.30 → 0.3097)
+- Modos de execução/teste: SQLite (single user) e MySQL (multiuser)
+- Scripts validados em ambientes puros, VM, Sandbox
+- Instalação (Poetry), smoke-test (`test_installation.bat`), pós-importação, alternância bancos
+- Checklist básico: imports, versões, painel ativo, acesso admin, funções críticas (import, cálculo, relatório)
+- Troubleshooting: erros comuns, python/poetry ausente, porta em uso, falha de bulk insert, bugs de arredondamento
+- Scripts automação: garantindo setup verde antes de subir/dar manutenção
 
 ---
 
-### 🔍 **3. CLASSIFICAÇÃO E FILTRAGEM**
-
-#### **Etapa 3.1: Filtragem por Termos (Vendas)**
-```
-normalizar_dataframe_vendas() → Aplicação de filtros
-  ↓
-Carrega termos_filtraveis (engine, ec_id, contexto, tipo='v')
-  ↓
-Busca termos nas colunas:
-  - Resumo_da_operação (prioridade)
-  - status_da_venda (fallback)
-  - Primeira coluna disponível
-  ↓
-Normaliza texto: unicodedata.normalize('NFKD') + upper() + strip()
-  ↓
-Marca registros: df['Filtrado'] = 1 (se termo encontrado)
-  ↓
-Retorna: (df_processadas, df_filtradas, df_diversas)
-```
-
-**Tabelas de Destino:**
-- `vendas_processadas` - Registros válidos (Filtrado = 0)
-- `vendas_filtradas` - Registros rejeitados (Filtrado = 1, termos encontrados)
-- `vendas_diversas` - Casos especiais (flag manual ou lógica específica)
-
-#### **Etapa 3.2: Filtragem por Termos (Recebíveis)**
-```
-normalizar_dataframe_recebiveis() → Aplicação de filtros
-  ↓
-Carrega termos_filtraveis (engine, ec_id, contexto, tipo='r')
-  ↓
-Busca termos nas colunas:
-  - lancamento (prioridade)
-  - descricao (fallback)
-  - Primeira coluna disponível
-  ↓
-Marca registros: df['Filtrado'] = 1
-  ↓
-Retorna: DataFrame com coluna 'Filtrado'
-```
-
-**Separação posterior em:**
-- `recebiveis_processados` (Filtrado = 0)
-- `recebiveis_filtrados` (Filtrado = 1)
+## 6. Diagnóstico Técnico e Lições de Projeto (Análise Crítica)
+- Códigos SQL duplicados para MySQL e SQLite devem ser eliminados via abstração
+- Atenção a tipos: DECIMAL sempre para dinheiro, VARCHAR para campos indexáveis
+- Consistência de queries: usar sempre helpers, nunca string SQL "pura" para funcionalidades
+- Todos os pontos fortes, riscos e métricas históricas em documentação (ver analisedeprojeto_completa.md)
+- Logs e controles: logging de bugs críticos, automação de checagens e recálculo
 
 ---
 
-### 💾 **4. GRAVAÇÃO NO BANCO**
+## 7. AGENTE IA: Premissas e Diretrizes Herméticas
+- Todas novas funções para banco/ETL/cálculo devem prever via helper SQL adapter
+- Qualquer bug, aprendizado, workaround post-mortem → atualizar este markdown
+- Lista viva de boas práticas, erros históricos e workflows:
+    - .round(2) sempre!
+    - dtype DECIMAL obrigatório
+    - placeholders SQL adaptativos
+    - separação clara de UI, core, banco e settings
+- Sempre sugerir *docstring clara*, *exemplo de uso* e atualizar README/agent.
 
-#### **Etapa 4.1: Gravação de Vendas**
-```
-classificar_e_gravar_vendas(engine, df, cliente_id, ec_id, processamentoid, usuario)
-  ↓
-1. Normaliza DataFrame
-   - normalizar_dataframe_vendas(df, engine, ec_id, contexto, usuario, 'venda')
-  ↓
-2. Separa em 3 DataFrames
-   - df_proc: Filtrado = 0 (vendas válidas)
-   - df_filt: Filtrado = 1 (vendas rejeitadas)
-   - df_div: (vendas diversas/casos especiais)
-  ↓
-3. Remove colunas internas (Filtrado, planilha_origem)
-  ↓
-4. Garante dtype DECIMAL para valores monetários ⚠️
-  ↓
-5. Bulk insert nas tabelas
-   - vendas_processadas_bulk_insert(engine, df_proc)
-   - vendas_filtradas_bulk_insert(engine, df_filt)
-   - vendas_diversas_bulk_insert(engine, df_div)
-  ↓
-Retorna: (qtd_proc, qtd_filt, qtd_div)
-```
+---
 
-#### **Etapa 4.2: Gravação de Recebíveis**
-```
-classificar_e_gravar_recebiveis(engine, df, cliente_id, ec_id, processamentoid, usuario)
-  ↓
-1. Normaliza DataFrame
-   - normalizar_dataframe_recebiveis(df, engine, ec_id, contexto, usuario)
-  ↓
-2. Separa por coluna 'Filtrado'
-   - df_proc: Filtrado = 0
-   - df_filt: Filtrado = 1
-  ↓
-3. Remove colunas internas
-  ↓
-4. Converte valores monetários + ROUND(2) ⚠️
-   - df[col] = pd.to_numeric(df[col], errors='coerce').round(2)
-  ↓
-5. Bulk insert nas tabelas
-   - recebiveis_processados_bulk_insert(engine, df_proc)
-   - recebiveis_filtrados_bulk_insert(engine, df_filt)
-  ↓
-Retorna: (qtd_proc, qtd_filt)
+## 8. **Stack Moderno: Next.js + TypeScript + FastAPI + Poetry + pnpm**
+
+### **8.1. Gerenciamento de Dependências**
+
+#### **Poetry (Backend Python)**
+```bash
+# Instalação
+curl -sSL https://install.python-poetry.org | python3 -
+
+# Inicializar projeto
+poetry init
+
+# Adicionar dependências
+poetry add fastapi uvicorn sqlalchemy pandas pydantic-settings
+poetry add --group dev pytest black ruff mypy
+
+# Instalar dependências
+poetry install
+
+# Executar comandos
+poetry run python main.py
+poetry run pytest
 ```
 
-#### **Etapa 4.3: Bulk Insert (conf/funcoesbd.py)**
+**pyproject.toml exemplo:**
+```toml
+[tool.poetry]
+name = "financial-checker-api"
+version = "2.0.0"
+description = "API FastAPI para Financial Checker"
+authors = ["Seu Nome <email@exemplo.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.109.0"
+uvicorn = {extras = ["standard"], version = "^0.27.0"}
+sqlalchemy = "^2.0.25"
+pandas = "^2.2.0"
+pydantic = "^2.6.0"
+pydantic-settings = "^2.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+black = "^24.1.0"
+ruff = "^0.2.0"
+mypy = "^1.8.0"
+
+[tool.poetry.scripts]
+dev = "uvicorn app.main:app --reload"
+start = "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 ```
-vendas_processadas_bulk_insert(engine, df)
-  ↓
-Especifica dtype para DECIMAL ⚠️ CRÍTICO:
-  dtype_map = {
-      'Valor_da_venda': DECIMAL(18, 2),
-      'Valor_descontado': DECIMAL(18, 2),
-      'Valor_RR': DECIMAL(18, 2),
-      'Taxas_Perc': DECIMAL(18, 2),
-      'Taxas_RR': DECIMAL(18, 2),
-      'Valor_líquido_da_venda': DECIMAL(18, 2),
+
+#### **pnpm (Frontend Node.js)**
+```bash
+# Instalação
+npm install -g pnpm
+
+# Inicializar projeto
+pnpm init
+
+# Adicionar dependências
+pnpm add next react react-dom
+pnpm add -D typescript @types/react @types/node eslint prettier
+
+# Instalar dependências
+pnpm install
+
+# Scripts
+pnpm dev
+pnpm build
+pnpm start
+```
+
+**package.json exemplo:**
+```json
+{
+  "name": "financial-checker-web",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^14.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "axios": "^1.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.16",
+    "@types/react": "^18.2.52",
+    "@types/react-dom": "^18.2.18",
+    "typescript": "^5.3.3",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.1.0",
+    "prettier": "^3.2.4"
   }
-  ↓
-df.to_sql(
-    name='vendas_processadas',
-    con=engine,
-    dtype=dtype_map,  ⚠️ Obrigatório!
-    if_exists='append',
-    index=False,
-    method='multi'
+}
+```
+
+---
+
+### **8.2. Backend FastAPI Modularizado**
+
+**Estrutura de Diretórios:**
+```
+apps/api/
+├─ app/
+│  ├─ __init__.py
+│  ├─ main.py                 # Entry point FastAPI
+│  ├─ config/
+│  │  ├─ __init__.py
+│  │  ├─ settings.py          # Configurações com pydantic-settings
+│  │  └─ database.py          # Conexão DB
+│  ├─ models/                 # SQLAlchemy models
+│  │  ├─ __init__.py
+│  │  ├─ vendas.py
+│  │  ├─ recebiveis.py
+│  │  └─ usuarios.py
+│  ├─ schemas/                # Pydantic schemas (DTOs)
+│  │  ├─ __init__.py
+│  │  ├─ vendas.py
+│  │  ├─ recebiveis.py
+│  │  └─ auth.py
+│  ├─ api/                    # Rotas/endpoints
+│  │  ├─ __init__.py
+│  │  ├─ deps.py              # Dependências compartilhadas
+│  │  └─ v1/
+│  │     ├─ __init__.py
+│  │     ├─ api.py            # Router principal v1
+│  │     └─ endpoints/
+│  │        ├─ vendas.py
+│  │        ├─ recebiveis.py
+│  │        ├─ calculos.py
+│  │        └─ auth.py
+│  ├─ services/               # Lógica de negócio
+│  │  ├─ __init__.py
+│  │  ├─ vendas_service.py
+│  │  ├─ calculos_service.py
+│  │  └─ etl_service.py
+│  ├─ repositories/           # Acesso a dados (Repository pattern)
+│  │  ├─ __init__.py
+│  │  ├─ base.py
+│  │  ├─ vendas_repository.py
+│  │  └─ recebiveis_repository.py
+│  └─ utils/
+│     ├─ __init__.py
+│     ├─ sql_adapters.py      # Adaptadores MySQL/SQLite
+│     ├─ validators.py
+│     └─ formatters.py
+├─ tests/
+│  ├─ __init__.py
+│  ├─ conftest.py
+│  ├─ test_vendas.py
+│  └─ test_calculos.py
+├─ alembic/                   # Migrações DB
+├─ pyproject.toml
+├─ poetry.lock
+└─ README.md
+```
+
+**app/main.py:**
+```python
+"""
+Entry point da aplicação FastAPI
+"""
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.config.settings import settings
+from app.api.v1.api import api_router
+
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version=settings.VERSION,
+    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(api_router, prefix=settings.API_V1_STR)
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"}
+```
+
+**app/config/settings.py:**
+```python
+"""
+Configurações da aplicação usando Pydantic Settings
+"""
+from pydantic_settings import BaseSettings
+from typing import List
+
+class Settings(BaseSettings):
+    PROJECT_NAME: str = "Financial Checker API"
+    VERSION: str = "2.0.0"
+    API_V1_STR: str = "/api/v1"
+    
+    # Database
+    DATABASE_URL: str
+    DB_TYPE: str = "mysql"  # mysql ou sqlite
+    
+    # CORS
+    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    
+    # Auth
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+settings = Settings()
+```
+
+**app/api/v1/endpoints/vendas.py:**
+```python
+"""
+Endpoints de vendas
+"""
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from app.api.deps import get_db
+from app.schemas.vendas import VendaCreate, VendaResponse
+from app.services.vendas_service import VendasService
+
+router = APIRouter()
+
+@router.post("/", response_model=VendaResponse, status_code=201)
+async def criar_venda(
+    venda: VendaCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Criar nova venda
+    """
+    service = VendasService(db)
+    return await service.criar_venda(venda)
+
+@router.get("/{venda_id}", response_model=VendaResponse)
+async def obter_venda(
+    venda_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Obter venda por ID
+    """
+    service = VendasService(db)
+    venda = await service.obter_venda(venda_id)
+    if not venda:
+        raise HTTPException(status_code=404, detail="Venda não encontrada")
+    return venda
+```
+
+**app/services/vendas_service.py:**
+```python
+"""
+Serviço de vendas - lógica de negócio
+"""
+from sqlalchemy.orm import Session
+from app.repositories.vendas_repository import VendasRepository
+from app.schemas.vendas import VendaCreate
+from decimal import Decimal
+
+class VendasService:
+    def __init__(self, db: Session):
+        self.repository = VendasRepository(db)
+    
+    async def criar_venda(self, venda: VendaCreate):
+        """
+        Criar venda com validações e normalizações
+        """
+        # Normalizar valor (sempre DECIMAL com .round(2))
+        venda.valor = Decimal(str(venda.valor)).quantize(Decimal('0.01'))
+        
+        # Validar dados
+        if venda.valor <= 0:
+            raise ValueError("Valor deve ser positivo")
+        
+        # Criar no repositório
+        return await self.repository.create(venda)
+```
+
+**app/repositories/base.py:**
+```python
+"""
+Repository base com operações CRUD genéricas
+"""
+from typing import Generic, TypeVar, Type, Optional, List
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+from app.models.base import Base
+
+ModelType = TypeVar("ModelType", bound=Base)
+
+class BaseRepository(Generic[ModelType]):
+    def __init__(self, model: Type[ModelType], db: Session):
+        self.model = model
+        self.db = db
+    
+    async def get(self, id: int) -> Optional[ModelType]:
+        """Buscar por ID"""
+        return self.db.query(self.model).filter(self.model.id == id).first()
+    
+    async def get_all(self, skip: int = 0, limit: int = 100) -> List[ModelType]:
+        """Listar todos com paginação"""
+        return self.db.query(self.model).offset(skip).limit(limit).all()
+    
+    async def create(self, obj_in: dict) -> ModelType:
+        """Criar novo registro"""
+        db_obj = self.model(**obj_in)
+        self.db.add(db_obj)
+        self.db.commit()
+        self.db.refresh(db_obj)
+        return db_obj
+    
+    async def update(self, id: int, obj_in: dict) -> Optional[ModelType]:
+        """Atualizar registro"""
+        db_obj = await self.get(id)
+        if db_obj:
+            for field, value in obj_in.items():
+                setattr(db_obj, field, value)
+            self.db.commit()
+            self.db.refresh(db_obj)
+        return db_obj
+    
+    async def delete(self, id: int) -> bool:
+        """Deletar registro"""
+        db_obj = await self.get(id)
+        if db_obj:
+            self.db.delete(db_obj)
+            self.db.commit()
+            return True
+        return False
+```
+
+**app/repositories/vendas_repository.py:**
+```python
+"""
+Repository de vendas
+"""
+from typing import List, Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_
+from datetime import datetime
+from app.repositories.base import BaseRepository
+from app.models.vendas import Venda
+
+class VendasRepository(BaseRepository[Venda]):
+    def __init__(self, db: Session):
+        super().__init__(Venda, db)
+    
+    async def get_by_periodo(
+        self, 
+        data_inicio: datetime, 
+        data_fim: datetime
+    ) -> List[Venda]:
+        """Buscar vendas por período"""
+        return self.db.query(Venda).filter(
+            and_(
+                Venda.data >= data_inicio,
+                Venda.data <= data_fim
+            )
+        ).all()
+    
+    async def get_by_status(self, status: str) -> List[Venda]:
+        """Buscar vendas por status"""
+        return self.db.query(Venda).filter(Venda.status == status).all()
+    
+    async def calcular_total_periodo(
+        self, 
+        data_inicio: datetime, 
+        data_fim: datetime
+    ) -> float:
+        """Calcular total de vendas no período"""
+        from sqlalchemy import func
+        result = self.db.query(
+            func.sum(Venda.valor_venda)
+        ).filter(
+            and_(
+                Venda.data >= data_inicio,
+                Venda.data <= data_fim
+            )
+        ).scalar()
+        return float(result) if result else 0.0
+```
+
+**app/models/vendas.py:**
+```python
+"""
+Model SQLAlchemy de vendas
+"""
+from sqlalchemy import Column, Integer, String, DateTime, DECIMAL, ForeignKey
+from sqlalchemy.orm import relationship
+from app.models.base import Base
+from datetime import datetime
+
+class Venda(Base):
+    __tablename__ = "vendas_processadas"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    data = Column(DateTime, nullable=False, index=True)
+    valor_venda = Column(DECIMAL(18, 2), nullable=False)
+    valor_liquido = Column(DECIMAL(18, 2))
+    status = Column(String(50), index=True)
+    tipo_transacao = Column(String(100))
+    bandeira = Column(String(50))
+    autorizacao = Column(String(100))
+    nsu = Column(String(100), unique=True)
+    
+    # Relacionamentos
+    cliente_id = Column(Integer, ForeignKey("clientes.id"))
+    cliente = relationship("Cliente", back_populates="vendas")
+    
+    processamento_id = Column(Integer, ForeignKey("processamentos.id"))
+    processamento = relationship("Processamento", back_populates="vendas")
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<Venda(id={self.id}, data={self.data}, valor={self.valor_venda})>"
+```
+
+**app/models/base.py:**
+```python
+"""
+Base model para SQLAlchemy
+"""
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+```
+
+**app/schemas/vendas.py:**
+```python
+"""
+Pydantic schemas para vendas
+"""
+from pydantic import BaseModel, Field, validator
+from datetime import datetime
+from decimal import Decimal
+from typing import Optional
+
+class VendaBase(BaseModel):
+    """Schema base de venda"""
+    data: datetime
+    valor_venda: Decimal = Field(..., decimal_places=2)
+    tipo_transacao: Optional[str] = None
+    bandeira: Optional[str] = None
+    status: str = "processado"
+
+class VendaCreate(VendaBase):
+    """Schema para criação de venda"""
+    cliente_id: int
+    
+    @validator('valor_venda')
+    def validar_valor(cls, v):
+        """Garantir valor positivo e arredondado"""
+        if v <= 0:
+            raise ValueError('Valor deve ser positivo')
+        return Decimal(str(v)).quantize(Decimal('0.01'))
+
+class VendaUpdate(BaseModel):
+    """Schema para atualização de venda"""
+    valor_venda: Optional[Decimal] = None
+    status: Optional[str] = None
+    valor_liquido: Optional[Decimal] = None
+    
+    @validator('valor_venda', 'valor_liquido')
+    def validar_valores(cls, v):
+        """Arredondar valores decimais"""
+        if v is not None:
+            return Decimal(str(v)).quantize(Decimal('0.01'))
+        return v
+
+class VendaResponse(VendaBase):
+    """Schema de resposta de venda"""
+    id: int
+    valor_liquido: Optional[Decimal] = None
+    nsu: Optional[str] = None
+    autorizacao: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True  # Para compatibilidade com SQLAlchemy
+```
+
+**app/config/database.py:**
+```python
+"""
+Configuração de conexão com banco de dados
+"""
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from app.config.settings import settings
+from app.models.base import Base
+from typing import Generator
+
+# Criar engine com configurações apropriadas
+engine = create_engine(
+    settings.DATABASE_URL,
+    pool_pre_ping=True,
+    echo=settings.DB_ECHO if hasattr(settings, 'DB_ECHO') else False,
+)
+
+# Session factory
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db() -> Generator[Session, None, None]:
+    """
+    Dependency para obter sessão do banco
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+def init_db():
+    """
+    Criar todas as tabelas
+    """
+    Base.metadata.create_all(bind=engine)
+```
+
+**app/api/deps.py:**
+```python
+"""
+Dependências compartilhadas para endpoints
+"""
+from typing import Generator
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
+from jose import jwt, JWTError
+from app.config.database import get_db
+from app.config.settings import settings
+from app.models.usuarios import Usuario
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+
+async def get_current_user(
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+) -> Usuario:
+    """
+    Obter usuário autenticado do token JWT
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Credenciais inválidas",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        payload = jwt.decode(
+            token, 
+            settings.SECRET_KEY, 
+            algorithms=[settings.ALGORITHM]
+        )
+        user_id: int = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
+    user = db.query(Usuario).filter(Usuario.id == user_id).first()
+    if user is None:
+        raise credentials_exception
+    
+    return user
+
+async def get_current_active_user(
+    current_user: Usuario = Depends(get_current_user)
+) -> Usuario:
+    """
+    Verificar se usuário está ativo
+    """
+    if not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuário inativo"
+        )
+    return current_user
+```
+
+**app/api/v1/api.py:**
+```python
+"""
+Router principal da API v1
+"""
+from fastapi import APIRouter
+from app.api.v1.endpoints import vendas, recebiveis, calculos, auth
+
+api_router = APIRouter()
+
+# Incluir todos os routers
+api_router.include_router(
+    auth.router, 
+    prefix="/auth", 
+    tags=["autenticação"]
+)
+api_router.include_router(
+    vendas.router, 
+    prefix="/vendas", 
+    tags=["vendas"]
+)
+api_router.include_router(
+    recebiveis.router, 
+    prefix="/recebiveis", 
+    tags=["recebíveis"]
+)
+api_router.include_router(
+    calculos.router, 
+    prefix="/calculos", 
+    tags=["cálculos"]
 )
 ```
 
-**⚠️ REGRA CRÍTICA:**
-- **SEMPRE** especificar `dtype` com DECIMAL(18,2) para valores monetários
-- **NUNCA** deixar Pandas inferir tipos (inferirá DOUBLE)
-
----
-
-### 🔄 **5. CONTROLE DE PROCESSAMENTO**
-
-#### **ProcessamentoID**
-```
-Formato: "EC_SEQUENCIA - DATA"
-Exemplo: "1068306022_0001 - 09/12/2025 08:13:30"
-
-Geração:
-  processamento_gerar_novo_id(engine, ec_id, datetime.now())
-    ↓
-  Consulta sequência atual: SELECT MAX(id_processamento) FROM controle_processamentos
-    ↓
-  Incrementa: sequencia + 1
-    ↓
-  Formata: f"{ec_id}_{sequencia:04d} - {data:%d/%m/%Y %H:%M:%S}"
-
-Gravação:
-  processamento_salvar(engine, ec_id, cliente_id, processamentoid, descricao, data_proc)
-    ↓
-  INSERT INTO controle_processamentos (id_processamento, cliente_id, ec_id, data_processamento)
-```
-
-#### **Continuar Processamento Anterior**
-```
-UI: continuar_checkbox.value = True
-  ↓
-Usa processamentoid_select.value (existente)
-  ↓
-TODAS as vendas/recebíveis usam MESMO processamentoid
-  ↓
-Permite agrupar múltiplos arquivos em um único processamento
-```
-
----
-
-### 📊 **6. FLUXO COMPLETO RESUMIDO**
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. UPLOAD                                                       │
-│    FileInput → safe_read_file → detectar_cabecalho             │
-└────────────────┬────────────────────────────────────────────────┘
-                 ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 2. DE-PARA                                                      │
-│    aplicar_regras_depara → Renomeia colunas                    │
-│    Adiciona colunas sistema (cliente_id, ec_id, processamentoid)│
-└────────────────┬────────────────────────────────────────────────┘
-                 ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 3. NORMALIZAÇÃO                                                 │
-│    ⚠️ Converte datas → datetime                                 │
-│    ⚠️ Converte valores → float/numeric + .round(2)              │
-│    ⚠️ Calcula Valor_RR + .round(2)                              │
-│    Preenche Adquirente (contexto)                              │
-└────────────────┬────────────────────────────────────────────────┘
-                 ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 4. FILTRAGEM                                                    │
-│    Carrega termos_filtraveis                                   │
-│    Marca df['Filtrado'] = 1 se termo encontrado               │
-│    Separa: processadas (0) vs filtradas (1)                   │
-└────────────────┬────────────────────────────────────────────────┘
-                 ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 5. GRAVAÇÃO                                                     │
-│    ⚠️ dtype={'Valor_RR': DECIMAL(18,2), ...}                    │
-│    bulk_insert → vendas_processadas / vendas_filtradas        │
-│    bulk_insert → recebiveis_processados / recebiveis_filtrados│
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### ⚠️ **PONTOS CRÍTICOS DE ATENÇÃO**
-
-1. **Arredondamento Obrigatório:**
-   - Após `_to_float_br()` → `.round(2)`
-   - Após `pd.to_numeric()` → `.round(2)`
-   - Após cálculos matemáticos → `.round(2)`
-
-2. **dtype Obrigatório:**
-   - Sempre especificar em `df.to_sql(dtype=dtype_map)`
-   - Valores monetários: `DECIMAL(18, 2)`
-
-3. **Ordem de Operações:**
-   - Converter → Arredondar → Gravar
-   - NUNCA: Converter → Gravar (sem arredondar)
-
-4. **Validação de Dados:**
-   - Remover np.inf antes de conversões
-   - Tratar np.nan adequadamente
-   - Validar datas com `dayfirst=True`
-
-5. **Processamento Multi-Arquivo:**
-   - Mesmo processamentoid para múltiplos arquivos
-   - Consolidação via controle_processamentos
-
----
-
-## 🔸 REGRAS PARA O AGENTE IA
-
-### 1. Queries/Helpers: Sempre prover MySQL e SQLite
-- Toda função SQL deve prever ambos os bancos via helpers.
-- Siga exemplos nas funções _is_sqlite, _concat, _year etc (conf/)
-- Parametrização: `%s`, `%(param)s` (MySQL), `:param` (SQLite)
-- **MySQL**: Use `MODIFY COLUMN` para ALTER TABLE (não `ALTER COLUMN`)
-- EXEMPLO:
+**app/utils/sql_adapters.py:**
 ```python
-def _year(engine, column):
-    return f"strftime('%Y', {column})" if _is_sqlite(engine) else f"YEAR({column})"
+"""
+Adaptadores SQL para compatibilidade MySQL/SQLite
+"""
+from sqlalchemy import engine
+
+def _is_sqlite(eng) -> bool:
+    """Verificar se é SQLite"""
+    return 'sqlite' in str(eng.url)
+
+def _is_mysql(eng) -> bool:
+    """Verificar se é MySQL"""
+    return 'mysql' in str(eng.url)
+
+def _concat_sql(eng, *args) -> str:
+    """
+    Concatenação de strings SQL compatível
+    """
+    if _is_sqlite(eng):
+        return ' || '.join(args)
+    return f"CONCAT({', '.join(args)})"
+
+def _date_format_sql(eng, date_column: str, format_str: str) -> str:
+    """
+    Formatação de data SQL compatível
+    """
+    if _is_sqlite(eng):
+        # SQLite usa strftime
+        return f"strftime('{format_str}', {date_column})"
+    # MySQL usa DATE_FORMAT
+    return f"DATE_FORMAT({date_column}, '{format_str}')"
+
+def _substring_sql(eng, column: str, start: int, length: int) -> str:
+    """
+    Substring SQL compatível
+    """
+    if _is_sqlite(eng):
+        return f"SUBSTR({column}, {start}, {length})"
+    return f"SUBSTRING({column}, {start}, {length})"
+
+def _current_timestamp_sql(eng) -> str:
+    """
+    Timestamp atual SQL compatível
+    """
+    if _is_sqlite(eng):
+        return "CURRENT_TIMESTAMP"
+    return "NOW()"
+
+def get_placeholder(eng, index: int = 1) -> str:
+    """
+    Retornar placeholder correto para o banco
+    MySQL: %s
+    SQLite: ?
+    """
+    if _is_sqlite(eng):
+        return "?"
+    return "%s"
 ```
 
-### 2. Tipos de Dados - CRÍTICO
-- **Valores monetários**: SEMPRE usar `DECIMAL(18,2)` no dtype do pandas to_sql
-- **Percentuais/Taxas**: SEMPRE usar `DECIMAL(18,2)`
-- **NUNCA usar DOUBLE/FLOAT** para dinheiro (causa imprecisão de ponto flutuante)
-- Exemplo correto em bulk_insert:
+---
+
+### **8.3. Frontend Next.js + TypeScript Modularizado**
+
+**Estrutura de Diretórios:**
+```
+apps/web/
+├─ app/                       # App Router (Next.js 13+)
+│  ├─ layout.tsx
+│  ├─ page.tsx
+│  ├─ (auth)/
+│  │  ├─ login/
+│  │  │  └─ page.tsx
+│  │  └─ layout.tsx
+│  ├─ (dashboard)/
+│  │  ├─ vendas/
+│  │  │  ├─ page.tsx
+│  │  │  └─ [id]/
+│  │  │     └─ page.tsx
+│  │  ├─ recebiveis/
+│  │  │  └─ page.tsx
+│  │  ├─ calculos/
+│  │  │  └─ page.tsx
+│  │  └─ layout.tsx
+│  └─ api/                    # API Routes (opcional)
+│     └─ health/
+│        └─ route.ts
+├─ components/
+│  ├─ ui/                     # Componentes base
+│  │  ├─ Button.tsx
+│  │  ├─ Input.tsx
+│  │  ├─ Table.tsx
+│  │  └─ Card.tsx
+│  ├─ layout/                 # Layout components
+│  │  ├─ Header.tsx
+│  │  ├─ Sidebar.tsx
+│  │  └─ Footer.tsx
+│  ├─ vendas/                 # Componentes de vendas
+│  │  ├─ VendasTable.tsx
+│  │  ├─ VendaForm.tsx
+│  │  └─ VendaCard.tsx
+│  └─ shared/                 # Componentes compartilhados
+│     ├─ Loading.tsx
+│     └─ ErrorBoundary.tsx
+├─ lib/
+│  ├─ api/                    # Cliente API
+│  │  ├─ client.ts
+│  │  ├─ vendas.ts
+│  │  ├─ recebiveis.ts
+│  │  └─ auth.ts
+│  ├─ hooks/                  # Custom hooks
+│  │  ├─ useVendas.ts
+│  │  ├─ useAuth.ts
+│  │  └─ useDebounce.ts
+│  ├─ utils/
+│  │  ├─ formatters.ts
+│  │  ├─ validators.ts
+│  │  └─ constants.ts
+│  └─ types/                  # TypeScript types
+│     ├─ vendas.ts
+│     ├─ recebiveis.ts
+│     └─ api.ts
+├─ public/
+├─ styles/
+│  └─ globals.css
+├─ package.json
+├─ tsconfig.json
+├─ next.config.js
+└─ .env.local
+```
+
+**lib/api/client.ts:**
+```typescript
+/**
+ * Cliente API base
+ */
+import axios, { AxiosInstance } from 'axios';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+export const apiClient: AxiosInstance = axios.create({
+  baseURL: `${API_URL}/api/v1`,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Interceptor para adicionar token
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Interceptor para tratar erros
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Redirecionar para login
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+```
+
+**lib/api/vendas.ts:**
+```typescript
+/**
+ * API de vendas
+ */
+import { apiClient } from './client';
+import { Venda, VendaCreate } from '@/lib/types/vendas';
+
+export const vendasApi = {
+  async listar(): Promise<Venda[]> {
+    const { data } = await apiClient.get<Venda[]>('/vendas');
+    return data;
+  },
+
+  async obter(id: number): Promise<Venda> {
+    const { data } = await apiClient.get<Venda>(`/vendas/${id}`);
+    return data;
+  },
+
+  async criar(venda: VendaCreate): Promise<Venda> {
+    const { data } = await apiClient.post<Venda>('/vendas', venda);
+    return data;
+  },
+
+  async atualizar(id: number, venda: Partial<Venda>): Promise<Venda> {
+    const { data } = await apiClient.put<Venda>(`/vendas/${id}`, venda);
+    return data;
+  },
+
+  async deletar(id: number): Promise<void> {
+    await apiClient.delete(`/vendas/${id}`);
+  },
+};
+```
+
+**lib/hooks/useVendas.ts:**
+```typescript
+/**
+ * Hook para gerenciar vendas
+ */
+import { useState, useEffect } from 'react';
+import { vendasApi } from '@/lib/api/vendas';
+import { Venda } from '@/lib/types/vendas';
+
+export function useVendas() {
+  const [vendas, setVendas] = useState<Venda[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchVendas = async () => {
+    try {
+      setLoading(true);
+      const data = await vendasApi.listar();
+      setVendas(data);
+      setError(null);
+    } catch (err) {
+      setError('Erro ao carregar vendas');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVendas();
+  }, []);
+
+  return { vendas, loading, error, refetch: fetchVendas };
+}
+```
+
+**components/vendas/VendasTable.tsx:**
+```typescript
+/**
+ * Tabela de vendas
+ */
+'use client';
+
+import { useVendas } from '@/lib/hooks/useVendas';
+import { formatCurrency, formatDate } from '@/lib/utils/formatters';
+
+export function VendasTable() {
+  const { vendas, loading, error } = useVendas();
+
+  if (loading) return <div>Carregando...</div>;
+  if (error) return <div>Erro: {error}</div>;
+
+  return (
+    <table className="w-full">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Data</th>
+          <th>Valor</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {vendas.map((venda) => (
+          <tr key={venda.id}>
+            <td>{venda.id}</td>
+            <td>{formatDate(venda.data)}</td>
+            <td>{formatCurrency(venda.valor)}</td>
+            <td>{venda.status}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+---
+
+### **8.4. Monorepo: Integração Completa**
+
+**Estrutura Monorepo:**
+```
+financial-checker/
+├─ apps/
+│  ├─ web/                    # Next.js + TypeScript
+│  │  ├─ package.json
+│  │  └─ ...
+│  └─ api/                    # FastAPI + Poetry
+│     ├─ pyproject.toml
+│     └─ ...
+├─ packages/
+│  ├─ shared-types/           # Types compartilhados
+│  │  ├─ package.json
+│  │  └─ index.ts
+│  ├─ ui/                     # Component library
+│  │  ├─ package.json
+│  │  └─ components/
+│  └─ config/                 # Configs compartilhadas
+│     ├─ eslint-config/
+│     └─ tsconfig/
+├─ .github/
+│  └─ workflows/
+│     ├─ ci-web.yml
+│     └─ ci-api.yml
+├─ package.json               # Root package.json (pnpm workspace)
+├─ pnpm-workspace.yaml
+├─ turbo.json
+└─ README.md
+```
+
+**pnpm-workspace.yaml:**
+```yaml
+packages:
+  - 'apps/*'
+  - 'packages/*'
+```
+
+**turbo.json:**
+```json
+{
+  "$schema": "https://turbo.build/schema.json",
+  "pipeline": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    }
+  }
+}
+```
+
+**Root package.json:**
+```json
+{
+  "name": "financial-checker-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "web:dev": "pnpm --filter web dev",
+    "api:dev": "cd apps/api && poetry run dev"
+  },
+  "devDependencies": {
+    "turbo": "^1.11.0",
+    "prettier": "^3.2.4"
+  },
+  "packageManager": "pnpm@8.15.0"
+}
+```
+
+---
+
+### **8.5. Referências e Recursos**
+
+#### **Documentação Oficial**
+- [Poetry Documentation](https://python-poetry.org/docs/)
+- [pnpm Documentation](https://pnpm.io/)
+- [Next.js Documentation](https://nextjs.org/docs)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [TurboRepo Documentation](https://turbo.build/repo/docs)
+
+#### **Templates e Boilerplates**
+- [Next.js FastAPI Template](https://nextfastapi.com/)
+- [FastAPI Full Stack Template](https://github.com/tiangolo/full-stack-fastapi-template)
+- [Next.js Boilerplate](https://github.com/vercel/next.js/tree/canary/examples)
+
+#### **Ferramentas de Desenvolvimento**
+- [openapi-typescript-codegen](https://github.com/ferdikoomen/openapi-typescript-codegen) - Gerar tipos TS do OpenAPI
+- [SQLAlchemy](https://www.sqlalchemy.org/) - ORM Python
+- [Alembic](https://alembic.sqlalchemy.org/) - Migrações de banco
+- [Pytest](https://docs.pytest.org/) - Testes Python
+- [Vitest](https://vitest.dev/) - Testes JavaScript/TypeScript
+
+---
+
+### **8.6. Melhores Práticas para o Agente IA**
+
+#### **Backend (FastAPI + Poetry)**
+- ✅ Sempre usar type hints em todas as funções
+- ✅ Pydantic para validação de dados (schemas)
+- ✅ Repository pattern para acesso a dados
+- ✅ Service layer para lógica de negócio
+- ✅ Async/await para operações I/O
+- ✅ Testes com pytest e coverage > 80%
+- ✅ DECIMAL(18,2) para valores monetários
+- ✅ Docstrings em todas funções públicas
+
+#### **Frontend (Next.js + TypeScript)**
+- ✅ Componentes funcionais com TypeScript
+- ✅ Custom hooks para lógica reutilizável
+- ✅ Separação de concerns (UI/logic/data)
+- ✅ Error boundaries para tratamento de erros
+- ✅ Loading states em todas operações async
+- ✅ Validação de formulários com Zod ou Yup
+- ✅ Formatação consistente (Prettier + ESLint)
+- ✅ Types gerados automaticamente do backend
+
+#### **Integração**
+- ✅ OpenAPI spec sempre atualizado
+- ✅ CI/CD para ambos apps (web + api)
+- ✅ Versionamento semântico
+- ✅ Changelog mantido atualizado
+- ✅ Environment variables com .env
+- ✅ Docker compose para desenvolvimento local
+- ✅ Documentação técnica atualizada
+---
+
+## 9. Apêndices: Snippets, Troubleshootings, Workflows, Casos de Uso
+
+### **Exemplo Adaptador SQL Universal**
+```python
+def _concat_sql(engine, *args):
+    if _is_sqlite(engine):
+        return ' || '.join(args)
+    return f"CONCAT({', '.join(args)})"
+```
+
+### **Bulk Insert Pandas to_sql (corrigir bug monetário)**
 ```python
 from sqlalchemy.types import DECIMAL
-
-dtype_map = {
-    'Valor_da_venda': DECIMAL(18, 2),
-    'Taxas_Perc': DECIMAL(18, 2),
-    'Valor_RR': DECIMAL(18, 2),
-}
-df.to_sql(..., dtype=dtype_map)
+df.to_sql(
+    'vendas_processadas',
+    con=engine,
+    dtype={'Valor_da_venda': DECIMAL(18,2), ...},
+    method='multi',
+    if_exists='append',
+    index=False
+)
 ```
 
-### 3. Gestão de Taxas - Lógica Hierárquica
-- **Sistema de 3 camadas** para cálculo de taxas:
-  1. **Específica**: Taxa com forma_pagamento + bandeira (WHERE bandeira IS NOT NULL)
-  2. **Genérica**: Taxa só com forma_pagamento (WHERE bandeira IS NULL) 
-  3. **LOG**: Taxa mínima do período (fallback quando não há cadastro)
-- Aplicar camadas sequencialmente (específica primeiro, genérica depois)
-- Taxa genérica aplica-se a TODAS as bandeiras quando bandeira = NULL
-- UI deve permitir cadastro de taxa genérica (checkbox desabilita campo bandeira)
-
-### 4. SQL Pandas/Resultados:
-- Sempre use acesso dinâmico às colunas (`result.columns`) ao usar Pandas.
-- Nunca usar string fixa: `result["coluna"]` (pode falhar pela sensibilidade de case no SQLite).
-- Use alias explícito em queries.
-
-### 5. Funções e nomenclatura
-- Snake_case para variáveis, argumentos e funções.
-- Sempre docstring clara e breve (em português).
-- Metodologia bulk_insert padronizada para tabelas processadas.
-- Sempre especificar dtype para colunas DECIMAL ao usar to_sql()
-
-### 6. UI/Panel
-- Widgets via helpers.
-- Mensagens via `_notify("success"|"error"|"warning", msg)`.
-- Modularizar views por contexto de negócio.
-- Checkbox para taxa genérica deve desabilitar campo bandeira quando marcado
-- MultiChoice para seleção de múltiplos ECs (copiar taxas, etc)
-
-### 7. Documentação/Checklist
-- Toda novidade ou exemplo deve ser adicionado no `README.md` principal.
-- Novas funcionalidades? Informe dual path (MySQL/SQLite) e que foi testado em ambos.
-- Adotar checklist padrão para qualquer função nova:
-  - `README.md` atualizado
-  - Docstring presente e explicativa
-  - Compatível igualmente para ambos os bancos
-  - Testado no UI (panel)
-  - Tipos DECIMAL especificados para valores monetários
+### **Checklist Pós-Deploy/Importação**
+- [ ] Teste SQLite e MySQL ok?
+- [ ] Tipagem dos dados monetários? Não há DOUBLE?
+- [ ] Scripts & docs ok e versionados?
+- [ ] Teste manual função crítica/processamento?
+- [ ] AI/engine atualizado/escrito no agent.md?
 
 ---
 
-## 🔸 Exemplo de Padrão
-```python
-def _year(engine, column):
-    """Retorna expressão SQL para extrair ano (compatível).
-    Args: engine (sqlalchemy.Engine), column (str)
-    Returns: str
-    """
-    return f"strftime('%Y', {column})" if _is_sqlite(engine) else f"YEAR({column})"
-
-# Exemplo correto de bulk_insert com DECIMAL
-def vendas_processadas_bulk_insert(engine: Engine, df) -> int:
-    from sqlalchemy.types import DECIMAL
-    
-    dtype_map = {
-        'Valor_da_venda': DECIMAL(18, 2),
-        'Valor_descontado': DECIMAL(18, 2),
-        'Valor_RR': DECIMAL(18, 2),
-        'Taxas_Perc': DECIMAL(18, 2),
-    }
-    
-    df.to_sql(
-        name="vendas_processadas",
-        con=engine,
-        dtype=dtype_map,
-        if_exists="append"
-    )
-    return len(df)
-
-# Exemplo correto de cálculo com arredondamento
-def normalizar_valores_monetarios(df: pd.DataFrame) -> pd.DataFrame:
-    """Normaliza valores monetários com precisão decimal correta"""
-    
-    # ⚠️ CRÍTICO: SEMPRE usar .round(2) após conversões
-    for col in ['Valor_da_venda', 'Taxas_Perc', 'Valor_RR']:
-        if col in df.columns:
-            df[col] = _to_float_br(df[col]).round(2)
-    
-    # ⚠️ CRÍTICO: SEMPRE usar .round(2) após cálculos
-    if 'Taxas_RR' in df.columns and 'Valor_da_venda' in df.columns:
-        df['Valor_RR'] = ((df['Valor_da_venda'] * df['Taxas_RR']) / 100).round(2)
-    
-    return df
-```
-
----
-
-## 🔸 Convenções Gerais
-- Comentários explicativos para TODO trecho não trivial.
-- Views separando claramente interface, processamento e banco.
-- Estrutura de funções seguindo mesmo padrão para processadas, filtradas, deduplicação e agregação (conf/).
-- Scripts/funcionais acessórios claros em dev_tools/ ou scripts/
-- Sempre manter nomes de variáveis e argumentos com clareza para facilitar busca e manutenção.
-- Padronização dos nomes de colunas conforme já usado no projeto.
-
----
-
-## 🔸 Referência para Novos SQL
-- **Banco principal**: MySQL (não MSSQL!)
-- Placeholders: `%s`, `%(param)s` (MySQL), `:param` (SQLite)
-- Datas: `DATE_FORMAT()` (MySQL), `strftime()` (SQLite)
-- Concat: `CONCAT()` (MySQL), `||` (SQLite)
-- INSERT IGNORE: `INSERT IGNORE` (MySQL), `INSERT OR IGNORE` (SQLite)
-- UPSERT: `ON DUPLICATE KEY UPDATE` (MySQL), `INSERT OR REPLACE` (SQLite)
-- **ALTER TABLE**: `MODIFY COLUMN` (MySQL), `ALTER COLUMN` (SQLite/outros)
-- Aggregação com GROUP BY: Sempre usar `ANY_VALUE()` para colunas não agregadas (MySQL 8.0+ ONLY_FULL_GROUP_BY)
-
----
-
-## 🔸 Checklist para Novas Features IA
-- [ ] Novo código SQL teve ambos bancos implementados?
-- [ ] Novo helper/documentação/roteiro está no README.md?
-- [ ] Função e parâmetros com docstring?
-- [ ] Caso use Pandas, está acessando colunas de forma dinâmica?
-- [ ] Nome de variáveis está claro?
-- [ ] Lógica complexa foi comentada?
-- [ ] Testes manuais feitos nos dois modos (MySQL/SQLite)?
-- [ ] **Valores monetários usando DECIMAL(18,2) não DOUBLE?**
-- [ ] **dtype especificado em df.to_sql() para colunas decimais?**
-- [ ] Taxas hierárquicas (específica → genérica → LOG) implementadas corretamente?
-- [ ] UI permite cadastro de taxas genéricas (bandeira NULL)?
-
----
-
-## 🔸 Armadilhas Comuns - EVITAR
-
-### ❌ NUNCA FAZER:
-1. **Usar DOUBLE/FLOAT para valores monetários**
-   - Causa: 0.30 vira 0.30000000000000004 ou 0.3097
-   - Solução: DECIMAL(18,2)
-
-2. **Confundir MySQL com MSSQL**
-   - MySQL usa: `MODIFY COLUMN`
-   - MSSQL usa: `ALTER COLUMN`
-
-3. **Esquecer dtype no to_sql()**
-   - Pandas infere tipos incorretos (DOUBLE em vez de DECIMAL)
-   - Sempre especificar: `dtype={'Valor_RR': DECIMAL(18,2)}`
-
-4. **Criar múltiplos arquivos de documentação**
-   - Sempre consolidar no README.md principal
-
-5. **Esquecer ANY_VALUE() em GROUP BY (MySQL 8.0+)**
-   - Erro: "not in GROUP BY clause"
-   - Solução: `ANY_VALUE(bandeira)` para colunas não agregadas
-
-6. **Esquecer .round(2) em cálculos monetários no código Python**
-   - Problema: Mesmo com DECIMAL no banco, cálculos intermediários em Python geram imprecisão
-   - Causa: 0.30 vira 0.3097 durante operações matemáticas
-   - Exemplo errado: `df['Valor_RR'] = (df['Valor'] * df['Taxa']) / 100`
-   - Exemplo correto: `df['Valor_RR'] = ((df['Valor'] * df['Taxa']) / 100).round(2)`
-   - Onde aplicar: 
-     - Após TODOS os cálculos (multiplicação, divisão, etc)
-     - Após conversões com `_to_float_br()` ou `pd.to_numeric()`
-     - Antes de gravar no banco com `to_sql()`
-   - Padrão: `.round(2)` encadeado imediatamente após operação
-
-7. **Esquecer de calcular perda quando valor calculado é zero**
-   - Problema: Quando `tem_receba_rapido = False`, perda_rr fica 0.00 mesmo havendo cobrança no arquivo
-   - Causa: Sistema zera `tx_rr_calc` e `vl_rr_calc`, mas deveria calcular economia
-   - Exemplo errado: `perda_rr = 0` quando cliente não usa RR
-   - Exemplo correto: `perda_rr = -vl_rr_venda` (economia por não usar RR)
-   - Onde aplicar: Sempre que desabilitar funcionalidade mas houver valores no arquivo original
-   - Lógica: Se não usa funcionalidade MAS foi cobrado = economia (valor negativo)
-
-8. **Usar variáveis antes de defini-las**
-   - Problema: `periodo_ini_sql` usado mas não definido, causa NameError
-   - Causa: Variável depende de lógica condicional mas não é inicializada
-   - Exemplo errado: Usar `periodo_ini_sql` sem definir baseado em `tipo_taxa`
-   - Exemplo correto: 
-     ```python
-     # Definir ANTES de usar
-     if tipo_taxa == "log_mensal":
-         periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-%m-01')"
-     elif tipo_taxa == "log_trimestral":
-         periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-Q')"
-     # ... usar depois
-     query = f"... {periodo_ini_sql} ..."
-     ```
-   - Onde aplicar: SEMPRE inicializar variáveis antes do primeiro uso
-   - Padrão: Definir no início do bloco lógico onde será usada
-
-9. **Inserir variável SQL completa dentro de f-string**
-   - Problema: `periodo_ini_sql` contém `DATE_FORMAT(vp.Data_da_venda, '%Y-01-01')` e é inserido em f-string, gerando `DATE_FORMAT(..., 'DATE_FORMAT(...)')`
-   - Causa: Variável já contém expressão SQL completa, mas é tratada como formato simples
-
-10. **Esquecer de passar parâmetros para conn.execute() com text()**
-   - Problema: Query usa `:calc_id` e `:calc_tipo` mas `conn.execute(text(sql))` não recebe parâmetros
-   - Causa: text() apenas prepara query, mas parâmetros precisam ser passados separadamente
-   - Exemplo errado: `conn.execute(text("... WHERE calc_id = :calc_id"))`
-   - Exemplo correto: `conn.execute(text("... WHERE calc_id = :calc_id"), {"calc_id": proc_id, "calc_tipo": tipo_taxa})`
-   - Onde aplicar: **TODA** query com parâmetros nomeados (`:param`)
-   - Resultado: Sem parâmetros, query falha silenciosamente ou retorna 0 rows
-   - Debug: Sempre verificar `result.rowcount` após UPDATE/INSERT
-   - Exemplo errado:
-     ```python
-     periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-01-01')"
-     query = f"... DATE_FORMAT(vp2.Data_da_venda, '{periodo_ini_sql}') ..."
-     # Gera: DATE_FORMAT(vp2.Data_da_venda, 'DATE_FORMAT(vp.Data_da_venda, '%Y-01-01')')
-     ```
-   - Exemplo correto:
-     ```python
-     periodo_format = "%Y-01-01"  # Apenas o formato
-     periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-01-01')"  # SQL completo
-     query = f"... DATE_FORMAT(vp2.Data_da_venda, '{periodo_format}') ..."
-     # Gera: DATE_FORMAT(vp2.Data_da_venda, '%Y-01-01') ✅
-     ```
-   - Onde aplicar: Separar formato (string simples) de expressão SQL completa
-   - Padrão: Criar duas variáveis - uma para formato, outra para SQL completo
-
-11. **Loop de batching desnecessário para UPDATEs com agregação**
-   - Problema: Buscar IDs → Loop 10k → Montar IN clause → UPDATE parcial
-   - Causa: Overhead de múltiplas queries quando MySQL pode agregar tudo de uma vez
-   - Exemplo errado:
-     ```python
-     ids = SELECT id WHERE tx_calc IS NULL
-     for batch in chunks(ids, 10000):
-         ids_str = ",".join(str(x) for x in batch)
-         UPDATE ... WHERE id IN (ids_str) AND tx_calc IS NULL
-     ```
-   - Exemplo correto:
-     ```python
-     UPDATE vendas_calculos vc
-     JOIN vendas_processadas vp ON vc.id_venda = vp.id
-     JOIN (
-         SELECT periodo, forma, bandeira, MIN(tx_venda) AS min_tx
-         FROM vendas_calculos vc2
-         JOIN vendas_processadas vp2 ON vc2.id_venda = vp2.id
-         WHERE calc_id = X AND calc_tipo = Y
-         GROUP BY periodo, forma, bandeira
-     ) agg ON agg.periodo = periodo AND agg.forma = vc.forma AND agg.bandeira = vc.bandeira
-     SET vc.tx_calc = agg.min_tx
-     WHERE calc_id = X AND calc_tipo = Y AND tx_calc IS NULL
-     ```
-   - Onde aplicar: UPDATEs com agregação MIN/MAX/AVG em datasets grandes
-   - Benefícios: 1 query vs 100+, transação única, código mais simples (80+ linhas → 30 linhas)
-   - Performance: Elimina overhead de loop Python e múltiplas queries SQL
-
-### ✅ SEMPRE FAZER:
-1. Verificar se banco é MySQL ou SQLite antes de sugerir SQL
-2. Especificar DECIMAL para todas colunas monetárias (schema + dtype)
-3. Aplicar `.round(2)` após TODOS os cálculos e conversões monetárias
-4. Testar com dados reais (0.30 deve permanecer 0.30 em TODA a pipeline)
-5. Implementar lógica hierárquica de taxas (específica → genérica → LOG)
-6. Adicionar debug logging para queries complexas
-7. Comentar código com ⚠️ CRÍTICO onde há risco de imprecisão decimal
-8. Definir variáveis de período ANTES de usar em queries dinâmicas
-9. Validar que funções recebem parâmetros corretos (tipo_taxa, etc)
-10. **SEMPRE passar dict de parâmetros em conn.execute(text(sql), params)** quando SQL usa `:param`
-11. **SEMPRE verificar result.rowcount após UPDATE/INSERT** para confirmar que query funcionou
-
----
-
-## 🔸 Padrão de Cálculo de Período LOG
-
-O sistema de taxas LOG usa diferentes períodos de agregação baseado no `tipo_taxa`:
-
-### Formatos de Período
-```python
-# Definição de periodo_ini_sql baseado no tipo_taxa
-if tipo_taxa == "log_mensal":
-    periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-%m-01')"  # Agrupa por mês
-elif tipo_taxa == "log_trimestral":
-    periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-Q')"      # Agrupa por trimestre
-elif tipo_taxa == "log_semestral":
-    periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-S')"      # Agrupa por semestre
-else:  # log_anual (padrão)
-    periodo_ini_sql = "DATE_FORMAT(vp.Data_da_venda, '%Y-01-01')"  # Agrupa por ano
-```
-
-### Uso em Queries
-```python
-# Exemplo de query com período dinâmico
-query = f"""
-    SELECT 
-        ec_id,
-        bandeira,
-        forma_pagamento,
-        {periodo_ini_sql} AS periodo_ini,
-        MIN(Taxas_Perc) AS min_taxa
-    FROM vendas_processadas
-    GROUP BY ec_id, bandeira, forma_pagamento, periodo_ini
-"""
-```
-
-### ⚠️ REGRAS CRÍTICAS
-1. **SEMPRE** definir `periodo_format` E `periodo_ini_sql` ANTES de usar
-2. **NUNCA** inserir `periodo_ini_sql` (SQL completo) dentro de DATE_FORMAT em f-string
-3. **USAR** `periodo_format` (string simples) em queries dinâmicas
-4. **USAR** `periodo_ini_sql` (SQL completo) apenas para substituição direta sem DATE_FORMAT
-5. **SEMPRE** usar o mesmo formato na subquery e no JOIN
-6. **SEMPRE** passar `tipo_taxa` para funções que calculam LOG
-7. Batch updates devem usar período dinâmico (não hardcoded)
-8. **NUNCA** filtrar `tx_calc IS NULL` na subquery de agregação LOG - deve calcular MIN de TODAS as vendas do período
-   - ❌ Errado: `WHERE calc_id = X AND calc_tipo = Y AND tx_calc IS NULL` na subquery
-   - ✅ Correto: `WHERE calc_id = X AND calc_tipo = Y` na subquery (sem filtro tx_calc)
-   - Motivo: Agregação MIN deve considerar TODAS as vendas do período para encontrar menor taxa
-   - Filtro `tx_calc IS NULL` só deve estar no WHERE principal do UPDATE (define quais registros atualizar)
-
----
-
-## 🔸 Fluxo de Telas/Pontos-Chave
-- Login → Menu lateral → escolha de função/view em Panel/Tabs
-- Importação/De-Para
-- Gestão de entidades (clientes, bandeiras, taxas)
-  - **Taxas**: Permite cadastro genérico (bandeira NULL) e específico
-  - **Copiar taxas**: MultiChoice para copiar de um EC para múltiplos destinos
-- Interface de cálculo/análise, visualização tabular e gráficos
-- Correção retroativa (formas/bandeiras) sempre registrando no log
-- Consistência de interface para todos módulos
-
----
-
-## 🔸 Contexto de Negócio - Taxas
-
-### Sistema Hierárquico de Taxas (3 Camadas)
-1. **Taxa Específica** (prioridade ALTA)
-   - WHERE bandeira IS NOT NULL AND forma_pagamento = X AND bandeira = Y
-   - Exemplo: DÉBITO + VISA = 2.0%
-
-2. **Taxa Genérica** (prioridade MÉDIA)
-   - WHERE bandeira IS NULL AND forma_pagamento = X
-   - Exemplo: DÉBITO (todas bandeiras) = 2.5%
-   - UI: Checkbox "Taxa Genérica" desabilita campo bandeira
-
-3. **Taxa LOG** (prioridade BAIXA - fallback)
-   - MIN(taxa) do período quando não há cadastro
-   - Usado apenas quando camadas 1 e 2 não encontram taxa
-
-### Implementação de Cálculo
-```python
-# Camada 1: Específica
-UPDATE vendas_calculadas vc
-JOIN taxas t ON t.forma_pagamento = vc.forma AND t.bandeira = vc.bandeira
-SET vc.tx_calc = t.taxa
-WHERE t.bandeira IS NOT NULL
-
-# Camada 2: Genérica (apenas onde ainda não calculou)
-UPDATE vendas_calculadas vc
-JOIN taxas t ON t.forma_pagamento = vc.forma
-SET vc.tx_calc = t.taxa
-WHERE t.bandeira IS NULL AND vc.tx_calc IS NULL
-
-# Camada 3: LOG (fallback)
-UPDATE vendas_calculadas vc
-SET vc.tx_calc = (SELECT MIN(taxa) FROM vendas_periodo WHERE forma = vc.forma)
-WHERE vc.tx_calc IS NULL
-```
-
----
-
-## IMPORTANTE
-- **Banco é MySQL, não MSSQL!** Sempre confirmar sintaxe correta
-- Nunca sugerir SQL "puro" MySQL sem fallback SQLite!
-- Toda lógica implementada **deve** prever equivalência, via helpers ou nova função dual
-- **DECIMAL(18,2) obrigatório** para valores monetários (nunca DOUBLE/FLOAT)
-- **dtype obrigatório** em df.to_sql() para colunas decimais
-- Sistema de taxas usa 3 camadas hierárquicas (específica → genérica → LOG)
-- Sugerir inclusão ou melhoria no README sempre!
-- Manter código claro, modular, autoexplicativo, comentado e aderente a essas práticas
-- Debug logging para queries complexas e cálculos multi-camada
-
----
-
-## 🔸 Resolução Rápida de Problemas
-
-| Problema | Causa | Solução |
-|----------|-------|---------|
-| 0.30 vira 0.3097 (BD) | DOUBLE em vez de DECIMAL no schema | `ALTER TABLE ... MODIFY COLUMN ... DECIMAL(18,2)` |
-| 0.30 vira 0.3097 (código) | Falta .round(2) em cálculos Python | Adicionar `.round(2)` após cálculos e conversões |
-| dtype não especificado | Pandas infere DOUBLE | `dtype={'col': DECIMAL(18,2)}` em to_sql() |
-| "not in GROUP BY" | MySQL ONLY_FULL_GROUP_BY | `ANY_VALUE(coluna)` |
-| Taxa não aplicada | Ordem hierárquica errada | Específica → Genérica → LOG |
-| ALTER TABLE falha | Sintaxe MSSQL no MySQL | `MODIFY COLUMN` não `ALTER COLUMN` |
-| Valores arredondados | Falta precisão decimal | Verificar estrutura da tabela (DOUBLE→DECIMAL) |
-| perda_rr sempre 0.00 | Zerou tx_rr_calc sem calcular economia | `perda_rr = -vl_rr_venda` quando não usa RR |
-| Variável não definida | Uso antes de declaração | Definir variável ANTES de usar (ex: `periodo_ini_sql`) |
-| periodo_ini_sql undefined | Falta definição por tipo_taxa | Definir baseado em tipo_taxa antes de usar em queries RR |
-| DATE_FORMAT duplicado | periodo_ini_sql inserido em f-string dentro de DATE_FORMAT | Usar `periodo_format` (string) não `periodo_ini_sql` (SQL completo) |
-| SQL: "Incorrect parameters" | Variável SQL completa usada como parâmetro de função | Separar formato de expressão SQL completa |
-| UPDATE retorna 0 rows | Faltam parâmetros em conn.execute() | Passar dict: `conn.execute(text(sql), {"calc_id": x, "calc_tipo": y})` |
-| tx_calc sempre NULL | Query LOG sem parâmetros | Adicionar params em execute() e verificar result.rowcount |
-
----
-
-## ✅ Checklist de Compatibilidade MySQL/SQLite
-
-Ao criar ou modificar funções que executam SQL, **SEMPRE** verificar:
-
-### 🔍 Verificações Obrigatórias
-
-- [ ] **Funções SQL Adapter têm `engine` como primeiro parâmetro?**
-  - ✅ `_normalize_text_compare(engine, column, param)`
-  - ❌ `_normalize_text_compare(column, param)` 
-
-- [ ] **SQL usa helpers em vez de sintaxe específica?**
-  - ✅ `_current_timestamp_sql(engine)` ou `CURRENT_TIMESTAMP`
-  - ❌ `NOW()` (só MySQL)
-  
-- [ ] **INSERT IGNORE está adaptado?**
-  - ✅ Usar `_insert_ignore_sql(engine, ...)` ou deixar `_adapt_sql()` converter
-  - ❌ `INSERT IGNORE` direto (só MySQL)
-
-- [ ] **Comparações de texto são case-insensitive quando necessário?**
-  - ✅ `UPPER(contexto) = UPPER(:ctx)` ou `_normalize_text_compare()`
-  - ❌ `contexto = :ctx` (case-sensitive no SQLite)
-
-- [ ] **Concatenação usa helper?**
-  - ✅ `_concat_sql(engine, 'a', 'b', 'c')`
-  - ❌ `CONCAT('a', 'b', 'c')` (só MySQL)
-
-- [ ] **Formatação de data usa helper?**
-  - ✅ `_date_format_sql(engine, col, '%Y-%m')`
-  - ❌ `DATE_FORMAT(col, '%Y-%m')` (só MySQL)
-
-- [ ] **Strings vazias vs NULL estão corretas?**
-  - ✅ `if descricao is not None` (preserva string vazia)
-  - ❌ `if descricao` (string vazia = False)
-
-- [ ] **Tipos DECIMAL estão corretos?**
-  - ✅ `DECIMAL(18,2)` para valores monetários
-  - ❌ `DOUBLE` ou `FLOAT` (imprecisão)
-
-### 🧪 Testes Recomendados
-
-Quando possível, testar em ambos os bancos:
-```python
-# Teste rápido de compatibilidade
-from conf.db_manager import get_engine
-engine = get_engine()  # Vai pegar MySQL ou SQLite baseado na config
-
-# Se precisar testar específico:
-# MySQL: configurar DB_TYPE=mysql em .env
-# SQLite: configurar DB_TYPE=sqlite em .env
-```
-
----
-
-
-## 🔸 ORIENTAÇÃO: ALTERAÇÃO DIRETA NO CÓDIGO E EXPLICAÇÃO DETALHADA
-
-**Sempre que o agente realizar uma alteração no código-fonte:**
-
-1. **Alteração direta:**
-  - A modificação deve ser feita diretamente no(s) arquivo(s) relevante(s) do projeto, utilizando as ferramentas apropriadas.
-2. **Explicação detalhada na conversa:**
-  - O agente deve explicar claramente na conversa:
-    - O que foi alterado (arquivo, função, bloco de código)
-    - O motivo da alteração e o problema/endereço
-    - Como a mudança segue as regras do projeto (ex: DECIMAL, .round(2), hierarquia de taxas, dual path SQL, etc)
-    - O impacto esperado e relação com requisitos críticos
-3. **Checklist:**
-  - Indicar se a alteração segue o checklist do agent.md (docstring, dual path, dtype, etc)
-4. **Sugestão de documentação:**
-  - Quando relevante, sugerir texto para README.md ou agent.md, consolidando a lição aprendida ou novo padrão.
-
-**Objetivo:** Garantir rastreabilidade, clareza e aderência total às regras do projeto em cada alteração feita pelo agente.
-
----
-## 🔸 META-INSTRUÇÃO: EVOLUÇÃO CONTÍNUA DO AGENTE
-
-**REGRA CRÍTICA**: Ao final de cada interação significativa com o usuário:
-
-1. **SEMPRE perguntar**: "Alguma lição aprendida nesta interação que deva ser adicionada ao agent.md?"
-2. **SEMPRE documentar**:
-   - Problemas encontrados e soluções aplicadas
-   - Padrões novos descobertos
-   - Armadilhas evitadas
-   - Melhorias de código implementadas
-   - Conhecimento específico do domínio
-
-3. **SEMPRE atualizar** as seções relevantes:
-   - ✅ SEMPRE FAZER / ❌ NUNCA FAZER
-   - Resolução Rápida de Problemas (tabela)
-   - Exemplos de código
-   - Checklist para novas features
-   - Estrutura de tabelas (se alterada)
-
-4. **SEMPRE validar** que a nova informação:
-   - É factual e foi testada
-   - Não contradiz regras existentes
-   - Está na seção correta
-   - Usa linguagem clara e direta
-
-### Exemplo de Atualização
-
-Após resolver problema de arredondamento (0.30 → 0.3097):
-
-```markdown
-## Armadilhas Comuns - EVITAR
-
-### ❌ NUNCA FAZER:
-6. **Esquecer .round(2) em cálculos monetários**
-   - Problema: Cálculos sem arredondamento geram imprecisão
-   - Exemplo errado: `df['Valor_RR'] = (df['Valor'] * df['Taxa']) / 100`
-   - Exemplo correto: `df['Valor_RR'] = ((df['Valor'] * df['Taxa']) / 100).round(2)`
-   - Onde aplicar: TODOS os cálculos monetários no código Python
-```
-
-**OBJETIVO**: Transformar cada conversa em conhecimento permanente, criando documentação viva que previne repetição de erros e acelera desenvolvimento futuro.
-
----
-
-> Última atualização: Dez/2025 (inclui lições de taxas genéricas, DECIMAL vs DOUBLE, hierarquia de cálculo)
+**Este arquivo é ponto único de verdade e conhecimento. Toda contribuição IA ou humana deve passar por aquí. Ao migrar para Next.js/FastAPI, este agente será a fonte de onboarding de devs, aprendizado contínuo e prevenção de bugs herdados.**

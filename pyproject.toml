@@ -1,0 +1,77 @@
+[tool.poetry]
+name = "financial-checker"
+version = "2.0.0"
+description = "Sistema de conciliação financeira híbrido MySQL/SQLite"
+authors = ["Seu Nome <email@example.com>"]
+readme = "README_NEW.md"
+license = "MIT"
+packages = [{include = "conf"}, {include = "modules"}, {include = "proc"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+
+# Interface e visualização
+panel = "^1.7.5"
+streamlit = "^1.45.1"
+plotly = ">=6.1.1"
+bokeh = "^3.7.3"
+altair = "^5.5.0"
+
+# Processamento de dados
+pandas = "^2.3.0"
+numpy = "^2.3.0"
+pyarrow = "^20.0.0"
+
+# Banco de dados
+sqlalchemy = "^2.0.41"
+pymysql = "^1.1.1"
+
+# Arquivos Excel
+openpyxl = "^3.1.5"
+xlsxwriter = "^3.2.5"
+
+# PDF
+pdfkit = "^1.0.0"
+
+# Utilitários
+python-dateutil = "^2.9.0"
+pytz = "^2025.2"
+tzdata = "^2025.2"
+requests = "^2.32.4"
+psutil = "^6.1.1"
+tqdm = "^4.67.1"
+unidecode = "^1.4.0"
+
+# Templating e Markdown
+jinja2 = "^3.1.6"
+markdown = "^3.8.2"
+markdown-it-py = "^4.0.0"
+pyyaml = "^6.0.2"
+
+# Segurança
+cryptography = "^45.0.5"
+
+# Windows específico
+pywin32 = {version = "^310", markers = "sys_platform == 'win32'"}
+
+# Outros
+toml = "^0.10.2"
+attrs = "^25.3.0"
+typing-extensions = "^4.14.0"
+kaleido = "^1.2.0"
+pyautogui = "^0.9.54"
+
+[tool.poetry.group.dev.dependencies]
+# Ferramentas de desenvolvimento
+pytest = "^7.0"
+black = "^23.0"
+isort = "^5.12"
+flake8 = "^6.0"
+
+[tool.poetry.scripts]
+financial-checker = "main:main"
+configure-db = "configure_db:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

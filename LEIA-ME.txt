@@ -1,0 +1,366 @@
+# 📦 FINANCIAL CHECKER v2.0 - LEIA-ME
+
+## 🎯 Bem-vindo ao Financial Checker
+
+Sistema de conciliação financeira profissional com suporte híbrido MySQL/SQLite.
+
+---
+
+## 🚀 INSTALAÇÃO RÁPIDA
+
+### ✅ Opção 1: Instalação Automática (RECOMENDADO)
+
+**Para máquinas SEM Python instalado:**
+
+1. Execute: **`INSTALAR_COMPLETO.bat`**
+2. Siga as instruções na tela
+3. Aguarde a instalação (10-20 minutos)
+4. Execute: **`Iniciar Sistema.bat`**
+5. Acesse: **http://localhost:8500**
+
+**Usuário:** admin  
+**Senha:** 1234
+
+---
+
+### ✅ Opção 2: Instalação Manual
+
+**Se você já tem Python 3.8+ instalado:**
+
+1. Execute: **`Instalar.bat`**
+2. Execute: **`Iniciar Sistema.bat`**
+3. Acesse: **http://localhost:8500**
+
+---
+
+## 📖 ARQUIVOS IMPORTANTES
+
+### Scripts de Instalação
+- **`INSTALAR_COMPLETO.bat`** - Instalação completa (sem Python)
+- **`Instalar.bat`** - Instalação rápida (com Python)
+- **`TESTE_INSTALACAO.bat`** - Validar instalação
+
+### Scripts de Uso
+- **`Iniciar Sistema.bat`** - Inicia o sistema (modo padrão)
+- **`Iniciar SQLite.bat`** - Inicia em modo SQLite (single user)
+- **`Iniciar MySQL.bat`** - Inicia em modo MySQL (multi user)
+- **`Configurar Banco.bat`** - Configurar tipo de banco
+- **`Atualizacao.bat`** - Atualizar sistema
+
+### Documentação
+- **`README_NEW.md`** - Manual completo do sistema
+- **`GUIA_VALIDACAO_TESTES.md`** - Guia de testes e validação
+- **`INDEX.md`** - Índice da documentação
+
+---
+
+## 💡 MODOS DE OPERAÇÃO
+
+### 🔹 Modo SQLite (Padrão)
+- ✅ **Não precisa** de MySQL instalado
+- ✅ Banco em arquivo único: `data/concilie.db`
+- ✅ Ideal para instalação em clientes
+- ✅ Zero configuração de servidor
+
+**Iniciar:**
+```batch
+Iniciar SQLite.bat
+```
+
+### 🔹 Modo MySQL (Avançado)
+- ⚠️ **Requer** MySQL rodando
+- ✅ Performance superior para grandes volumes
+- ✅ Suporte multi-usuário
+- ✅ Ideal para servidor/desenvolvimento
+
+**Iniciar:**
+```batch
+Iniciar MySQL.bat
+```
+
+---
+
+## 🔧 REQUISITOS
+
+### Mínimos
+- **Sistema:** Windows 10 ou superior (64-bit)
+- **Processador:** Intel Core i3 ou equivalente
+- **RAM:** 4 GB
+- **Disco:** 2 GB livres
+- **Internet:** Necessária apenas para instalação
+
+### Recomendados
+- **Sistema:** Windows 11
+- **Processador:** Intel Core i5 ou superior
+- **RAM:** 8 GB ou mais
+- **Disco:** 5 GB livres (SSD)
+
+### Software (Instalado Automaticamente)
+- Python 3.11 ou superior
+- Poetry (gerenciador de dependências)
+- 50+ bibliotecas Python
+
+---
+
+## 📊 PRIMEIROS PASSOS
+
+### 1. Após Instalação
+
+Execute: **`TESTE_INSTALACAO.bat`**
+
+Isso validará que tudo foi instalado corretamente.
+
+### 2. Iniciar Sistema
+
+Execute: **`Iniciar Sistema.bat`**
+
+O sistema abrirá em: http://localhost:8500
+
+### 3. Primeiro Login
+
+- **Usuário:** admin
+- **Senha:** 1234
+
+⚠️ **IMPORTANTE:** Altere a senha após o primeiro login!
+
+### 4. Configuração Inicial
+
+1. Acesse **Gestão > Usuários**
+2. Altere a senha do admin
+3. Crie novos usuários se necessário
+4. Configure as colunas de importação em **Gestão > Configurações**
+
+---
+
+## ❓ PROBLEMAS COMUNS
+
+### ❌ "Python não encontrado"
+
+**Solução:**
+1. Execute: `INSTALAR_COMPLETO.bat`
+2. Ou baixe Python de: https://www.python.org/downloads/
+3. **IMPORTANTE:** Marque "Add Python to PATH" na instalação
+
+### ❌ "Poetry não funciona"
+
+**Solução:**
+```batch
+python -m pip install poetry
+```
+
+### ❌ "Erro ao instalar dependências"
+
+**Solução:**
+```batch
+# 1. Verificar internet
+# 2. Desabilitar antivírus temporariamente
+# 3. Executar como Administrador
+poetry install --only main
+```
+
+### ❌ "Sistema não inicia"
+
+**Solução:**
+```batch
+# 1. Validar instalação
+TESTE_INSTALACAO.bat
+
+# 2. Ver erros detalhados
+poetry run python main.py
+
+# 3. Reconfigurar banco
+Configurar Banco.bat
+```
+
+### ❌ "Porta 8500 em uso"
+
+**Solução:**
+```batch
+# Ver quem está usando
+netstat -ano | findstr :8500
+
+# Matar processo
+taskkill /PID <numero_do_pid> /F
+```
+
+### ❌ "MySQL não conecta"
+
+**Solução:**
+```batch
+# Use modo SQLite (não precisa de MySQL)
+Iniciar SQLite.bat
+```
+
+---
+
+## 📞 SUPORTE
+
+### Documentação Completa
+- **Manual:** `README_NEW.md`
+- **Guia de Testes:** `GUIA_VALIDACAO_TESTES.md`
+- **Sistema Híbrido:** `HYBRID_DATABASE_GUIDE.md` (se existir)
+
+### Comandos Úteis
+```batch
+# Ver status do banco
+Configurar Banco.bat -> Opção [3]
+
+# Testar instalação
+TESTE_INSTALACAO.bat
+
+# Atualizar sistema
+Atualizacao.bat
+
+# Comandos Poetry avançados
+dev_tools\poetry_commands.bat
+```
+
+### Logs e Debug
+- Arquivo de log: `debug.txt` (se existir)
+- Ver erros: Execute `poetry run python main.py` manualmente
+
+---
+
+## 🔒 SEGURANÇA
+
+### Credenciais Padrão
+⚠️ **ATENÇÃO:** Altere as credenciais padrão imediatamente!
+
+```
+Usuário: admin
+Senha: 1234
+```
+
+### Recomendações
+1. ✅ Altere a senha do admin no primeiro login
+2. ✅ Crie usuários individuais (não compartilhe admin)
+3. ✅ Use senhas fortes (mínimo 8 caracteres)
+4. ✅ Faça backup regular do banco de dados
+5. ✅ Mantenha o sistema atualizado
+
+---
+
+## 💾 BACKUP
+
+### Modo SQLite
+**Backup é simples:**
+```batch
+# Copiar arquivo do banco
+xcopy data\concilie.db backup\ /Y
+
+# Ou toda a pasta data
+xcopy data backup\data\ /E /I /Y
+```
+
+### Modo MySQL
+**Usar ferramenta MySQL:**
+```batch
+mysqldump -u root -p concilie > backup_concilie.sql
+```
+
+### Restaurar Backup (SQLite)
+```batch
+# Copiar banco de volta
+xcopy backup\concilie.db data\ /Y
+```
+
+---
+
+## 🔄 ATUALIZAÇÃO
+
+### Atualizar Sistema
+```batch
+# Automático
+Atualizacao.bat
+
+# Manual
+git pull
+poetry install --only main
+```
+
+### Atualizar Dependências
+```batch
+poetry update
+```
+
+---
+
+## 📁 ESTRUTURA DE PASTAS
+
+```
+Financial_Checker/
+├── INSTALAR_COMPLETO.bat      # Instalador completo
+├── Instalar.bat                # Instalador rápido
+├── Iniciar Sistema.bat         # Iniciar (modo padrão)
+├── Iniciar SQLite.bat          # Iniciar SQLite
+├── Iniciar MySQL.bat           # Iniciar MySQL
+├── Configurar Banco.bat        # Configurar banco
+├── TESTE_INSTALACAO.bat        # Testar instalação
+├── LEIA-ME.txt                 # Este arquivo
+├── README_NEW.md               # Manual completo
+├── main.py                     # Aplicação principal
+├── configure_db.py             # Configurador de banco
+├── pyproject.toml              # Configuração Poetry
+├── poetry.lock                 # Versões fixas
+├── conf/                       # Configurações do sistema
+├── modules/                    # Módulos da interface
+├── proc/                       # Processadores de dados
+├── data/                       # Dados e banco SQLite
+├── relatorios/                 # Templates de relatórios
+└── dev_tools/                  # Ferramentas de desenvolvimento
+```
+
+---
+
+## 🎓 APRENDENDO MAIS
+
+### Vídeos e Tutoriais
+- Consulte a documentação em `README_NEW.md`
+- Guia de validação: `GUIA_VALIDACAO_TESTES.md`
+
+### Tecnologias Utilizadas
+- **Python 3.11** - Linguagem de programação
+- **Poetry** - Gerenciador de dependências
+- **Panel** - Framework de interface web
+- **SQLAlchemy** - ORM de banco de dados
+- **Pandas** - Processamento de dados
+- **Plotly** - Visualização de gráficos
+
+---
+
+## 📋 CHECKLIST PÓS-INSTALAÇÃO
+
+- [ ] Sistema instalado (`TESTE_INSTALACAO.bat` passou)
+- [ ] Sistema iniciou com sucesso
+- [ ] Login funcionou (admin/1234)
+- [ ] Senha do admin alterada
+- [ ] Novo usuário criado (se necessário)
+- [ ] Importação de dados testada
+- [ ] Relatórios funcionando
+- [ ] Backup configurado
+
+---
+
+## ✅ SISTEMA INSTALADO E FUNCIONANDO?
+
+**Parabéns!** 🎉
+
+Você está pronto para usar o Financial Checker v2.0
+
+Para iniciar:
+```batch
+Iniciar Sistema.bat
+```
+
+Acesse: **http://localhost:8500**
+
+---
+
+**Financial Checker v2.0**  
+Sistema de Conciliação Financeira  
+Versão: 2.0.0  
+Data: Janeiro 2026
+
+---
+
+**Bom trabalho!** 💼
