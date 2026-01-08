@@ -1209,4 +1209,216 @@ df.to_sql(
 
 ---
 
+## 10. Context7 MCP — Documentação Sempre Atualizada
+
+### **O que é Context7?**
+
+Context7 é um servidor MCP (Model Context Protocol) que fornece **documentação atualizada em tempo real** de bibliotecas e frameworks diretamente para assistentes de IA. Elimina código desatualizado, APIs inexistentes e exemplos baseados em dados antigos.
+
+**Benefícios:**
+- ✅ Documentação sempre atual (não baseada em training data)
+- ✅ APIs verificadas e funcionais
+- ✅ Exemplos práticos específicos de versão
+- ✅ Suporte a 1000+ bibliotecas
+
+### **Configuração no Projeto**
+
+**Arquivo: `.vscode/settings.json`**
+```json
+{
+  "mcp": {
+    "servers": {
+      "context7": {
+        "url": "https://mcp.context7.com/mcp"
+      }
+    }
+  }
+}
+```
+
+**Arquivo: `.cursorrules`**
+```
+Always use Context7 MCP when I need library/API documentation, code generation, 
+setup or configuration steps without me having to explicitly ask.
+
+When working with Python libraries (FastAPI, SQLAlchemy, Panel, Pydantic), 
+automatically fetch documentation from Context7.
+
+When working with TypeScript/JavaScript libraries (Next.js, React, pnpm), 
+automatically fetch documentation from Context7.
+```
+
+### **Como Usar**
+
+#### **1. Automático (Recomendado)**
+Com `.cursorrules` configurado, basta fazer perguntas sobre código:
+```
+"Como criar endpoint FastAPI com validação Pydantic?"
+"Setup Next.js 14 com TypeScript e App Router"
+```
+
+#### **2. Explícito**
+Adicione `use context7` ao final do prompt:
+```
+"Implementar autenticação JWT no FastAPI. use context7"
+"Criar middleware Next.js para validação. use context7"
+```
+
+#### **3. Com Library ID**
+Para biblioteca específica, use o ID exato:
+```
+"Configure SQLAlchemy. use library /sqlalchemy/sqlalchemy for API and docs."
+"Setup pnpm workspace. use library /pnpm/pnpm for API and docs."
+```
+
+### **Bibliotecas Principais do Projeto**
+
+#### **Backend Python**
+- FastAPI: `/tiangolo/fastapi`
+- SQLAlchemy: `/sqlalchemy/sqlalchemy`
+- Pydantic: `/pydantic/pydantic`
+- Panel/HoloViz: `/holoviz/panel`
+- Pandas: `/pandas-dev/pandas`
+- pytest: `/pytest-dev/pytest`
+
+#### **Frontend TypeScript**
+- Next.js: `/vercel/next.js`
+- React: `/facebook/react`
+- TypeScript: `/microsoft/TypeScript`
+- Axios: `/axios/axios`
+
+#### **DevOps/Tooling**
+- Poetry: `/python-poetry/poetry`
+- pnpm: `/pnpm/pnpm`
+- Docker: `/docker/docs`
+
+### **Ferramentas MCP Context7**
+
+1. **resolve-library-id**
+   - Encontra o ID correto da biblioteca
+   - Parâmetros: `query`, `libraryName`
+
+2. **query-docs**
+   - Busca documentação específica
+   - Parâmetros: `libraryId`, `query`
+
+### **Casos de Uso para Financial Checker**
+
+#### **Migração Frontend Panel → Next.js**
+```
+Como estruturar projeto Next.js 14 com App Router para migrar de Panel? 
+Preciso manter autenticação atual e adaptar componentes de tabela. use context7
+```
+
+#### **Backend FastAPI Modularizado**
+```
+Como implementar Repository Pattern + Service Layer no FastAPI?
+Preciso separar lógica de negócio do acesso a dados. use context7
+```
+
+#### **Dual Database (MySQL/SQLite)**
+```
+Como fazer SQLAlchemy funcionar com MySQL e SQLite no mesmo código?
+Preciso adaptar queries específicas de cada banco. use context7
+```
+
+#### **Autenticação e Segurança**
+```
+Implementar JWT com refresh tokens no FastAPI seguindo best practices. use context7
+```
+
+#### **TypeScript Types da API**
+```
+Como gerar tipos TypeScript automáticos a partir do OpenAPI FastAPI? use context7
+```
+
+#### **Otimização de Queries**
+```
+Best practices para bulk insert com SQLAlchemy e Pandas to_sql. use context7
+```
+
+### **API Key (Opcional)**
+
+Para limites maiores de requisições:
+
+1. Acesse: https://context7.com/dashboard
+2. Crie conta gratuita
+3. Copie API key
+4. Adicione em `.vscode/settings.json`:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "context7": {
+        "url": "https://mcp.context7.com/mcp",
+        "headers": {
+          "Authorization": "Bearer SUA_API_KEY_AQUI"
+        }
+      }
+    }
+  }
+}
+```
+
+### **Troubleshooting**
+
+#### **Context7 não responde**
+1. Verifique conexão: `ping mcp.context7.com`
+2. Recarregue VSCode: `Ctrl+Shift+P → Reload Window`
+3. Confirme configuração em `.vscode/settings.json`
+
+#### **Respostas genéricas (não usou Context7)**
+- Use explicitamente: `... use context7`
+- Verifique `.cursorrules` está no root do projeto
+- Mencione biblioteca específica: `use library /tiangolo/fastapi`
+
+#### **Erro de rate limit**
+- Crie API key gratuita em https://context7.com/dashboard
+- Adicione header Authorization na configuração
+
+### **Regras para Agente IA com Context7**
+
+1. **Sempre usar Context7 para:**
+   - Código de bibliotecas específicas (FastAPI, Next.js, etc.)
+   - Configuração de ferramentas (Poetry, pnpm, Docker)
+   - Best practices e patterns atualizados
+   - Exemplos de código funcionais
+
+2. **Especificar versão quando relevante:**
+   ```
+   "Como usar Server Components no Next.js 14? use context7"
+   "Async endpoints no FastAPI 0.109+? use context7"
+   ```
+
+3. **Combinar com contexto do projeto:**
+   ```
+   "Migrar de Panel para Next.js mantendo arquitetura atual de 
+   importação/cálculo/relatório. use context7"
+   ```
+
+4. **Atualizar este agente:**
+   - Ao encontrar soluções via Context7, documentar aqui
+   - Manter lista de Library IDs atualizada
+   - Adicionar casos de uso específicos do projeto
+
+### **Recursos**
+
+- **Site:** https://context7.com
+- **Docs:** https://context7.com/docs
+- **GitHub:** https://github.com/upstash/context7
+- **Discord:** https://upstash.com/discord
+- **Guia Completo:** [CONTEXT7_GUIDE.md](../../CONTEXT7_GUIDE.md)
+
+### **Checklist Context7 para Novos Desenvolvedores**
+
+- [ ] Context7 configurado em `.vscode/settings.json`
+- [ ] Regra automática em `.cursorrules` criada
+- [ ] VSCode recarregado após configuração
+- [ ] Teste básico: "Como criar endpoint FastAPI? use context7"
+- [ ] API key configurada (opcional, para mais requests)
+- [ ] Library IDs principais conhecidos (FastAPI, Next.js, etc.)
+
+---
+
 **Este arquivo é ponto único de verdade e conhecimento. Toda contribuição IA ou humana deve passar por aquí. Ao migrar para Next.js/FastAPI, este agente será a fonte de onboarding de devs, aprendizado contínuo e prevenção de bugs herdados.**
