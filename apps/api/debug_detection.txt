@@ -1,8 +1,0 @@
-
-is_multisheet_rede_file called at 2026-01-22 19:24:08.142659
-Path: C:\Users\Danilo\AppData\Local\Temp\tmpgdxi9tfz.xlsx
-Ext: .xlsx
-
-is_multisheet_rede_file called at 2026-01-22 19:24:14.390134
-Path: C:\Users\Danilo\AppData\Local\Temp\tmpoczh7oio.xlsx
-Ext: .xlsx

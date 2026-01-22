@@ -1,2 +1,0 @@
-ler_cabecalhos called at 2026-01-22 19:15:31.385229
-Filename: rede_rel_vendas_01_11_2025-30_11_2025-f202e31c-b2df-4bba-a4f0-dae7ce59a0ae.xlsx

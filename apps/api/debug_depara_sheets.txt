@@ -1,4 +1,0 @@
-Analyzing sheets for rede_rel_vendas_01_11_2025-30_11_2025-f202e31c-b2df-4bba-a4f0-dae7ce59a0ae.xlsx
-Sheets found: ['vendas']
-Is Rede Multisheet: False
-Sheet: vendas, Score: 46, Index: 3, Fallback: False, Rows: 100
