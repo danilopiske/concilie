@@ -211,6 +211,13 @@ def main():
         except Exception as e:
             print(f"⚠️ Erro ao validar executável: {e}")
 
+        # 4. Create ZIP package
+        print("\n--- Creating ZIP Package ---")
+        zip_path = dist_output_dir / f"{base_name}_v1.8" # Output path without extension
+        print(f"Compressing {dst_dir} to {zip_path}.zip...")
+        shutil.make_archive(str(zip_path), 'zip', root_dir=dist_output_dir, base_dir=base_name)
+        print(f"✅ ZIP gerado com sucesso: {zip_path}.zip")
+
     else:
         print("❌ Erro: Diretório de build não encontrado.")
         sys.exit(1)

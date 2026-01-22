@@ -44,14 +44,16 @@ python build_dist.py
 2.  **Build Frontend**: Executa `pnpm run build` no Next.js, gerando arquivos estáticos em `apps/web/out` (modo export).
 3.  **Coleta de Assets**: Copia configurações (`conf`), banco semente (`data/concilie.db`) e módulos legados (`proc`) para inclusão.
 4.  **Build Backend**: Invoca o **PyInstaller** para empacotar o FastAPI, dependências e o Frontend estático em um único diretório.
-5.  **Output**: Gera a pasta final `dist_v18/FinancialChecker`.
+5.  **Output**: Gera a pasta final `dist_v18/FinancialChecker` e um arquivo compactado `dist_v18/FinancialChecker_v1.8.zip`.
 
 ## 📂 Estrutura da Distribuição
 
-O resultado final em `dist_v18/FinancialChecker` terá a seguinte estrutura:
+O resultado final em `dist_v18/` terá:
 
-*   `FinancialChecker.exe`: O executável principal que inicia Backend e serve o Frontend.
-*   `_internal/`: Pasta contendo dependências Python congeladas e assets.
+*   **`FinancialChecker_v1.8.zip`**: Pacote pronto para envio ao cliente.
+*   **`FinancialChecker/`**: Pasta descompactada (para testes locais).
+    *   `FinancialChecker.exe`: O executável principal.
+    *   `_internal/`: Dependências e assets.
     *   `web_dist/`: Arquivos estáticos do Next.js.
     *   `conf/`: Arquivos de configuração.
     *   `data/`: Banco de dados SQLite inicial.
