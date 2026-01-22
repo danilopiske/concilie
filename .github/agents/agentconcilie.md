@@ -64,11 +64,14 @@ O **Financial Checker v2.0** é uma solução robusta de conciliação financeir
 - Cometer DOUBLE/FLOAT para dinheiro (leva a bugs graves!)
 - Deixar documentação espalhada ou desatualizada
 - Bulk insert sem especificar dtype
+- **MOCKAR DADOS - TUDO deve vir do banco de dados (hooks, componentes, testes unitários devem usar API real ou dados de teste no DB)**
 
-### **Arm. comuns a evitar**
+### **Armadilhas comuns a evitar**
 - Deixar sem .round(2) após conversões monetárias
 - Usar placeholders errados (ex.: %s sem adaptar para :param no SQLite)
 - Falhar em inicializar variáveis antes de uso em queries dinâmicas
+- **Criar hooks/componentes com dados mockados (setTimeout com arrays hardcoded)**
+- **Usar dados diferentes entre componentes (sempre mesma fonte: API/DB)**
 
 ### **Checklist Padrão de Nova Feature**
 - [ ] Dual-path testada (MySQL/SQLite)
@@ -76,7 +79,11 @@ O **Financial Checker v2.0** é uma solução robusta de conciliação financeir
 - [ ] decimal/dtype nos inserts
 - [ ] Teste manual funcional/ETL completo
 - [ ] Documentação / este arquivo atualizado
-- [ ] UI cobre cenário (Panel)
+- [ ] UI cobre cenário (Next.js + Design System)
+- [ ] Componentes do Design System utilizados
+- [ ] Estados UI previstos (loading, error, disabled, success)
+- [ ] Tokens semânticos aplicados (não hard-coded)
+- [ ] Acessibilidade validada (labels, aria, keyboard)
 
 ---
 
@@ -97,6 +104,7 @@ O **Financial Checker v2.0** é uma solução robusta de conciliação financeir
 - Consistência de queries: usar sempre helpers, nunca string SQL "pura" para funcionalidades
 - Todos os pontos fortes, riscos e métricas históricas em documentação (ver analisedeprojeto_completa.md)
 - Logs e controles: logging de bugs críticos, automação de checagens e recálculo
+- **LIÇÃO CRÍTICA (Jan/2026)**: Hook `useECs` estava mockado com `['1234567890', '0987654321', '1111111111']` via setTimeout, causando inconsistência entre página principal e modal. SOLUÇÃO: Sempre usar API real `/clientes/{id}/ecs`. REGRA: NUNCA mockar dados em hooks/componentes - apenas em testes isolados se absolutamente necessário.
 
 ---
 
@@ -108,11 +116,125 @@ O **Financial Checker v2.0** é uma solução robusta de conciliação financeir
     - dtype DECIMAL obrigatório
     - placeholders SQL adaptativos
     - separação clara de UI, core, banco e settings
+    - **FRONTEND: Seguir obrigatoriamente UI Design System (seção 10)**
+    - **COMPONENTES: Reutilizar existentes, nunca criar do zero sem justificativa**
+    - **ESTADOS: Prever loading, error, disabled, success em toda UI**
 - Sempre sugerir *docstring clara*, *exemplo de uso* e atualizar README/agent.
+- **UI/UX**: Consultar `.github/agents/ui-design-system-nextjs.md` ANTES de criar qualquer componente Next.js
 
 ---
 
 ## 8. **Stack Moderno: Next.js + TypeScript + FastAPI + Poetry + pnpm**
+
+### **8.0. Alternância de Banco de Dados (SQLite ↔ MySQL)**
+
+O sistema moderno suporta alternância fácil entre SQLite (single-user) e MySQL (multi-user):
+
+#### **Arquivos de Configuração**
+```
+apps/api/
+├─ .env                # Arquivo ativo (gerado pelos scripts)
+├─ .env.sqlite         # Template para SQLite
+├─ .env.mysql          # Template para MySQL
+└─ .env.example        # Exemplo geral
+```
+
+#### **Scripts de Alternância**
+
+**1. Configurar Banco (Primeiro uso):**
+```powershell
+# Execute no diretório raiz:
+"Configurar Stack Moderno.bat"
+```
+Menu interativo:
+- [1] SQLite - Copia `.env.sqlite` → `.env`
+- [2] MySQL - Copia `.env.mysql` → `.env` + solicita configuração de senha
+- [3] Cancelar
+
+**2. Iniciar Sistema (Após configurar):**
+```powershell
+# Para SQLite:
+"Iniciar Stack Moderno - SQLite.bat"
+
+# Para MySQL:
+"Iniciar Stack Moderno - MySQL.bat"
+```
+
+Ambos scripts:
+- ✅ Verificam dependências (Poetry, pnpm)
+- ✅ Verificam configuração do .env
+- ✅ Verificam serviço MySQL (apenas modo MySQL)
+- ✅ Abrem 2 terminais automaticamente (Backend + Frontend)
+
+#### **Estrutura do .env**
+
+**`.env.sqlite` (Template SQLite):**
+```env
+DATABASE_TYPE=sqlite
+SQLITE_DB_PATH=../../data/concilie.db
+MYSQL_SERVER=localhost       # Não usado
+MYSQL_PORT=3306              # Não usado
+MYSQL_USER=root              # Não usado
+MYSQL_PASSWORD=              # Não usado
+MYSQL_DB=bd_conciliacao      # Não usado
+```
+
+**`.env.mysql` (Template MySQL):**
+```env
+DATABASE_TYPE=mysql
+SQLITE_DB_PATH=../../data/concilie.db  # Não usado
+MYSQL_SERVER=localhost
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=              # ← CONFIGURE AQUI
+MYSQL_DB=bd_conciliacao
+```
+
+**IMPORTANTE:**
+- Variável `DATABASE_TYPE` controla qual banco é usado
+- Backend lê `.env` e conecta ao banco apropriado via `conf/funcoesbd.py`
+- Após alternar, **sempre reinicie o backend**
+
+#### **Fluxo de Uso**
+
+**Primeira vez (Setup):**
+1. Execute `Configurar Stack Moderno.bat`
+2. Escolha SQLite ou MySQL
+3. Se MySQL, configure senha no `.env` quando solicitado
+4. Pronto! Arquivo `.env` criado
+
+**Alternar banco (depois):**
+1. Feche backend (Ctrl+C no terminal)
+2. Execute `Configurar Stack Moderno.bat` novamente
+3. Escolha novo banco
+4. Execute `Iniciar Stack Moderno - [SQLite/MySQL].bat`
+
+**Verificar qual banco está ativo:**
+```powershell
+type apps\api\.env | findstr DATABASE_TYPE
+# Saída: DATABASE_TYPE=sqlite ou DATABASE_TYPE=mysql
+```
+
+#### **Troubleshooting**
+
+**Erro: "MySQL not running"**
+```powershell
+# Iniciar serviço MySQL:
+net start MySQL80
+
+# Ou via MySQL Workbench
+```
+
+**Erro: "Access denied for user 'root'"**
+- Edite `apps\api\.env`
+- Corrija `MYSQL_PASSWORD=sua_senha_correta`
+- Reinicie backend
+
+**Backend conectando no banco errado:**
+- Verifique `DATABASE_TYPE` em `apps\api\.env`
+- Execute `Configurar Stack Moderno.bat` para recriar `.env`
+
+---
 
 ### **8.1. Gerenciamento de Dependências**
 
@@ -1166,6 +1288,148 @@ packages:
 - ✅ Validação de formulários com Zod ou Yup
 - ✅ Formatação consistente (Prettier + ESLint)
 - ✅ Types gerados automaticamente do backend
+- ❌ **NUNCA MOCKAR DADOS - Sempre usar API real (apiClient) mesmo em desenvolvimento**
+- ✅ **SEGUIR OBRIGATORIAMENTE: [UI Design System](./ui-design-system-nextjs.md)**
+
+#### **UI/UX (Design System Corporativo)**
+**Referência Principal:** `.github/agents/ui-design-system-nextjs.md`
+
+**Regras Absolutas:**
+- ❌ NUNCA criar estilos inline
+- ❌ NUNCA criar novos padrões visuais sem documentar
+- ✅ SEMPRE reutilizar componentes existentes
+- ✅ SEMPRE prever estados (loading, error, disabled, success)
+- ✅ CLAREZA > estética (sistema fiscal/corporativo)
+
+**Componentes Obrigatórios:**
+1. **Button**
+   - Variantes: `primary`, `secondary`, `success`, `text`, `icon`, `small`
+   - Estados: default, hover, disabled, loading
+   - Regra: Apenas 1 botão primary por tela
+   - Loading state desabilita clique automaticamente
+
+2. **InputText**
+   - Variantes: `text`, `email`, `password`, `cnpj_raiz`, `textarea`
+   - Estados: default, focus, disabled, error
+   - Label obrigatório, placeholder instrutivo
+
+3. **FileUpload**
+   - Estados: empty, selected, loading, error
+   - Mostrar tipos aceitos e nome do arquivo
+   - Nunca processar automaticamente
+
+4. **Table**
+   - Variantes: `simple`, `info`
+   - Sempre com headers claros
+   - Suporte a ordenação e paginação
+
+5. **Card**
+   - Variantes: `default`, `success`, `disabled`
+   - Usar para agrupamento lógico de dados
+
+6. **Alert**
+   - Variantes: `info`, `success`, `error`
+   - Mensagens de erro devem orientar ação corretiva
+
+7. **Stepper**
+   - Uso obrigatório em fluxos longos e processamento fiscal
+   - Estados: pending, active, completed, error
+
+**Tokens Semânticos (NÃO usar cores diretas):**
+```typescript
+// Cores
+color.primary      // Ações principais
+color.secondary    // Ações alternativas
+color.success      // Sucesso/confirmação
+color.error        // Erro/alerta
+color.info         // Informação
+color.disabled     // Desabilitado
+
+// Espaçamento
+spacing.xs | sm | md | lg | xl
+
+// Radius
+radius.sm | md
+
+// Fontes
+font.body | label | title
+```
+
+**Padrões de Telas:**
+
+*Formulário Padrão:*
+```typescript
+<Page>
+  <Title>Nome da Funcionalidade</Title>
+  <Form>
+    <InputText label="Campo" />
+    <Alert variant="info">Instrução clara</Alert>
+    <ButtonGroup>
+      <Button variant="secondary">Cancelar</Button>
+      <Button variant="primary" loading={isLoading}>Confirmar</Button>
+    </ButtonGroup>
+  </Form>
+</Page>
+```
+
+*Processamento/Importação:*
+```typescript
+<Page>
+  <Stepper steps={['Upload', 'Validação', 'Processamento', 'Resultado']} current={step} />
+  <Card>
+    <FileUpload disabled={isProcessing} />
+    <Alert variant={alertType}>{message}</Alert>
+  </Card>
+  <Button variant="primary" disabled={!canProcess}>Processar</Button>
+</Page>
+```
+
+*Resultado/Listagem:*
+```typescript
+<Page>
+  <Card variant="success">
+    <Stats />
+  </Card>
+  <Table data={results} />
+  <Button variant="text" icon="download">Exportar</Button>
+</Page>
+```
+
+**Acessibilidade (A11y):**
+- Focus visível em todos elementos interativos
+- Labels sempre associados a inputs
+- `aria-label` em ícones e botões sem texto
+- Não depender apenas de cor para comunicar estado
+- Suporte a navegação por teclado
+
+**Workflow para Agents (CRÍTICO):**
+1. **Antes de criar JSX:** Mapear componentes do Design System
+2. **Escolher variante + estado:** Baseado no contexto (formulário, tabela, etc.)
+3. **Usar tokens semânticos:** Nunca cores/espaços hard-coded
+4. **Documentar novo componente:** Se não existir, documentar ANTES de criar
+5. **Validar estados:** Loading, error, disabled, success
+
+**Checklist UI (Nova Feature):**
+- [ ] Componentes do Design System utilizados?
+- [ ] Tokens semânticos aplicados (não hard-coded)?
+- [ ] Estados previstos (loading, error, disabled)?
+- [ ] Labels e aria-labels presentes?
+- [ ] Padrão de tela documentado seguido?
+- [ ] Apenas 1 botão primary na tela?
+- [ ] Mensagens de erro são acionáveis?
+
+**Erro Comum a Evitar:**
+```typescript
+// ❌ ERRADO
+<button style={{backgroundColor: '#007bff', padding: '10px'}}>
+  Salvar
+</button>
+
+// ✅ CORRETO
+<Button variant="primary" loading={isSaving}>
+  Salvar
+</Button>
+```
 
 #### **Integração**
 - ✅ OpenAPI spec sempre atualizado
@@ -1206,6 +1470,603 @@ df.to_sql(
 - [ ] Scripts & docs ok e versionados?
 - [ ] Teste manual função crítica/processamento?
 - [ ] AI/engine atualizado/escrito no agent.md?
+- [ ] UI seguindo Design System? (componentes, tokens, estados)
+- [ ] Acessibilidade validada? (labels, aria, keyboard, focus)
+
+---
+
+## 10. UI Design System - Regras para Desenvolvimento Frontend
+
+### **10.1. Documento de Referência**
+**Localização:** `.github/agents/ui-design-system-nextjs.md`
+
+Este documento é a **fonte única de verdade** para toda interface Next.js. Deve ser consultado antes de criar qualquer componente ou tela.
+
+### **10.2. Princípios Fundamentais**
+
+**Contexto Técnico:**
+- Framework: Next.js (App Router)
+- Linguagem: TypeScript
+- Paradigma: Componentes reutilizáveis
+- Domínio: Sistema corporativo/fiscal/financeiro
+
+**Filosofia:**
+- **CLAREZA > ESTÉTICA**: Sistema fiscal exige informação clara, não design "bonito"
+- **PREVISIBILIDADE**: Mesma ação, mesmo componente, mesmo resultado
+- **CONSISTÊNCIA**: Padrões visuais fixos em todo o sistema
+
+### **10.3. Regras Globais (Invioláveis)**
+
+```typescript
+// ❌ PROIBIDO
+const MyComponent = () => (
+  <div style={{color: '#FF0000', padding: '20px'}}>
+    <button onClick={handleClick}>Click</button>
+  </div>
+);
+
+// ✅ OBRIGATÓRIO
+const MyComponent = () => {
+  const [loading, setLoading] = useState(false);
+  
+  return (
+    <Card>
+      <Button 
+        variant="primary" 
+        loading={loading}
+        onClick={handleClick}
+      >
+        Processar
+      </Button>
+    </Card>
+  );
+};
+```
+
+**Nunca:**
+- Criar estilos inline
+- Criar novos padrões visuais sem documentar
+- Ignorar estados (loading, error, disabled)
+- Usar cores/espaçamentos hard-coded
+
+**Sempre:**
+- Reutilizar componentes existentes
+- Prever todos os estados possíveis
+- Usar tokens semânticos
+- Validar acessibilidade
+
+### **10.4. Biblioteca de Componentes**
+
+#### **Button - Botões de Ação**
+```typescript
+<Button 
+  variant="primary"     // primary | secondary | success | text | icon | small
+  loading={isLoading}   // Desabilita automaticamente
+  disabled={!canSave}
+  onClick={handleSave}
+>
+  Salvar
+</Button>
+```
+
+**Regras:**
+- Apenas **1 botão primary** por tela (ação principal)
+- Loading state desabilita clique
+- Texto deve ser verbo de ação (Salvar, Processar, Exportar)
+
+---
+
+#### **InputText - Campos de Entrada**
+```typescript
+<InputText
+  label="CNPJ"              // Obrigatório
+  variant="cnpj_raiz"       // text | email | password | cnpj_raiz | textarea
+  value={cnpj}
+  onChange={setCnpj}
+  error={errors.cnpj}       // Mostra mensagem de erro
+  disabled={isProcessing}
+  placeholder="00.000.000/0001-00"
+/>
+```
+
+**Regras:**
+- Label sempre presente
+- Placeholder instrutivo (exemplo de formato)
+- Mensagem de erro acionável
+
+---
+
+#### **FileUpload - Upload de Arquivos**
+```typescript
+<FileUpload
+  accept=".csv,.xlsx"
+  onFileSelect={handleFile}
+  loading={isUploading}
+  error={uploadError}
+  selectedFile={file}
+/>
+```
+
+**Regras:**
+- Mostrar tipos aceitos visualmente
+- Mostrar nome do arquivo selecionado
+- NUNCA processar automaticamente (sempre aguardar confirmação)
+
+---
+
+#### **Table - Tabelas de Dados**
+```typescript
+<Table
+  variant="simple"        // simple | info
+  columns={[
+    { key: 'id', label: 'ID', sortable: true },
+    { key: 'valor', label: 'Valor', format: 'currency' }
+  ]}
+  data={vendas}
+  onSort={handleSort}
+  pagination={pagination}
+/>
+```
+
+**Regras:**
+- Headers sempre claros
+- Suporte a ordenação e paginação
+- Formatação automática (currency, date, etc.)
+
+---
+
+#### **Card - Agrupamento de Conteúdo**
+```typescript
+<Card variant="success">   // default | success | disabled
+  <h3>Processamento Concluído</h3>
+  <Stats data={result} />
+</Card>
+```
+
+---
+
+#### **Alert - Mensagens ao Usuário**
+```typescript
+<Alert variant="error">    // info | success | error
+  Erro ao processar arquivo. Verifique o formato e tente novamente.
+</Alert>
+```
+
+**Regras:**
+- Mensagens de erro devem orientar ação corretiva
+- Nunca apenas "Erro ocorreu" - explicar O QUE fazer
+
+---
+
+#### **Stepper - Fluxos Multi-Etapas**
+```typescript
+<Stepper
+  steps={['Upload', 'Validação', 'Processamento', 'Resultado']}
+  currentStep={step}
+  stepStatus={status}      // pending | active | completed | error
+/>
+```
+
+**Uso obrigatório em:**
+- Importação de arquivos
+- Processamento fiscal
+- Cálculos multi-etapa
+
+---
+
+### **10.5. Tokens Semânticos (Design Tokens)**
+
+**NUNCA usar valores diretos:**
+```typescript
+// ❌ ERRADO
+<div style={{color: '#007bff', marginTop: '20px'}}>
+
+// ✅ CORRETO
+<div className={styles.primaryText} style={{marginTop: spacing.md}}>
+```
+
+**Cores:**
+```typescript
+color.primary      // Ações principais (#007bff)
+color.secondary    // Ações alternativas
+color.success      // Verde de sucesso
+color.error        // Vermelho de erro
+color.info         // Azul informativo
+color.disabled     // Cinza desabilitado
+```
+
+**Espaçamento:**
+```typescript
+spacing.xs   // 4px
+spacing.sm   // 8px
+spacing.md   // 16px
+spacing.lg   // 24px
+spacing.xl   // 32px
+```
+
+**Radius (Bordas):**
+```typescript
+radius.sm    // 4px
+radius.md    // 8px
+```
+
+**Tipografia:**
+```typescript
+font.body    // Texto padrão
+font.label   // Labels de formulário
+font.title   // Títulos de seção
+```
+
+---
+
+### **10.6. Padrões de Telas (Templates)**
+
+#### **Template: Formulário de Cadastro/Edição**
+```typescript
+export default function ClienteFormPage() {
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  return (
+    <Page title="Cadastro de Cliente">
+      <Form onSubmit={handleSubmit}>
+        <InputText
+          label="Razão Social"
+          value={razaoSocial}
+          onChange={setRazaoSocial}
+          error={errors.razaoSocial}
+        />
+        
+        <InputText
+          label="CNPJ"
+          variant="cnpj_raiz"
+          value={cnpj}
+          onChange={setCnpj}
+          error={errors.cnpj}
+        />
+        
+        <Alert variant="info">
+          Preencha todos os campos obrigatórios antes de salvar.
+        </Alert>
+        
+        <ButtonGroup>
+          <Button variant="secondary" onClick={handleCancel}>
+            Cancelar
+          </Button>
+          <Button variant="primary" loading={loading}>
+            Salvar Cliente
+          </Button>
+        </ButtonGroup>
+      </Form>
+    </Page>
+  );
+}
+```
+
+---
+
+#### **Template: Importação/Processamento**
+```typescript
+export default function ImportacaoPage() {
+  const [step, setStep] = useState(0);
+  const [file, setFile] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [result, setResult] = useState(null);
+
+  return (
+    <Page title="Importação de Vendas">
+      <Stepper
+        steps={['Upload', 'Validação', 'Processamento', 'Resultado']}
+        currentStep={step}
+      />
+      
+      <Card>
+        {step === 0 && (
+          <FileUpload
+            accept=".csv,.xlsx"
+            onFileSelect={setFile}
+            selectedFile={file}
+          />
+        )}
+        
+        {step === 1 && (
+          <Alert variant="info">
+            Arquivo validado com sucesso. Clique em Processar para continuar.
+          </Alert>
+        )}
+        
+        {step === 3 && result && (
+          <Card variant="success">
+            <h3>Processamento Concluído</h3>
+            <p>{result.registros} registros importados</p>
+          </Card>
+        )}
+      </Card>
+      
+      <ButtonGroup>
+        <Button 
+          variant="secondary" 
+          disabled={step === 0}
+          onClick={handleBack}
+        >
+          Voltar
+        </Button>
+        <Button 
+          variant="primary" 
+          loading={processing}
+          disabled={!file}
+          onClick={handleProcess}
+        >
+          {step === 0 ? 'Validar' : 'Processar'}
+        </Button>
+      </ButtonGroup>
+    </Page>
+  );
+}
+```
+
+---
+
+#### **Template: Listagem/Resultado**
+```typescript
+export default function VendasListPage() {
+  const { vendas, loading, error } = useVendas();
+
+  if (loading) return <Loading />;
+  if (error) return <Alert variant="error">{error}</Alert>;
+
+  return (
+    <Page title="Vendas Processadas">
+      <Card variant="success">
+        <Stats
+          total={vendas.length}
+          valorTotal={calcularTotal(vendas)}
+        />
+      </Card>
+      
+      <Table
+        variant="simple"
+        columns={VENDAS_COLUMNS}
+        data={vendas}
+        onSort={handleSort}
+      />
+      
+      <ButtonGroup>
+        <Button variant="text" icon="download" onClick={handleExport}>
+          Exportar para Excel
+        </Button>
+      </ButtonGroup>
+    </Page>
+  );
+}
+```
+
+---
+
+### **10.7. Acessibilidade (A11y) - Obrigatório**
+
+**Focus Visível:**
+```css
+/* Todos elementos interativos devem ter focus visível */
+button:focus, input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+```
+
+**Labels Associados:**
+```typescript
+// ✅ CORRETO
+<label htmlFor="cnpj">CNPJ</label>
+<input id="cnpj" type="text" />
+
+// ❌ ERRADO
+<div>CNPJ</div>
+<input type="text" />
+```
+
+**ARIA Labels:**
+```typescript
+// Botões com ícones devem ter aria-label
+<Button variant="icon" aria-label="Exportar relatório">
+  <DownloadIcon />
+</Button>
+```
+
+**Não depender de cor:**
+```typescript
+// ❌ ERRADO - apenas cor vermelha indica erro
+<input style={{borderColor: 'red'}} />
+
+// ✅ CORRETO - ícone + mensagem + cor
+<InputText
+  error="CNPJ inválido"
+  aria-invalid="true"
+/>
+```
+
+**Navegação por Teclado:**
+- Tab: próximo elemento
+- Shift+Tab: elemento anterior
+- Enter: ativar botão/link
+- Escape: fechar modal
+
+---
+
+### **10.8. Workflow para Agents (Passo a Passo)**
+
+**Ao criar nova tela/componente:**
+
+1. **Identificar padrão:**
+   - É formulário? → Template Formulário
+   - É importação? → Template Processamento
+   - É listagem? → Template Resultado
+
+2. **Mapear componentes:**
+   - Quais inputs? → InputText com variantes
+   - Tem upload? → FileUpload
+   - Tem multi-etapas? → Stepper
+   - Tem botões? → Button (apenas 1 primary)
+
+3. **Definir estados:**
+   ```typescript
+   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState(null);
+   const [data, setData] = useState(null);
+   ```
+
+4. **Usar tokens semânticos:**
+   ```typescript
+   // Não: style={{marginTop: '16px'}}
+   // Sim: style={{marginTop: spacing.md}}
+   ```
+
+5. **Validar acessibilidade:**
+   - [ ] Labels presentes?
+   - [ ] ARIA quando necessário?
+   - [ ] Focus visível?
+   - [ ] Navegação por teclado?
+
+6. **Documentar se novo:**
+   Se criou componente novo, adicionar em `ui-design-system-nextjs.md`
+
+---
+
+### **10.9. Erros Comuns e Como Evitar**
+
+#### **Erro 1: Estilos Inline**
+```typescript
+// ❌ NUNCA FAZER
+<div style={{backgroundColor: '#f0f0f0', padding: '20px'}}>
+
+// ✅ SEMPRE FAZER
+<Card>
+```
+
+#### **Erro 2: Múltiplos Botões Primary**
+```typescript
+// ❌ ERRADO - confunde usuário
+<Button variant="primary">Salvar</Button>
+<Button variant="primary">Salvar e Continuar</Button>
+
+// ✅ CORRETO - apenas 1 ação principal
+<Button variant="secondary">Salvar Rascunho</Button>
+<Button variant="primary">Salvar e Continuar</Button>
+```
+
+#### **Erro 3: Mensagens de Erro Genéricas**
+```typescript
+// ❌ NÃO AJUDA O USUÁRIO
+<Alert variant="error">Erro ao processar</Alert>
+
+// ✅ ORIENTA AÇÃO CORRETIVA
+<Alert variant="error">
+  Erro ao processar arquivo: formato inválido. 
+  Utilize arquivos .csv ou .xlsx com as colunas obrigatórias.
+</Alert>
+```
+
+#### **Erro 4: Ignorar Estados**
+```typescript
+// ❌ ESQUECEU LOADING E ERROR
+const MyComponent = () => {
+  const { data } = useData();
+  return <Table data={data} />;
+};
+
+// ✅ PREVÊ TODOS OS ESTADOS
+const MyComponent = () => {
+  const { data, loading, error } = useData();
+  
+  if (loading) return <Loading />;
+  if (error) return <Alert variant="error">{error}</Alert>;
+  if (!data) return <Alert variant="info">Nenhum dado encontrado</Alert>;
+  
+  return <Table data={data} />;
+};
+```
+
+---
+
+### **10.10. Checklist Final (Antes de Commit)**
+
+**UI/UX:**
+- [ ] Componentes do Design System utilizados?
+- [ ] Tokens semânticos aplicados (sem hard-coded)?
+- [ ] Todos estados previstos (loading, error, disabled, success)?
+- [ ] Apenas 1 botão primary por tela?
+- [ ] Mensagens de erro são acionáveis?
+- [ ] Template de tela apropriado utilizado?
+
+**Acessibilidade:**
+- [ ] Labels associados a inputs?
+- [ ] ARIA labels em ícones/botões sem texto?
+- [ ] Focus visível em elementos interativos?
+- [ ] Navegação por teclado funcional?
+- [ ] Não depende apenas de cor para comunicar estado?
+
+**Código:**
+- [ ] TypeScript sem erros?
+- [ ] Componentes reutilizáveis criados?
+- [ ] Custom hooks para lógica complexa?
+- [ ] Props tipadas corretamente?
+
+**Documentação:**
+- [ ] Componente novo documentado em `ui-design-system-nextjs.md`?
+- [ ] Comentários em lógica complexa?
+- [ ] README atualizado se necessário?
+
+---
+
+### **10.11. Referência Rápida - Componentes por Caso de Uso**
+
+| Caso de Uso | Componentes | Template |
+|-------------|-------------|----------|
+| Cadastro de cliente | InputText, Button, Alert | Formulário |
+| Importação de arquivo | FileUpload, Stepper, Card, Alert | Processamento |
+| Listagem de vendas | Table, Card, Button (icon) | Resultado |
+| Configuração de taxas | InputText, Table, Button | Formulário + Resultado |
+| Relatório financeiro | Card, Table, Button (download) | Resultado |
+| Login/Autenticação | InputText (email/password), Button | Formulário |
+
+---
+
+### **10.12. Integração com Backend (FastAPI)**
+
+**Sempre usar tipos compartilhados:**
+```typescript
+// types/vendas.ts (gerado do OpenAPI)
+export interface Venda {
+  id: number;
+  data: string;
+  valor: number;
+  status: string;
+}
+
+// components/VendasTable.tsx
+import { Venda } from '@/lib/types/vendas';
+
+export function VendasTable({ vendas }: { vendas: Venda[] }) {
+  return <Table data={vendas} columns={COLUMNS} />;
+}
+```
+
+**Loading states sincronizados:**
+```typescript
+const { vendas, loading, error, refetch } = useVendas();
+
+<Button 
+  variant="primary" 
+  loading={loading}  // Desabilita automaticamente
+  onClick={refetch}
+>
+  Atualizar
+</Button>
+```
+
+---
+
+**Este Design System é MANDATÓRIO para todo desenvolvimento frontend. Qualquer desvio deve ser justificado e documentado.**
 
 ---
 

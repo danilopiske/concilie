@@ -36,7 +36,7 @@ def classificar_e_gravar_recebiveis(
     contexto: str,
     usuario: str,
     arquivo_origem: str = "",
-    processamentoid: int = None,
+    processamentoid: int | str = None,
 ) -> dict:
     """
     Processa, filtra e grava recebíveis nas tabelas corretas, com metadados e deduplicação.
@@ -2413,6 +2413,14 @@ def is_multisheet_rede_file(path: str) -> bool:
     ext = Path(path).suffix.lower()
     print(f"[DEBUG][MULTISHEET_DETECT] Verificando arquivo: {path}")
     print(f"[DEBUG][MULTISHEET_DETECT] Extensão: {ext}")
+
+    try:
+        with open("debug_detection.txt", "a") as f:
+            f.write(f"\nis_multisheet_rede_file called at {datetime.now()}\n")
+            f.write(f"Path: {path}\n")
+            f.write(f"Ext: {ext}\n")
+    except:
+        pass
 
     if ext not in (".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"):
         print(f"[DEBUG][MULTISHEET_DETECT] Extensão não suportada: {ext}")

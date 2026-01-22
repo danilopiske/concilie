@@ -10,6 +10,10 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  
+  /* Custom spacing for sidebar */
+  --spacing-70: 280px;
+  --spacing-16: 64px;
 }
 
 @media (prefers-color-scheme: dark) {

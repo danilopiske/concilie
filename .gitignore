@@ -244,3 +244,6 @@ backup/
 
 # Templates
 !relatorios/template_relatorio.html
+
+# Exceptions
+!apps/web/src/lib/
