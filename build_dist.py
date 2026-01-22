@@ -127,6 +127,14 @@ def main():
     else:
          print(f"⚠️ Warning: conf directory not found at {conf_dir}")
 
+    # Include 'proc' directory (Required for legacy import logic)
+    proc_dir = root_dir / "proc"
+    if proc_dir.exists():
+         print(f"📦 Found proc directory at: {proc_dir}")
+         add_data_args += f"--add-data \"{proc_dir}{sep}proc\" "
+    else:
+         print(f"⚠️ Warning: proc directory not found at {proc_dir}")
+
     # Include seed database (data/concilie.db)
     seed_db = root_dir / "data" / "concilie.db"
     if seed_db.exists():
