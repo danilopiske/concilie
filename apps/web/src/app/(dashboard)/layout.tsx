@@ -7,6 +7,9 @@
 
 import { TopBar, Sidebar } from '@/components/layout';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { Loading } from '@/components/shared/Loading';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardLayout({
   children,
@@ -14,6 +17,15 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  // Auth enforcement
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
 
   // Sincronizar estado do sidebar (ouvir mudanças no localStorage)
   useEffect(() => {
@@ -32,6 +44,16 @@ export default function DashboardLayout({
 
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
+
+  if (loading) {
+      return (
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+              <Loading />
+          </div>
+      );
+  }
+
+  if (!user) return null; // Will redirect
 
   return (
     <div className="min-h-screen bg-gray-50">
