@@ -214,14 +214,14 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="p-3 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded">
+          <div className="p-3 bg-red-100 bg-red-900 text-red-800 text-red-200 rounded">
             {error}
           </div>
         )}
 
         {/* Dados Principais */}
         <div>
-          <h4 className="text-md font-semibold mb-3 text-gray-900 dark:text-white">
+          <h4 className="text-md font-semibold mb-3 text-gray-900 text-white">
             Dados Principais
           </h4>
           <div className="grid grid-cols-2 gap-4">
@@ -261,7 +261,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
 
         {/* Endereço */}
         <div>
-          <h4 className="text-md font-semibold mb-3 text-gray-900 dark:text-white">
+          <h4 className="text-md font-semibold mb-3 text-gray-900 text-white">
             Endereço
           </h4>
           <div className="grid grid-cols-4 gap-4">
@@ -312,7 +312,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
 
         {/* Contatos */}
         <div>
-          <h4 className="text-md font-semibold mb-3 text-gray-900 dark:text-white">
+          <h4 className="text-md font-semibold mb-3 text-gray-900 text-white">
             Contatos
           </h4>
           <div className="grid grid-cols-2 gap-4">
@@ -358,7 +358,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
 
         {/* Dados Bancários */}
         <div>
-          <h4 className="text-md font-semibold mb-3 text-gray-900 dark:text-white">
+          <h4 className="text-md font-semibold mb-3 text-gray-900 text-white">
             Dados Bancários
           </h4>
           <div className="grid grid-cols-3 gap-4">
@@ -385,7 +385,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
 
         {/* ECs */}
         <div>
-          <h4 className="text-md font-semibold mb-3 text-gray-900 dark:text-white">
+          <h4 className="text-md font-semibold mb-3 text-gray-900 text-white">
             Estabelecimentos Comerciais (ECs)
           </h4>
           <Input

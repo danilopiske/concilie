@@ -130,7 +130,7 @@ export function ContextoFormModal({ isOpen, onClose, contexto, onSaved }: Contex
         />
 
         <div>
-          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+          <label className="block text-sm font-medium mb-1 text-gray-700 text-gray-300">
             Descrição
           </label>
           <textarea
@@ -138,7 +138,7 @@ export function ContextoFormModal({ isOpen, onClose, contexto, onSaved }: Contex
             value={formData.descricao}
             onChange={handleChange}
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            className="w-full px-3 py-2 border border-gray-300 border-gray-600 rounded-md bg-white bg-gray-700 text-gray-900 text-white"
             placeholder="Descrição do contexto (opcional)"
           />
         </div>
@@ -152,7 +152,7 @@ export function ContextoFormModal({ isOpen, onClose, contexto, onSaved }: Contex
             onChange={handleChange}
             className="h-4 w-4 text-blue-600 rounded"
           />
-          <label htmlFor="ativo" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+          <label htmlFor="ativo" className="ml-2 text-sm text-gray-700 text-gray-300">
             Ativo
           </label>
         </div>

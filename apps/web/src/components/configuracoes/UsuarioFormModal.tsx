@@ -66,19 +66,19 @@ export function UsuarioFormModal({ isOpen, onClose, onSave, usuarioEdit }: Usuar
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+      <div className="bg-white bg-gray-800 rounded-lg shadow-lg w-full max-w-md">
+        <div className="flex items-center justify-between p-4 border-b border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-900 text-white">
             {usuarioEdit ? 'Editar Usuário' : 'Novo Usuário'}
           </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 hover:text-gray-300">
             <X size={20} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-1">
               Usuário (Login) *
             </label>
             <input
@@ -86,36 +86,36 @@ export function UsuarioFormModal({ isOpen, onClose, onSave, usuarioEdit }: Usuar
               required
               value={formData.usuario}
               onChange={(e) => setFormData({ ...formData, usuario: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-3 py-2 border rounded-md bg-gray-700 border-gray-600 text-white"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-1">
               Nome
             </label>
             <input
               type="text"
               value={formData.nome}
               onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-3 py-2 border rounded-md bg-gray-700 border-gray-600 text-white"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-1">
               Empresa
             </label>
             <input
               type="text"
               value={formData.empresa}
               onChange={(e) => setFormData({ ...formData, empresa: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-3 py-2 border rounded-md bg-gray-700 border-gray-600 text-white"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 text-gray-300 mb-1">
               Senha {usuarioEdit && '(deixe em branco para manter)'} {!usuarioEdit && '*'}
             </label>
             <input
@@ -123,7 +123,7 @@ export function UsuarioFormModal({ isOpen, onClose, onSave, usuarioEdit }: Usuar
               required={!usuarioEdit}
               value={formData.senha}
               onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
-              className="w-full px-3 py-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="w-full px-3 py-2 border rounded-md bg-gray-700 border-gray-600 text-white"
             />
           </div>
 

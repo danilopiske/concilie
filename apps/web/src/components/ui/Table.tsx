@@ -87,7 +87,7 @@ export function Table<T extends Record<string, any>>({
     return value ?? '-';
   };
 
-  const baseClasses = 'min-w-full divide-y divide-gray-200 dark:divide-gray-700';
+  const baseClasses = 'min-w-full divide-y divide-gray-200';
   const variantClasses = {
     simple: '',
     info: 'text-sm',
@@ -124,7 +124,7 @@ export function Table<T extends Record<string, any>>({
             <tr>
               <td
                 colSpan={columns.length}
-                className="px-6 py-8 text-center text-gray-500 dark:text-gray-400"
+                className="px-6 py-8 text-center text-gray-500"
               >
                 {emptyMessage}
               </td>
@@ -133,12 +133,12 @@ export function Table<T extends Record<string, any>>({
             data.map((row, rowIndex) => (
               <tr
                 key={rowIndex}
-                className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="hover:bg-gray-50 transition-colors"
               >
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
+                    className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
                   >
                     {renderCell(column, row)}
                   </td>

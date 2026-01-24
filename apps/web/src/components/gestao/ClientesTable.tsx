@@ -43,7 +43,7 @@ export function ClientesTable({ clientes, onEdit, onDelete, onViewECs }: Cliente
       label: 'Status',
       render: () => (
         // TODO: Implementar status real quando disponível na API
-        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
           Ativo
         </span>
       ),

@@ -93,7 +93,7 @@ export const colors = {
   border: {
     light: '#E5E7EB',
     medium: '#D1D5DB',
-    dark: '#9CA3AF',
+     '#9CA3AF',
   },
 };
 

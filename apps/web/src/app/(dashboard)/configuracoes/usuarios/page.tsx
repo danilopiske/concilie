@@ -72,8 +72,8 @@ export default function UsuariosPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Gerenciar Usuários</h1>
-          <p className="text-gray-500 dark:text-gray-400">Cadastre e gerencie o acesso ao sistema</p>
+          <h1 className="text-2xl font-bold text-gray-900 text-white">Gerenciar Usuários</h1>
+          <p className="text-gray-500 text-gray-400">Cadastre e gerencie o acesso ao sistema</p>
         </div>
         
         <Button onClick={() => { setEditingUser(null); setIsModalOpen(true); }}>
@@ -82,12 +82,12 @@ export default function UsuariosPage() {
         </Button>
       </div>
 
-      <div className="flex items-center bg-white dark:bg-gray-800 border rounded-md px-3 py-2 max-w-md">
+      <div className="flex items-center bg-white bg-gray-800 border rounded-md px-3 py-2 max-w-md">
         <Search className="text-gray-400 mr-2" size={20} />
         <input
           type="text"
           placeholder="Buscar por nome, login ou empresa..."
-          className="bg-transparent border-none outline-none w-full text-gray-700 dark:text-gray-200 placeholder-gray-400"
+          className="bg-transparent border-none outline-none w-full text-gray-700 text-gray-200 placeholder-gray-400"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />

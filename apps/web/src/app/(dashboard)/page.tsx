@@ -20,11 +20,11 @@ export default function DashboardHome() {
        </div>
 
        <div className="grid md:grid-cols-2 gap-6 mb-12">
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
-              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">
+            <div className="bg-white bg-gray-800 p-6 rounded-lg shadow-lg">
+              <h2 className="text-2xl font-semibold text-gray-800 text-white mb-4">
                 🎯 Gestão
               </h2>
-              <p className="text-gray-600 dark:text-gray-300 mb-4">
+              <p className="text-gray-600 text-gray-300 mb-4">
                 Gerenciar clientes, ECs, contextos, bandeiras, termos e taxas
               </p>
               <Link
@@ -35,11 +35,11 @@ export default function DashboardHome() {
               </Link>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
-              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">
+            <div className="bg-white bg-gray-800 p-6 rounded-lg shadow-lg">
+              <h2 className="text-2xl font-semibold text-gray-800 text-white mb-4">
                 📊 Análises
               </h2>
-              <p className="text-gray-600 dark:text-gray-300 mb-4">
+              <p className="text-gray-600 text-gray-300 mb-4">
                 Visualizar relatórios e análises financeiras
               </p>
               <Link
@@ -50,11 +50,11 @@ export default function DashboardHome() {
               </Link>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
-              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">
+            <div className="bg-white bg-gray-800 p-6 rounded-lg shadow-lg">
+              <h2 className="text-2xl font-semibold text-gray-800 text-white mb-4">
                 📁 Importação
               </h2>
-              <p className="text-gray-600 dark:text-gray-300 mb-4">
+              <p className="text-gray-600 text-gray-300 mb-4">
                 Importar arquivos de vendas e recebíveis
               </p>
               <Link
@@ -65,11 +65,11 @@ export default function DashboardHome() {
               </Link>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
-              <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">
+            <div className="bg-white bg-gray-800 p-6 rounded-lg shadow-lg">
+              <h2 className="text-2xl font-semibold text-gray-800 text-white mb-4">
                 🔧 Configurações
               </h2>
-              <p className="text-gray-600 dark:text-gray-300 mb-4">
+              <p className="text-gray-600 text-gray-300 mb-4">
                 Configurar sistema e preferências
               </p>
               <Link

@@ -3,7 +3,7 @@
  */
 export function ErrorMessage({ message }: { message: string }) {
   return (
-    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+    <div className="bg-red-50 bg-red-900/20 border border-red-200 border-red-800 rounded-lg p-4">
       <div className="flex items-start">
         <div className="flex-shrink-0">
           <svg
@@ -19,7 +19,7 @@ export function ErrorMessage({ message }: { message: string }) {
           </svg>
         </div>
         <div className="ml-3">
-          <p className="text-sm text-red-700 dark:text-red-400">{message}</p>
+          <p className="text-sm text-red-700 text-red-400">{message}</p>
         </div>
       </div>
     </div>
