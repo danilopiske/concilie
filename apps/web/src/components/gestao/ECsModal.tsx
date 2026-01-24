@@ -55,13 +55,13 @@ export function ECsModal({ isOpen, onClose, clienteId, clienteNome }: ECsModalPr
       }
     >
       {loading && (
-        <div className="text-center py-8 text-gray-600 text-gray-400">
+        <div className="text-center py-8 text-gray-600">
           Carregando...
         </div>
       )}
 
       {error && (
-        <div className="p-3 bg-red-100 bg-red-900 text-red-800 text-red-200 rounded">
+        <div className="p-3 bg-red-100 text-red-800 rounded">
           {error}
         </div>
       )}
@@ -69,25 +69,25 @@ export function ECsModal({ isOpen, onClose, clienteId, clienteNome }: ECsModalPr
       {!loading && !error && (
         <div>
           {ecs.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 text-gray-400">
+            <div className="text-center py-8 text-gray-500">
               Nenhum EC cadastrado para este cliente
             </div>
           ) : (
             <div>
-              <p className="text-sm text-gray-600 text-gray-400 mb-4">
+              <p className="text-sm text-gray-600 mb-4">
                 Total de ECs: {ecs.length}
               </p>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {ecs.map((ec, index) => (
                   <div
                     key={index}
-                    className="p-3 bg-gray-50 bg-gray-700 rounded border border-gray-200 border-gray-600"
+                    className="p-3 bg-gray-50 rounded border border-gray-200"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-sm text-gray-900 text-white">
+                      <span className="font-mono text-sm text-gray-900">
                         {ec}
                       </span>
-                      <span className="text-xs text-gray-500 text-gray-400">
+                      <span className="text-xs text-gray-500">
                         EC #{index + 1}
                       </span>
                     </div>

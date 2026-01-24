@@ -10,21 +10,21 @@ export function SystemStatus() {
 
   if (loading) {
     return (
-      <div className="bg-gray-100 bg-gray-800 rounded-lg p-4 animate-pulse">
-        <div className="h-4 bg-gray-300 bg-gray-600 rounded w-3/4"></div>
+      <div className="bg-gray-100 rounded-lg p-4 animate-pulse">
+        <div className="h-4 bg-gray-300 rounded w-3/4"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 bg-red-900/20 border border-red-200 border-red-800 rounded-lg p-4">
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
         <div className="flex items-center">
           <div className="flex-shrink-0">
             <span className="text-2xl">⚠️</span>
           </div>
           <div className="ml-3">
-            <p className="text-sm text-red-700 text-red-400">
+            <p className="text-sm text-red-700">
               Backend offline: {error}
             </p>
           </div>
@@ -40,7 +40,7 @@ export function SystemStatus() {
   const isMySQL = info.database.type === 'mysql';
 
   return (
-    <div className="bg-white bg-gray-800 rounded-lg shadow-lg p-4">
+    <div className="bg-white rounded-lg shadow-lg p-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <div className="flex items-center">
@@ -51,31 +51,31 @@ export function SystemStatus() {
                   : 'bg-red-500'
               }`}
             />
-            <span className="text-sm font-medium text-gray-700 text-gray-300">
+            <span className="text-sm font-medium text-gray-700">
               {isDatabaseConnected ? 'Sistema Online' : 'Sistema Offline'}
             </span>
           </div>
 
-          <div className="h-6 w-px bg-gray-300 bg-gray-600" />
+          <div className="h-6 w-px bg-gray-300" />
 
           <div className="flex items-center">
             <span
               className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                 isMySQL
-                  ? 'bg-blue-100 text-blue-800 bg-blue-900 text-blue-200'
-                  : 'bg-green-100 text-green-800 bg-green-900 text-green-200'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-green-100 text-green-800'
               }`}
             >
               {isMySQL ? '🗄️' : '📁'} {databaseType}
             </span>
           </div>
 
-          <div className="hidden md:flex items-center text-xs text-gray-500 text-gray-400">
+          <div className="hidden md:flex items-center text-xs text-gray-500">
             <span>v{info.version}</span>
           </div>
         </div>
 
-        <div className="text-xs text-gray-500 text-gray-400">
+        <div className="text-xs text-gray-500">
           {info.database.dialect} / {info.database.driver}
         </div>
       </div>
