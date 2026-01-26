@@ -72,7 +72,7 @@ export function ConfirmDialog({
       <div className="space-y-4">
         <div className="flex items-start gap-3">
           <div className="text-3xl">{config.icon}</div>
-          <p className="text-gray-700 text-gray-300 flex-1">{message}</p>
+          <p className="text-gray-700 flex-1">{message}</p>
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 border-gray-700">

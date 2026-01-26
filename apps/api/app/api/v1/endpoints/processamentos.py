@@ -12,8 +12,18 @@ def listar_processamentos(
     cliente_id: int = None,
     status: str = None,
     simple: bool = False,
+    skip: int = 0,
+    limit: int = 20,
     db: Session = Depends(get_db)
 ):
     repo = ProcessamentoRepository(db)
     filtro = ProcessamentoFilter(cliente_id=cliente_id, status=status)
-    return repo.listar(filtros=filtro, simple=simple)
+    return repo.listar(skip=skip, limit=limit, filtros=filtro, simple=simple)
+
+@router.post("/batch-delete")
+def deletar_processamentos(
+    ids: List[str],
+    db: Session = Depends(get_db)
+):
+    repo = ProcessamentoRepository(db)
+    return {"success": repo.deletar_lista(ids), "count": len(ids)}

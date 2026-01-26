@@ -118,7 +118,7 @@ export function BandeiraFormModal({ isOpen, onClose, onSaved }: BandeiraFormModa
             onChange={handleChange}
             className="h-4 w-4 text-blue-600 rounded"
           />
-          <label htmlFor="padrao" className="ml-2 text-sm text-gray-700 text-gray-300">
+          <label htmlFor="padrao" className="ml-2 text-sm text-gray-700">
             Ativa por padrão
           </label>
         </div>

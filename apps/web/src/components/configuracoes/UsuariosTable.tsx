@@ -9,10 +9,10 @@ interface UsuariosTableProps {
 
 export function UsuariosTable({ usuarios, onEdit, onDelete }: UsuariosTableProps) {
   return (
-    <div className="bg-white bg-gray-800 shadow-sm rounded-lg overflow-hidden border border-gray-200 border-gray-700">
+    <div className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-200">
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm text-gray-600 text-gray-300">
-          <thead className="bg-gray-50 bg-gray-700 text-xs uppercase font-medium text-gray-500 text-gray-400">
+        <table className="w-full text-left text-sm text-gray-600">
+          <thead className="bg-gray-50 text-xs uppercase font-medium text-gray-500">
             <tr>
               <th className="px-6 py-3">ID</th>
               <th className="px-6 py-3">Usuário</th>
@@ -32,7 +32,7 @@ export function UsuariosTable({ usuarios, onEdit, onDelete }: UsuariosTableProps
               usuarios.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-50 hover:bg-gray-750 transition-colors">
                   <td className="px-6 py-4 font-mono text-xs">{user.id}</td>
-                  <td className="px-6 py-4 font-medium text-gray-900 text-white">{user.usuario}</td>
+                  <td className="px-6 py-4 font-medium text-gray-900">{user.usuario}</td>
                   <td className="px-6 py-4">{user.nome || '-'}</td>
                   <td className="px-6 py-4">{user.empresa || '-'}</td>
                   <td className="px-6 py-4 text-right flex justify-end gap-2">

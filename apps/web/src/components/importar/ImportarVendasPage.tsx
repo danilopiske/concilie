@@ -64,7 +64,7 @@ export default function ImportarVendasPage() {
           <div className="flex flex-col min-w-[220px]">
             <label className="font-label mb-1">Cliente</label>
             <select
-              className="InputText"
+              className="InputText w-full p-2 border border-gray-300 rounded bg-white text-gray-900"
               value={cliente}
               onChange={e => setCliente(e.target.value)}
               disabled={processing}
@@ -78,7 +78,7 @@ export default function ImportarVendasPage() {
           <div className="flex flex-col min-w-[120px]">
             <label className="font-label mb-1">EC</label>
             <select
-              className="InputText"
+              className="InputText w-full p-2 border border-gray-300 rounded bg-white text-gray-900"
               value={ec}
               onChange={e => setEc(e.target.value)}
               disabled={processing}
@@ -92,7 +92,7 @@ export default function ImportarVendasPage() {
           <div className="flex flex-col min-w-[180px]">
             <label className="font-label mb-1">Contexto (Layout)</label>
             <select
-              className="InputText"
+              className="InputText w-full p-2 border border-gray-300 rounded bg-white text-gray-900"
               value={contexto}
               onChange={e => setContexto(e.target.value)}
               disabled={processing}
@@ -106,7 +106,7 @@ export default function ImportarVendasPage() {
           <div className="flex flex-col min-w-[140px]">
             <label className="font-label mb-1">Tipo de Arquivo</label>
             <select
-              className="InputText"
+              className="InputText w-full p-2 border border-gray-300 rounded bg-white text-gray-900"
               value={tipoArquivo}
               onChange={e => setTipoArquivo(e.target.value)}
               disabled={processing}
@@ -131,7 +131,7 @@ export default function ImportarVendasPage() {
             Continuar processamento anterior
           </label>
           <select
-            className="InputText min-w-[260px]"
+            className="InputText min-w-[260px] p-2 border border-gray-300 rounded bg-white text-gray-900"
             value={processamentoAnterior}
             onChange={e => setProcessamentoAnterior(e.target.value)}
             disabled={!continuarAnterior || processing}

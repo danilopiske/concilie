@@ -35,6 +35,7 @@ export default function CorrecaoToolPage() {
   const [resumo, setResumo] = useState<ResumoResponse | null>(null);
   const [loadingProc, setLoadingProc] = useState(true);
   const [loadingResumo, setLoadingResumo] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Historico
@@ -63,6 +64,15 @@ export default function CorrecaoToolPage() {
     }
   }, [selectedProcessamento]);
 
+  // DEBUG: Monitor state changes
+  useEffect(() => {
+    console.log('[DEBUG] ActionItem changed:', actionItem);
+  }, [actionItem]);
+
+  useEffect(() => {
+    console.log('[DEBUG] DeleteDialog open:', deleteDialogOpen);
+  }, [deleteDialogOpen]);
+
   const fetchProcessamentos = async () => {
     try {
       setLoadingProc(true);
@@ -78,7 +88,9 @@ export default function CorrecaoToolPage() {
 
   const fetchResumo = async (id: string) => {
     try {
-      setLoadingResumo(true);
+      if(!resumo) setLoadingResumo(true);
+      else setIsRefreshing(true);
+      
       const data = await correcaoService.obterResumo(id);
       setResumo(data);
     } catch (err) {
@@ -86,6 +98,7 @@ export default function CorrecaoToolPage() {
       console.error(err);
     } finally {
       setLoadingResumo(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -138,16 +151,21 @@ export default function CorrecaoToolPage() {
         valor_antigo: actionItem.item.valor,
         valor_novo: newValue
       });
-      setEditModalOpen(false);
-      await fetchResumo(selectedProcessamento);
     } catch (err) {
       alert('Erro ao atualizar: ' + err);
+      return; 
     } finally {
       setProcessingAction(false);
+      setEditModalOpen(false);
+      setActionItem(null);
     }
+
+    // Refresh outside the lock
+    await fetchResumo(selectedProcessamento);
   };
 
   const confirmDelete = async () => {
+    console.log('[DEBUG] confirmDelete triggered for:', actionItem);
     if (!actionItem || !selectedProcessamento) return;
     
     try {
@@ -157,13 +175,23 @@ export default function CorrecaoToolPage() {
         campo: actionItem.campo,
         valor: actionItem.item.valor
       });
-      setDeleteDialogOpen(false);
-      await fetchResumo(selectedProcessamento);
-    } catch (err) {
-      alert('Erro ao remover: ' + err);
+      console.log('[DEBUG] Delete successful');
+    } catch (err: any) {
+      console.error(err);
+      const msg = err.response?.data?.detail || err.message || 'Erro desconhecido';
+      alert(`Erro ao remover: ${msg}`);
+      return;
     } finally {
+      console.log('[DEBUG] Cleanup after delete');
       setProcessingAction(false);
+      setDeleteDialogOpen(false);
+      
+      // Force clear immediately
+      setActionItem(null); 
     }
+
+    // Refresh independent of the modal action (Fire and forget from modal perspective)
+    fetchResumo(selectedProcessamento);
   };
 
   const renderSection = (
@@ -216,6 +244,8 @@ export default function CorrecaoToolPage() {
               columns={columns} 
               data={data} 
               emptyMessage="Nenhum registro encontrado."
+              pagination={true}
+              pageSize={10}
             />
         </PanelBody>
       </Panel>
@@ -292,8 +322,14 @@ export default function CorrecaoToolPage() {
           <PanelHeader icon={FileText}>2. Resumo do Processamento</PanelHeader>
           <PanelBody>
               <div className="flex justify-end mb-4">
-                  <Button size="sm" variant="success" onClick={() => selectedProcessamento && fetchResumo(selectedProcessamento)} disabled={!selectedProcessamento}>
-                      🔄 Atualizar Resumo
+                  <Button 
+                    size="sm" 
+                    variant="success" 
+                    onClick={() => selectedProcessamento && fetchResumo(selectedProcessamento)} 
+                    disabled={!selectedProcessamento || loadingResumo || isRefreshing}
+                    loading={isRefreshing}
+                  >
+                      {isRefreshing ? 'Atualizando...' : '🔄 Atualizar Resumo'}
                   </Button>
               </div>
               
@@ -345,11 +381,16 @@ export default function CorrecaoToolPage() {
 
       {/* Delete Confirmation */}
       <ConfirmDialog
+        key={`confirm-${actionItem?.item.valor}-${deleteDialogOpen ? 'open' : 'closed'}`} // Force remount logic
         isOpen={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
+        onClose={() => {
+            console.log('[DEBUG] Closing dialog via onClose');
+            setDeleteDialogOpen(false);
+            setActionItem(null);
+        }}
         onConfirm={confirmDelete}
         title="Confirmar Remoção"
-        message={`Tem certeza que deseja remover todas as ocorrências de "${actionItem?.item.valor}"? Elas serão movidas para a lista de Filtrados.`}
+        message={`Tem certeza que deseja remover todas as ocorrências de "${actionItem?.item.valor}"? (DEBUG: ItemID=${actionItem?.item?.valor})`}
         confirmText={processingAction ? 'Removendo...' : 'Sim, Remover'}
         loading={processingAction}
         variant="danger"

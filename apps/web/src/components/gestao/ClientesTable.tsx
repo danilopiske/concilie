@@ -25,8 +25,8 @@ export function ClientesTable({ clientes, onEdit, onDelete, onViewECs }: Cliente
     },
     {
       key: 'nome',
-      label: 'Nome/Razão Social',
-      render: (_, cliente) => cliente.razao_social || cliente.nome_fantasia || '-',
+      label: 'Nome Fantasia',
+      render: (_, cliente) => cliente.nome_fantasia || cliente.razao_social || '-',
     },
     {
       key: 'cnpj',

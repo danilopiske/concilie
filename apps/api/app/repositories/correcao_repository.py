@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, insert, delete, select
 from app.models.vendas import Venda, VendaFiltrada
 from app.models.recebiveis import Recebivel, RecebivelFiltrado
+from app.models.vendas_calculos import VendasCalculos
 from app.models.log import LogCorrecao
 from app.schemas.correcao import ResumoResponse, ResumoItem, HistoricoItem
 from typing import List, Optional
@@ -190,19 +191,35 @@ class CorrecaoRepository:
                 )
                 self.db.execute(stmt)
 
-                # 2. Remover da tabela original
-                result = self.db.query(Venda).filter(
-                    Venda.processamentoid == processamento_id,
-                    target_col == valor
-                ).delete(synchronize_session=False)
+                # 2. DELETE DEPENDENCIES (vendas_calculos)
+                # Optimize: Get IDs first to avoid subquery locking issues in MySQL
+                ids_to_delete = [
+                    r[0] for r in self.db.query(Venda.id).filter(
+                        Venda.processamentoid == processamento_id,
+                        target_col == valor
+                    ).all()
+                ]
 
-                self._registrar_log(
-                    processamento_id, 
-                    f'remocao_{campo}', 
-                    valor, 
-                    None, 
-                    result
-                )
+                if ids_to_delete:
+                    # Delete in chunks if too many? (Assuming typical volume is manageable)
+                    self.db.query(VendasCalculos).filter(
+                        VendasCalculos.id_venda.in_(ids_to_delete)
+                    ).delete(synchronize_session=False)
+
+                    # 3. Remover da tabela original using same IDs for consistency/speed
+                    result = self.db.query(Venda).filter(
+                        Venda.id.in_(ids_to_delete)
+                    ).delete(synchronize_session=False)
+
+                    self._registrar_log(
+                        processamento_id, 
+                        f'remocao_{campo}', 
+                        valor, 
+                        None, 
+                        result
+                    )
+                else:
+                    result = 0
             
                 self.db.commit()
                 return result

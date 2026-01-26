@@ -3,13 +3,13 @@
  * Tabela reutilizável com formatação automática
  */
 'use client';
-
+import { useState, useEffect } from 'react';
 import { ReactNode } from 'react';
 import { Badge } from '@/components/ui/Badge';
 
 export type TableColumn<T = any> = {
   key: string;
-  label: string;
+  label: string | ReactNode;
   sortable?: boolean;
   format?: 'currency' | 'date' | 'boolean' | 'badge';
   render?: (value: any, row: T) => ReactNode;
@@ -26,6 +26,9 @@ export interface TableProps<T = any> {
   emptyMessage?: string;
   sortKey?: string;
   sortDirection?: 'asc' | 'desc';
+  pagination?: boolean;
+  pageSize?: number;
+  rowKey?: string | ((row: T) => string);
 }
 
 const formatters = {
@@ -63,8 +66,26 @@ export function Table<T extends Record<string, any>>({
   emptyMessage = 'Nenhum registro encontrado',
   sortKey,
   sortDirection,
+  pagination = false,
+  pageSize = 10,
+  rowKey,
 }: TableProps<T>) {
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset/Adjust page when data changes
+  useEffect(() => {
+    if (pagination) {
+       const totalPages = Math.ceil(data.length / pageSize);
+       if (currentPage > totalPages && totalPages > 0) {
+           setCurrentPage(totalPages);
+       } else if (totalPages === 0) {
+           setCurrentPage(1);
+       }
+    }
+  }, [data.length, pagination, pageSize]);
+
   const handleSort = (columnKey: string, sortable?: boolean) => {
+
     if (sortable && onSort) {
       onSort(columnKey);
     }
@@ -120,7 +141,10 @@ export function Table<T extends Record<string, any>>({
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {data.length === 0 ? (
+          {(pagination 
+              ? data.slice((currentPage - 1) * pageSize, currentPage * pageSize) 
+              : data
+           ).length === 0 ? (
             <tr>
               <td
                 colSpan={columns.length}
@@ -130,9 +154,17 @@ export function Table<T extends Record<string, any>>({
               </td>
             </tr>
           ) : (
-            data.map((row, rowIndex) => (
+            (pagination 
+                ? data.slice((currentPage - 1) * pageSize, currentPage * pageSize) 
+                : data
+             ).map((row, rowIndex) => {
+              const key = rowKey 
+                ? (typeof rowKey === 'function' ? rowKey(row) : row[rowKey as string]) 
+                : rowIndex;
+              
+              return (
               <tr
-                key={rowIndex}
+                key={key}
                 className="hover:bg-gray-50 transition-colors"
               >
                 {columns.map((column) => (
@@ -144,10 +176,35 @@ export function Table<T extends Record<string, any>>({
                   </td>
                 ))}
               </tr>
-            ))
+              );
+             })
           )}
         </tbody>
       </table>
+      
+      {pagination && data.length > pageSize && (
+        <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
+           <div className="text-sm text-gray-500">
+              Mostrando <span className="font-medium">{((currentPage - 1) * pageSize) + 1}</span> a <span className="font-medium">{Math.min(currentPage * pageSize, data.length)}</span> de <span className="font-medium">{data.length}</span> resultados
+           </div>
+           <div className="flex gap-2">
+              <button 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 hover:bg-gray-50 disabled:hover:bg-white"
+              >
+                  Anterior
+              </button>
+              <button 
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(data.length / pageSize), p + 1))}
+                  disabled={currentPage >= Math.ceil(data.length / pageSize)}
+                  className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 hover:bg-gray-50 disabled:hover:bg-white"
+              >
+                  Próxima
+              </button>
+           </div>
+        </div>
+      )}
     </div>
   );
 }

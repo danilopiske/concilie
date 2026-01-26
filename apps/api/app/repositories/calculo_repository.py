@@ -10,13 +10,12 @@ class CalculoRepository:
         self.db = db
         self.dialect = self.db.bind.dialect.name
 
-    def _get_period_formula(self, alias="vp"):
+    def _get_period_formula(self, alias="vp", col_name="Data_da_venda"):
         """Returns DBMS-specific formula for 'Year-01-01'"""
-        # Note: Column name is Data_da_venda in DB
         if self.dialect == 'sqlite':
-            return f"strftime('%Y', {alias}.Data_da_venda) || '-01-01'"
+            return f"strftime('%Y', {alias}.{col_name}) || '-01-01'"
         else:
-            return f"CONCAT(YEAR({alias}.Data_da_venda), '-01-01')"
+            return f"CONCAT(YEAR({alias}.{col_name}), '-01-01')"
 
     def preview_calculo(self, req: CalculoPreviewRequest) -> CalculoStats:
         # Check if processamento exists and has sales
@@ -112,8 +111,8 @@ class CalculoRepository:
         # 3A. Taxa de Log (Minimum Rate in Period)
         # Using UPDATE JOIN which is compatible with MySQL
         
-        period_formula_vp = self._get_period_formula("vp")
-        period_formula_vc = self._get_period_formula("vc")
+        period_formula_vp = self._get_period_formula("vp", col_name="Data_da_venda")
+        period_formula_vc = self._get_period_formula("vc", col_name="data_venda")
 
         # IMPORTANT: We join on lower case strings to match Python/SQLite logic
         # But in MySQL default collation is case insensitive anyway. Explicit lower is safer.
@@ -156,7 +155,7 @@ class CalculoRepository:
                       AND vp.ec_id = vendas_calculos.ec_id
                       AND LOWER(vp.Bandeira) = LOWER(vendas_calculos.bandeira)
                       AND LOWER(vp.Forma_de_pagamento) = LOWER(vendas_calculos.forma_pagamento)
-                      AND {self._get_period_formula("vp")} = {self._get_period_formula("vendas_calculos")}
+                      AND {self._get_period_formula("vp", col_name="Data_da_venda")} = {self._get_period_formula("vendas_calculos", col_name="data_venda")}
                  )
                  WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo
              """

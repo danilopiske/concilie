@@ -67,7 +67,7 @@ def get_opcoes(processamento_id: str = None):
             
     return options
 
-@router.get("/adquirentes/{processamento_id}")
+@router.get("/adquirentes")
 def get_adquirentes(processamento_id: str):
     """Retorna lista de adquirentes para um processamento"""
     try:

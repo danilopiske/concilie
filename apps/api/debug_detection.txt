@@ -1,0 +1,52 @@
+
+is_multisheet_rede_file called at 2026-01-24 16:02:09.986555
+Path: temp_uploads\f4bf1ca8-6832-4f4b-b0c0-bf0ff459342f_Rede_Rel_Vendas_01_12_2025-31_12_2025-c5501785-9176-458a-bdc8-a108ec611623.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-24 16:02:47.753774
+Path: temp_uploads\f4bf1ca8-6832-4f4b-b0c0-bf0ff459342f_Rede_Rel_Vendas_01_12_2025-31_12_2025-c5501785-9176-458a-bdc8-a108ec611623.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-24 16:07:58.043866
+Path: temp_uploads\849af9fc-8be6-4f43-98f3-5e5f7d8e9b1f_Rede_Rel_Recebimentos_01_12_2025-31_12_2025-bc917721-95b9-4d00-928e-7af7d15f2807.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-24 16:08:49.262607
+Path: temp_uploads\77f25d18-4fa9-4a54-94dc-6d10155af935_Rede_Rel_Vendas_01_12_2025-31_12_2025-4a1b1d49-fd61-4d74-9e33-c58b6e55ca66.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-24 16:09:20.081644
+Path: temp_uploads\77f25d18-4fa9-4a54-94dc-6d10155af935_Rede_Rel_Vendas_01_12_2025-31_12_2025-4a1b1d49-fd61-4d74-9e33-c58b6e55ca66.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-24 16:12:03.604016
+Path: temp_uploads\e3e37f2d-16da-4632-8f90-0864ba156d1e_Rede_Rel_Recebimentos_01_12_2025-31_12_2025-0a1f3070-7a30-4fd9-a03b-d111108b660d.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-24 16:30:16.528725
+Path: temp_uploads\c0a7fc7d-f9e9-4fdd-b6f1-320f2ae5b89b_Rede_Rel_Recebimentos_01_12_2025-31_12_2025-bc917721-95b9-4d00-928e-7af7d15f2807.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-24 16:32:16.793041
+Path: temp_uploads\c0a7fc7d-f9e9-4fdd-b6f1-320f2ae5b89b_Rede_Rel_Recebimentos_01_12_2025-31_12_2025-bc917721-95b9-4d00-928e-7af7d15f2807.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-24 16:33:10.479102
+Path: temp_uploads\924e5813-ee06-4092-a414-61cb1494db34_Rede_Rel_Recebimentos_01_12_2025-31_12_2025-0a1f3070-7a30-4fd9-a03b-d111108b660d.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-24 16:33:19.006077
+Path: temp_uploads\924e5813-ee06-4092-a414-61cb1494db34_Rede_Rel_Recebimentos_01_12_2025-31_12_2025-0a1f3070-7a30-4fd9-a03b-d111108b660d.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-26 13:25:22.402128
+Path: temp_uploads\9010f18a-9c70-4f85-bc74-5ce30f0fc91b_Rede_Rel_Vendas_01_12_2025-31_12_2025-4a1b1d49-fd61-4d74-9e33-c58b6e55ca66.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-26 13:25:42.754437
+Path: temp_uploads\9010f18a-9c70-4f85-bc74-5ce30f0fc91b_Rede_Rel_Vendas_01_12_2025-31_12_2025-4a1b1d49-fd61-4d74-9e33-c58b6e55ca66.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-01-26 13:26:52.184566
+Path: C:\Users\Danilo\AppData\Local\Temp\tmp918x4rfs.xlsx
+Ext: .xlsx

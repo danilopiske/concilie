@@ -1,16 +1,13 @@
-/**
- * Cliente Form Modal
- * Formulário de edição/criação de cliente
- * Migrado de modules/ui_gestao.py - formulário de clientes
- */
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import { gestaoApi } from '@/lib/api/gestao';
 import { Cliente } from '@/lib/types/gestao';
+import { X, Plus } from 'lucide-react';
 
 interface ClienteFormModalProps {
   isOpen: boolean;
@@ -38,12 +35,14 @@ interface FormData {
   banco: string;
   agencia: string;
   conta: string;
-  ecs: string;
+  ecs: string[]; // Changed to array
 }
 
 export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteFormModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [newEc, setNewEc] = useState(''); // State for the new EC input
+  
   const [formData, setFormData] = useState<FormData>({
     cliente_id: '',
     nome_fantasia: '',
@@ -63,7 +62,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
     banco: '',
     agencia: '',
     conta: '',
-    ecs: '',
+    ecs: [],
   });
 
   useEffect(() => {
@@ -91,14 +90,14 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
         cidade: detalhes.endereco?.cidade || '',
         uf_id: detalhes.endereco?.uf_id || '',
         telefone1: detalhes.contatos?.telefone1 || '',
-          telefone2: detalhes.contatos?.telefone2 || '',
-          telefone3: detalhes.contatos?.telefone3 || '',
-          email1: detalhes.contatos?.email1 || '',
-          email2: detalhes.contatos?.email2 || '',
+        telefone2: detalhes.contatos?.telefone2 || '',
+        telefone3: detalhes.contatos?.telefone3 || '',
+        email1: detalhes.contatos?.email1 || '',
+        email2: detalhes.contatos?.email2 || '',
         banco: detalhes.bancario?.banco || '',
         agencia: detalhes.bancario?.agencia || '',
         conta: detalhes.bancario?.conta || '',
-        ecs: detalhes.ecs?.join(', ') || '',
+        ecs: detalhes.ecs || [], // Expecting array from API, fallback to empty
       });
     } catch (err) {
       setError('Erro ao carregar detalhes do cliente');
@@ -128,14 +127,47 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
       banco: '',
       agencia: '',
       conta: '',
-      ecs: '',
+      ecs: [],
     });
+    setNewEc('');
     setError(null);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // EC Handling
+  const handleAddEc = () => {
+    if (!newEc.trim()) return;
+    const cleanEc = newEc.trim();
+    
+    // Prevent duplicates
+    if (formData.ecs.includes(cleanEc)) {
+      setNewEc('');
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      ecs: [...prev.ecs, cleanEc]
+    }));
+    setNewEc('');
+  };
+
+  const handleKeyDownEc = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddEc();
+    }
+  };
+
+  const handleRemoveEc = (ecToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      ecs: prev.ecs.filter(ec => ec !== ecToRemove)
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -175,7 +207,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
           agencia: formData.agencia,
           conta: formData.conta,
         },
-        ecs: formData.ecs.split(',').map(ec => ec.trim()).filter(ec => ec),
+        ecs: formData.ecs, // Already an array
       };
 
       if (cliente) {
@@ -214,14 +246,14 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="p-3 bg-red-100 bg-red-900 text-red-800 text-red-200 rounded">
+          <div className="p-3 bg-red-100 border border-red-200 text-red-700 rounded-md">
             {error}
           </div>
         )}
 
         {/* Dados Principais */}
         <div>
-          <h4 className="text-md font-semibold mb-3 text-gray-900 text-white">
+          <h4 className="text-md font-semibold mb-3 text-gray-900">
             Dados Principais
           </h4>
           <div className="grid grid-cols-2 gap-4">
@@ -261,7 +293,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
 
         {/* Endereço */}
         <div>
-          <h4 className="text-md font-semibold mb-3 text-gray-900 text-white">
+          <h4 className="text-md font-semibold mb-3 text-gray-900">
             Endereço
           </h4>
           <div className="grid grid-cols-4 gap-4">
@@ -312,7 +344,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
 
         {/* Contatos */}
         <div>
-          <h4 className="text-md font-semibold mb-3 text-gray-900 text-white">
+          <h4 className="text-md font-semibold mb-3 text-gray-900">
             Contatos
           </h4>
           <div className="grid grid-cols-2 gap-4">
@@ -358,7 +390,7 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
 
         {/* Dados Bancários */}
         <div>
-          <h4 className="text-md font-semibold mb-3 text-gray-900 text-white">
+          <h4 className="text-md font-semibold mb-3 text-gray-900">
             Dados Bancários
           </h4>
           <div className="grid grid-cols-3 gap-4">
@@ -383,18 +415,51 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
           </div>
         </div>
 
-        {/* ECs */}
+        {/* ECs Selector */}
         <div>
-          <h4 className="text-md font-semibold mb-3 text-gray-900 text-white">
+          <h4 className="text-md font-semibold mb-3 text-gray-900">
             Estabelecimentos Comerciais (ECs)
           </h4>
-          <Input
-            name="ecs"
-            label="ECs (separados por vírgula)"
-            value={formData.ecs}
-            onChange={handleChange}
-            placeholder="12345, 67890, 11223"
-          />
+          
+          <div className="space-y-3">
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Input
+                  name="newEc"
+                  label="Adicionar EC"
+                  value={newEc}
+                  onChange={(e) => setNewEc(e.target.value)}
+                  onKeyDown={handleKeyDownEc}
+                  placeholder="Digite o código EC"
+                />
+              </div>
+              <Button type="button" onClick={handleAddEc} variant="secondary">
+                <Plus size={18} className="mr-1" />
+                Adicionar
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 min-h-[40px] p-2 border border-gray-200 rounded-md bg-gray-50">
+              {formData.ecs.length === 0 && (
+                <span className="text-gray-400 text-sm italic py-1 px-2">
+                  Nenhum EC vinculado
+                </span>
+              )}
+              {formData.ecs.map((ec, index) => (
+                <Badge key={`${ec}-${index}`} variant="info" className="flex items-center gap-1 pr-1">
+                  {ec}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveEc(ec)}
+                    className="hover:bg-blue-200 rounded-full p-0.5 transition-colors focus:outline-none"
+                    title="Remover EC"
+                  >
+                    <X size={14} />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          </div>
         </div>
       </form>
     </Modal>

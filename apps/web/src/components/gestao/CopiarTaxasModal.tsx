@@ -221,7 +221,7 @@ export function CopiarTaxasModal({
                 // Remove EC origem dos destinos se estiver selecionado
                 setEcsDestino(ecsDestino.filter((ec) => ec !== e.target.value));
               }}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
               disabled={loading || loadingECs || todosECs.length === 0}
             >
               {loadingECs ? (
@@ -265,7 +265,7 @@ export function CopiarTaxasModal({
                 >
                   Selecionar todos
                 </button>
-                <span className="text-gray-300">|</span>
+                <span className="text-gray-400">|</span>
                 <button
                   onClick={limparSelecao}
                   className="text-xs text-blue-600 hover:text-blue-800"

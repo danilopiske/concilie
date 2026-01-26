@@ -20,11 +20,11 @@ class Venda(Base):
     # Dados do Cartão
     nsu = Column("NSU", String(100))
     autorizacao = Column("Código_de_autorização", String(100))
-    bandeira = Column("Bandeira", String(100))
-    forma_pagamento = Column("Forma_de_pagamento", String(100))
+    bandeira = Column("Bandeira", String(100), index=True)
+    forma_pagamento = Column("Forma_de_pagamento", String(100), index=True)
     
     # Meta
-    status = Column("status_da_venda", String(50), default="Pendente")
+    status = Column("status_da_venda", String(50), default="Pendente", index=True)
     adquirente = Column("Adquirente", String(100))
     
     data_processamento = Column(DateTime, default=datetime.now)

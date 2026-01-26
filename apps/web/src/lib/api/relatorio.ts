@@ -38,12 +38,18 @@ export const relatorioApi = {
   },
 
   getAdquirentes: async (processamentoId: string): Promise<string[]> => {
-    const response = await apiClient.get<string[]>(`/relatorios/adquirentes/${processamentoId}`);
+    // Using query param to safely handle special chars in ID
+    const response = await apiClient.get<string[]>('/relatorios/adquirentes', { 
+      params: { processamento_id: processamentoId } 
+    });
     return response.data;
   },
 
   gerar: async (req: RelatorioRequest): Promise<RelatorioResponse> => {
-    const response = await apiClient.post<RelatorioResponse>('/relatorios/gerar', req);
+    // Reports can take long, override default 30s timeout to 5min
+    const response = await apiClient.post<RelatorioResponse>('/relatorios/gerar', req, {
+        timeout: 300000 
+    });
     return response.data;
   },
 

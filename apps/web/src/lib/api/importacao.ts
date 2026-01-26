@@ -30,9 +30,16 @@ export const importacaoApi = {
       if (clienteId) params.cliente_id = clienteId;
       if (status) params.status = status;
       
-      const { data } = await apiClient.get<Processamento[]>('/processamentos/', { params });
+      const { data } = await apiClient.get<Processamento[]>('/processamentos/', { 
+        params,
+        timeout: 300000 // 5 minutes
+      });
       return data;
     },
+
+    async deletarMany(ids: string[]): Promise<void> {
+      await apiClient.post('/processamentos/batch-delete', ids);
+    }
   },
 
   async upload(
@@ -49,7 +56,7 @@ export const importacaoApi = {
     formData.append('contexto', contexto);
     formData.append('tipo', tipo);
 
-    const { data } = await apiClient.post('/importacao/upload', formData, {
+    const { data } = await apiClient.post('/importar/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -66,7 +73,7 @@ export const importacaoApi = {
     tipo: string,
     processamentoid?: number | string
   ) {
-    const { data } = await apiClient.post('/importacao/confirmar', {
+    const { data } = await apiClient.post('/importar/confirmar', {
         file_id: fileId,
         cliente_id: clienteId,
         ec_id: ecId,

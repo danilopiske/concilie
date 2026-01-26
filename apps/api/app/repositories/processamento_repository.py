@@ -9,7 +9,7 @@ class ProcessamentoRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def listar(self, skip: int = 0, limit: int = 100, filtros: ProcessamentoFilter = None, simple: bool = False) -> List[ProcessamentoResponse]:
+    def listar(self, skip: int = 0, limit: int = 20, filtros: ProcessamentoFilter = None, simple: bool = False) -> List[ProcessamentoResponse]:
         # Base query for processamentos
         query = self.db.query(LegacyProcessamento)
         
@@ -114,3 +114,84 @@ class ProcessamentoRepository:
 
     def criar(self, dados: dict) -> ProcessamentoResponse:
         pass
+
+    def deletar_lista(self, ids: List[str]) -> bool:
+        """
+        Remove múltiplos processamentos e todas as tabelas relacionadas.
+        Estratégia: SELECT IDs em lotes -> DELETE por IDs.
+        Mais robusto para grandes volumes e evita trava de tabela.
+        """
+        import logging
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
+
+        if not ids:
+            return False
+            
+        success_count = 0
+        
+        # Ordem de remoção (tabelas filhas primeiro)
+        # Tuplas: (tabela, coluna_fk, coluna_pk)
+        tables_map = [
+            ("vendas_calculos", "calc_id", "id"), 
+            ("vendas_processadas", "processamentoid", "id"),
+            ("vendas_filtradas", "processamentoid", "id"),
+            ("recebiveis_processados", "processamentoid", "id"),
+            ("recebiveis_filtrados", "processamentoid", "id")
+        ]
+        
+        CHUNK_SIZE = 1000 
+        import time
+        
+        for pid in ids:
+            logger.info(f"--- Iniciando deleção do Processamento: {pid} ---")
+            try:
+                # 1. Remover tabelas filhas EM CHUNKS (Select ID -> Delete ID)
+                for table, col_fk, col_pk in tables_map:
+                    total_deleted_table = 0
+                    while True:
+                        # Selecionar lote de IDs para deletar
+                        select_sql = text(f"SELECT {col_pk} FROM {table} WHERE {col_fk} = :pid LIMIT :chunk")
+                        rows = self.db.execute(select_sql, {"pid": pid, "chunk": CHUNK_SIZE}).fetchall()
+                        
+                        if not rows:
+                            break
+                            
+                        # Extrair IDs
+                        ids_to_del = [r[0] for r in rows]
+                        
+                        # Deletar esses IDs especificos
+                        # Usar bindparam expanding se possivel, ou criar query manualmente para garantir
+                        if ids_to_del:
+                            # Opcao segura usando text e bindparam
+                            from sqlalchemy import bindparam
+                            delete_sql = text(f"DELETE FROM {table} WHERE {col_pk} IN :del_ids").bindparams(bindparam('del_ids', expanding=True))
+                            self.db.execute(delete_sql, {"del_ids": ids_to_del})
+                            self.db.commit()
+                            
+                            count = len(ids_to_del)
+                            total_deleted_table += count
+                            logger.info(f"[{pid}] Deletados {count} registros de {table}. Total nesta tabela: {total_deleted_table}")
+                            
+                            # Pequena pausa para o banco respirar
+                            time.sleep(0.1)
+                        else:
+                            break
+                            
+                # 2. Remover tabela pai
+                sql_pai = text("DELETE FROM controle_processamentos WHERE id_processamento = :pid")
+                self.db.execute(sql_pai, {"pid": pid})
+                self.db.commit()
+                logger.info(f"[{pid}] DELEÇÃO CONCLUÍDA COM SUCESSO.")
+                
+                success_count += 1
+                
+            except Exception as e:
+                self.db.rollback()
+                logger.error(f"ERRO CRÍTICO ao deletar processamento {pid}: {e}")
+                import traceback
+                traceback.print_exc()
+                # Tenta proximo
+                continue
+                
+        return success_count > 0
