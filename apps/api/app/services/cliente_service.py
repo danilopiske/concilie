@@ -24,8 +24,8 @@ class ClienteService:
 
     def criar_cliente(self, dados: Dict[str, Any]) -> Dict[str, Any]:
         """Create new cliente"""
-        self.repository.salvar_cliente(dados, is_update=False)
-        return self.obter_cliente(dados["cliente_id"])
+        cliente_id = self.repository.salvar_cliente(dados, is_update=False)
+        return self.obter_cliente(cliente_id)
 
     def atualizar_cliente(
         self, cliente_id: int, dados: Dict[str, Any]

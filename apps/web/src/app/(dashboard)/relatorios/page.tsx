@@ -118,14 +118,17 @@ export default function RelatoriosPage() {
   return (
     <div className="max-w-7xl mx-auto pb-10 space-y-6">
       
-      <div className="border-b pb-4">
-        <div className="flex items-center gap-2 text-gray-700 mb-1">
-            <FileText className="w-6 h-6" />
-            <h1 className="text-2xl font-bold">Relatórios de Conciliação</h1>
+      <div className="border-b pb-4 flex justify-between items-end">
+        <div>
+            <div className="flex items-center gap-2 text-gray-700 mb-1">
+                <FileText className="w-6 h-6" />
+                <h1 className="text-2xl font-bold">Relatórios de Conciliação</h1>
+            </div>
+            <p className="text-sm text-gray-500">
+                Gere relatórios detalhados (HTML/Excel) para auditoria e conferência.
+            </p>
         </div>
-        <p className="text-sm text-gray-500">
-            Gere relatórios detalhados (HTML/Excel) para auditoria e conferência.
-        </p>
+
       </div>
 
       {error && <ErrorMessage message={error} />}
@@ -319,6 +322,16 @@ export default function RelatoriosPage() {
                             onClick={() => openFile(result.sintetico_path!)}
                           >
                             <FileText className="w-4 h-4" /> Abrir Resumo Sintético
+                          </Button>
+                        )}
+
+                        {result.abusividade_path && (
+                          <Button 
+                            variant="primary" 
+                            className="w-full flex items-center justify-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white"
+                            onClick={() => openFile(result.abusividade_path!)}
+                          >
+                            <span className="text-lg">⚠️</span> Abrir Demonstrativo de Abusividade
                           </Button>
                         )}
                     </div>

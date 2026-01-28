@@ -26,7 +26,8 @@ import {
   RefreshCw,
   History,
   Trash2,
-  Edit2
+  Edit2,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function CorrecaoToolPage() {
@@ -42,6 +43,8 @@ export default function CorrecaoToolPage() {
   const [historicoOpen, setHistoricoOpen] = useState(false);
   const [historicoData, setHistoricoData] = useState<HistoricoItem[]>([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
+
+
 
   // Dialog states
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -116,6 +119,8 @@ export default function CorrecaoToolPage() {
       setLoadingHistorico(false);
     }
   };
+
+
 
   const handleEdit = (campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento', item: ResumoItem, customNewValue?: string) => {
     setActionItem({ campo, item });

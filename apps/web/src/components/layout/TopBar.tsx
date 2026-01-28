@@ -14,6 +14,7 @@ interface NavItem {
 }
 
 const NAV_MODULES: NavItem[] = [
+  { label: 'Home', href: '/' },
   { label: 'Gestão', href: '/gestao' },
   { label: 'Importar', href: '/importar' },
   { label: 'Análise e Correções', href: '/analise-correcoes' },

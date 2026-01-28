@@ -160,6 +160,7 @@ export default function ClientesPage() {
         message="Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita."
         confirmText="Excluir"
         variant="danger"
+        loading={loading}
       />
     </div>
   );

@@ -17,10 +17,14 @@ from app.api.v1.endpoints import (
     relatorios,
     usuarios,
     contextos,
-    login
+    contextos,
+    login,
+    abusividade
 )
 
 api_router = APIRouter()
+
+api_router.include_router(abusividade.router, prefix="/abusividade", tags=["abusividade"])
 
 api_router.include_router(clientes.router, prefix="/clientes", tags=["clientes"])
 

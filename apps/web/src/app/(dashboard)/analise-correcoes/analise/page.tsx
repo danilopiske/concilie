@@ -17,6 +17,7 @@ import { FormasPagamentoReport } from './_components/FormasPagamentoReport';
 import { RecebiveisReport } from './_components/RecebiveisReport';
 import { PeriodosReport } from './_components/PeriodosReport';
 import { AnaliseAnualReport } from './_components/AnaliseAnualReport';
+import { AbusividadeReport } from './_components/AbusividadeReport';
 
 export default function AnalisePage() {
   const [processamentos, setProcessamentos] = useState<Processamento[]>([]);
@@ -66,7 +67,7 @@ export default function AnalisePage() {
                     <option value="">Selecione...</option>
                     {processamentos.map(p => (
                         <option key={p.id} value={String(p.id)}>
-                            {p.id} - {p.tipo_arquivo} ({new Date(p.data_upload).toLocaleDateString()}) - {p.nome_arquivo}
+                            {p.id} - {p.tipo_arquivo} ({new Date(p.data_inicio).toLocaleDateString()}) - {p.nome_arquivo}
                         </option>
                     ))}
                 </select>
@@ -89,6 +90,7 @@ export default function AnalisePage() {
                   <TabsTrigger value="periodos">Períodos</TabsTrigger>
                   <TabsTrigger value="anual">Análise Anual</TabsTrigger>
                   <TabsTrigger value="recebiveis">Recebíveis</TabsTrigger>
+                  <TabsTrigger value="abusividade">Abusividade</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="geral" className="space-y-4">
@@ -118,6 +120,10 @@ export default function AnalisePage() {
 
                 <TabsContent value="recebiveis">
                   <RecebiveisReport processamentoId={selectedProcessamento} />
+                </TabsContent>
+
+                <TabsContent value="abusividade">
+                  <AbusividadeReport processamentoId={selectedProcessamento} />
                 </TabsContent>
               </Tabs>
           </div>

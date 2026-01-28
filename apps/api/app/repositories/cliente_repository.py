@@ -107,14 +107,26 @@ class ClienteRepository(BaseRepository[Cliente]):
             "razao_social": dados.get("razao_social"),
             "cnpj": dados.get("cnpj"),
         }
+        # Remove None keys to allow auto-increment/defaults
+        cliente_data = {k: v for k, v in cliente_data.items() if v is not None}
 
         if is_update:
             self.db.query(Cliente).filter(Cliente.cliente_id == cliente_id).update(
                 cliente_data
             )
         else:
+            # Fix for missing AUTO_INCREMENT in DB: generate ID manually if not provided
+            if not cliente_data.get("cliente_id"):
+                from sqlalchemy import func
+                max_id = self.db.query(func.max(Cliente.cliente_id)).scalar()
+                next_id = (max_id or 0) + 1
+                cliente_data["cliente_id"] = next_id
+                # Update the ID for subsequent related data (endereco, contatos, etc)
+                cliente_id = next_id 
+                
             cliente = Cliente(**cliente_data)
             self.db.add(cliente)
+            self.db.flush() # Flush to ensure ID is reserved/used in transaction
 
         # Endereco - UPSERT (cria se não existe, atualiza se existe)
         if dados.get("endereco"):
@@ -209,6 +221,7 @@ class ClienteRepository(BaseRepository[Cliente]):
                 ).delete()
 
         self.db.commit()
+        return cliente_id
 
     def deletar_cliente(self, cliente_id: int):
         """Delete cliente and all related data"""

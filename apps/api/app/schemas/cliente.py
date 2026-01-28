@@ -37,7 +37,7 @@ class ClienteBase(BaseModel):
 
 
 class ClienteCreate(BaseModel):
-    cliente_id: int
+    cliente_id: Optional[int] = None
     nome_fantasia: str
     razao_social: Optional[str] = None
     cnpj: Optional[str] = None

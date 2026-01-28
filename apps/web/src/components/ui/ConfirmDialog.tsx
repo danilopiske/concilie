@@ -59,6 +59,14 @@ export function ConfirmDialog({
   };
 
   const [mounted, setMounted] = React.useState(true);
+  
+  // Reset internal loading when dialog opens to prevent stale state from previous usage
+  React.useEffect(() => {
+    if (isOpen) {
+      setInternalLoading(false);
+    }
+  }, [isOpen]);
+
   React.useEffect(() => {
     return () => setMounted(false);
   }, []);

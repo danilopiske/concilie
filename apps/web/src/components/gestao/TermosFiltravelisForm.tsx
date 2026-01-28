@@ -222,6 +222,7 @@ export function TermosFiltravelisForm({ ec, contexto, onSuccess }: TermosFiltrav
         message={`Deseja realmente excluir o termo "${termoParaExcluir?.nome}"?`}
         confirmText="Excluir"
         variant="danger"
+        loading={loading}
       />
     </div>
   );

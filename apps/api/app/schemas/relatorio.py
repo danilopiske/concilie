@@ -27,4 +27,5 @@ class RelatorioResponse(BaseModel):
     html_path: Optional[str] = None
     excel_path: Optional[str] = None
     sintetico_path: Optional[str] = None
+    abusividade_path: Optional[str] = None
     filename: Optional[str] = None

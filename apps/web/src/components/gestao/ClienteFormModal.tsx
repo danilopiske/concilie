@@ -173,8 +173,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.cliente_id || !formData.nome_fantasia.trim()) {
-      setError('Cliente ID e Nome Fantasia são obrigatórios');
+    if (!formData.nome_fantasia.trim()) {
+      setError('Nome Fantasia é obrigatório');
       return;
     }
 
@@ -182,8 +182,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
       setLoading(true);
       setError(null);
 
-      const dados = {
-        cliente_id: parseInt(formData.cliente_id),
+      const dados: any = { // Use any safely here or create proper type
+        // cliente_id: parseInt(formData.cliente_id), // Don't force this anymore
         nome_fantasia: formData.nome_fantasia,
         razao_social: formData.razao_social,
         cnpj: formData.cnpj,
@@ -209,6 +209,10 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
         },
         ecs: formData.ecs, // Already an array
       };
+
+      if (formData.cliente_id) {
+          dados.cliente_id = parseInt(formData.cliente_id);
+      }
 
       if (cliente) {
         await gestaoApi.clientes.atualizar(cliente.cliente_id, dados);
@@ -260,11 +264,11 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
             <Input
               name="cliente_id"
               label="Cliente ID"
-              type="number"
-              value={formData.cliente_id}
+              type="text"
+              value={cliente ? formData.cliente_id : 'Automático'}
               onChange={handleChange}
-              disabled={!!cliente}
-              required
+              disabled={true} // Always disabled, auto-generated or PK
+              className={!cliente ? 'text-gray-500 bg-gray-50' : ''}
             />
             <Input
               name="cnpj"

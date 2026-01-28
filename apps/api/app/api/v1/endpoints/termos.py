@@ -11,6 +11,7 @@ from app.schemas.termo import TermoFiltravelCreate, TermoFiltravelResponse
 from app.repositories.termo_repository import TermoFiltravelRepository
 
 router = APIRouter()
+# Force reload for DB lock clearance
 
 
 @router.get("/{ec}", response_model=List[TermoFiltravelResponse])

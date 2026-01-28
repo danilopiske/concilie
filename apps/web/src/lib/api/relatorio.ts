@@ -27,6 +27,7 @@ export interface RelatorioResponse {
   html_path?: string;
   excel_path?: string;
   sintetico_path?: string;
+  abusividade_path?: string;
   filename?: string;
 }
 

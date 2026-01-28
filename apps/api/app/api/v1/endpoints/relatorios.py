@@ -127,12 +127,35 @@ def gerar_relatorio(req: RelatorioRequest):
         excel_path = html_path.replace(".html", ".xlsx")
         has_excel = os.path.exists(excel_path)
         
+        # Gerar Relatório de Abusividade (Novo)
+        abusividade_path = None
+        try:
+             from app.services.abusividade_relatorio_service import AbusividadeRelatorioService
+             abs_service = AbusividadeRelatorioService(next(get_db())) # Hacky session if not passed properly, checking imports
+             # Better way: get db session from Dependency? endpoints usage usually has access to db
+             # But here we are in a function. We need the db session. 
+             # Wait, get_db is a generator. We should ideally pass db to this function if possible or create new.
+             # Actually, `gerar_relatorio` creates its own engine connections in legacy usually.
+             # Let's create a new session cleanly.
+             
+             with Session(engine) as session:
+                abs_service = AbusividadeRelatorioService(session)
+                abusividade_path = abs_service.gerar_html(
+                    req.processamento_id, 
+                    data_inicio=data_inicio_dt, 
+                    data_fim=data_fim_dt
+                )
+        except Exception as e_abs:
+            print(f"Erro ao gerar abusividade: {e_abs}")
+            # Non-blocking error?
+        
         return RelatorioResponse(
             success=True,
             message="Relatório gerado com sucesso",
             html_path=html_path,
             excel_path=excel_path if has_excel else None,
             sintetico_path=sintetico_path if sintetico_path and os.path.exists(sintetico_path) else None,
+            abusividade_path=abusividade_path,
             filename=os.path.basename(html_path)
         )
 

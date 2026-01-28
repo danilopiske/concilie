@@ -19,6 +19,7 @@ export default function UsuariosPage() {
 
   // Delete State
   const [userToDelete, setUserToDelete] = useState<Usuario | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchUsuarios = async () => {
     setLoading(true);
@@ -53,12 +54,15 @@ export default function UsuariosPage() {
   const handleDelete = async () => {
     if (!userToDelete) return;
     try {
+      setDeleting(true);
       await usuariosApi.deletar(userToDelete.id);
       await fetchUsuarios();
       setUserToDelete(null);
     } catch (error) {
       console.error('Error deleting user:', error);
       alert('Erro ao excluir usuário.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -115,12 +119,13 @@ export default function UsuariosPage() {
 
       <ConfirmDialog
         isOpen={!!userToDelete}
+        onClose={() => setUserToDelete(null)}
+        onConfirm={handleDelete}
         title="Excluir Usuário"
         message={`Tem certeza que deseja excluir o usuário "${userToDelete?.usuario}"? Esta ação não pode ser desfeita.`}
-        confirmLabel="Excluir"
-        type="danger"
-        onConfirm={handleDelete}
-        onCancel={() => setUserToDelete(null)}
+        confirmText="Excluir"
+        variant="danger"
+        loading={deleting}
       />
     </div>
   );
