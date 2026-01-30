@@ -12,7 +12,8 @@ router = APIRouter()
 @router.get("/analise/{processamento_id:path}", response_model=List[dict])
 async def analisar_abusividade_processamento(
     processamento_id: str,
-    agrupamento: str = Query('hierarquico', description="Janela de agrupamento: hierarquico (completo), dia, 3dias, semana, mes"),
+    agrupamento: str = Query('hierarquico', description="Janela de agrupamento: dia, 3dias, semana, mes, hierarquico"),
+    tolerancia: float = Query(0.0, description="Tolerância para diferença de taxas (ex: 0.1)"),
     db: Session = Depends(get_db)
 ):
     """
@@ -20,7 +21,7 @@ async def analisar_abusividade_processamento(
     Usado na tela de 'Análise e Correção'.
     """
     service = AbusividadeService(db)
-    return service.analisar_processamento(processamento_id, agrupamento)
+    return service.analisar_processamento(processamento_id, agrupamento, tolerancia=tolerancia)
 
 @router.get("/relatorio", response_model=List[dict])
 async def relatorio_abusividade(

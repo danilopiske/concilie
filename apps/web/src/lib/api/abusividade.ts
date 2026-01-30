@@ -14,8 +14,8 @@ export interface AbusividadeItem {
 }
 
 export const abusividadeApi = {
-  getAnalise: async (processamentoId: string, agrupamento: string = 'dia') => {
-    const { data } = await apiClient.get<AbusividadeItem[]>(`/abusividade/analise/${encodeURIComponent(processamentoId)}?agrupamento=${agrupamento}`);
+  getAnalise: async (processamentoId: string, agrupamento: string = 'dia', tolerancia: number = 0) => {
+    const { data } = await apiClient.get<AbusividadeItem[]>(`/abusividade/analise/${encodeURIComponent(processamentoId)}?agrupamento=${agrupamento}&tolerancia=${tolerancia}`);
     return data;
   },
 

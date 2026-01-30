@@ -19,18 +19,19 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [agrupamento, setAgrupamento] = useState<string>('hierarquico');
+  const [tolerancia, setTolerancia] = useState<number>(0.0);
 
   useEffect(() => {
     if (processamentoId) {
       loadData();
     }
-  }, [processamentoId, agrupamento]);
+  }, [processamentoId, agrupamento, tolerancia]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await abusividadeApi.getAnalise(processamentoId, agrupamento);
+      const result = await abusividadeApi.getAnalise(processamentoId, agrupamento, tolerancia);
       setData(result);
     } catch (err) {
       console.error(err);
@@ -67,6 +68,17 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
 
     // Re-sort by date to maintain timeline view
     return preview.sort((a, b) => new Date(a.data_venda).getTime() - new Date(b.data_venda).getTime());
+  };
+
+  const translateAgrupamento = (val: string) => {
+      switch(val) {
+          case 'hierarquico': return 'Análise Completa (Hierárquica)';
+          case 'dia': return 'Diário';
+          case '3dias': return 'A cada 3 dias';
+          case 'semana': return 'Semanal';
+          case 'mes': return 'Mensal';
+          default: return val;
+      }
   };
 
   const generatePDF = () => {
@@ -157,17 +169,6 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
     doc.save(`demonstrativo_abusividade_${processamentoId}.pdf`);
   };
 
-  const translateAgrupamento = (val: string) => {
-      switch(val) {
-          case 'hierarquico': return 'Análise Completa (Hierárquica)';
-          case 'dia': return 'Diário';
-          case '3dias': return 'A cada 3 dias';
-          case 'semana': return 'Semanal';
-          case 'mes': return 'Mensal';
-          default: return val;
-      }
-  };
-
   // Group data by 'chave_agrupamento' to create blocks for UI
   const groupedData = data.reduce((acc, item) => {
     const key = item.chave_agrupamento;
@@ -182,7 +183,25 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
 
   return (
     <div className="space-y-6">
-
+        
+        {/* Subtle Toolbar for Tolerance */}
+        <div className="flex justify-end items-center gap-2 -mb-4">
+             <span className="text-xs text-gray-500 uppercase font-semibold">Filtro de Relevância:</span>
+             <label className="flex items-center gap-2 bg-white px-3 py-1 rounded-full border shadow-sm text-sm text-gray-700">
+                <span>Ignorar diferenças menores que:</span>
+                <div className="relative flex items-center w-20">
+                    <input 
+                        type="number" 
+                        step="0.01" 
+                        min="0"
+                        value={tolerancia}
+                        onChange={(e) => setTolerancia(parseFloat(e.target.value) || 0)}
+                        className="w-full text-right bg-transparent border-none focus:ring-0 p-0 font-bold text-blue-600"
+                    />
+                    <span className="ml-1 text-gray-400">%</span>
+                </div>
+             </label>
+        </div>
 
         {data.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-12 text-center border border-dashed border-green-300 rounded-lg bg-green-50 text-green-700">
@@ -191,7 +210,7 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
                 </div>
                 <h3 className="text-xl font-bold mb-2">Nenhuma Abusividade Detectada</h3>
                 <p className="max-w-md">
-                    Não foram encontradas variações de taxa na janela "<strong>{translateAgrupamento(agrupamento)}</strong>".
+                    Não foram encontradas variações de taxa na janela "<strong>{translateAgrupamento(agrupamento)}</strong>" maiores que <strong>{tolerancia}%</strong>.
                 </p>
             </div>
         ) : (
@@ -204,7 +223,7 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
                         <div>
                             <h3 className="font-bold text-yellow-800 text-lg">Variações de Taxa Detectadas</h3>
                             <p className="text-sm text-yellow-700">
-                                Detectamos {Object.keys(groupedData).length} grupos de transações com divergência de taxas.
+                                Detectamos {Object.keys(groupedData).length} grupos de transações com divergência &gt; {tolerancia}%.
                             </p>
                         </div>
                     </div>

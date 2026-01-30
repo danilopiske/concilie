@@ -59,17 +59,22 @@ export default function AnalisePage() {
             <div className="flex flex-col md:flex-row items-center gap-4">
                 <label className="font-bold text-gray-700 whitespace-nowrap">Processamento Importado:</label>
                 <select
-                    className="flex-1 border-gray-300 rounded-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 h-9 text-sm"
+                    className="flex-1 w-full max-w-[600px] border-gray-300 rounded-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 h-9 text-sm truncate pr-8"
                     value={selectedProcessamento}
                     onChange={(e) => setSelectedProcessamento(e.target.value)}
                     disabled={loadingProc}
                 >
                     <option value="">Selecione...</option>
-                    {processamentos.map(p => (
-                        <option key={p.id} value={String(p.id)}>
-                            {p.id} - {p.tipo_arquivo} ({new Date(p.data_inicio).toLocaleDateString()}) - {p.nome_arquivo}
-                        </option>
-                    ))}
+                    {processamentos.map(p => {
+                        const date = new Date(p.data_inicio).toLocaleDateString();
+                        const label = `${p.id} - ${p.tipo_arquivo} (${date}) - ${p.nome_arquivo}`;
+                        const truncated = label.length > 85 ? label.substring(0, 85) + '...' : label;
+                        return (
+                            <option key={p.id} value={String(p.id)} title={label}>
+                                {truncated}
+                            </option>
+                        );
+                    })}
                 </select>
                 <Button onClick={fetchProcessamentos} size="sm" variant="primary" disabled={loadingProc}>
                     {loadingProc ? 'Carregando...' : 'Carregar Processamento'}

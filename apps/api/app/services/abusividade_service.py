@@ -9,36 +9,29 @@ class AbusividadeService:
     def __init__(self, db: Session):
         self.db = db
 
-    def analisar_processamento(self, processamento_id: str, agrupamento: str = 'hierarquico') -> List[Dict[str, Any]]:
+    def analisar_processamento(self, processamento_id: str, agrupamento: str = 'hierarquico', tolerancia: float = 0.0) -> List[Dict[str, Any]]:
         """
         Analisa um processamento específico em busca de variações de taxa.
         Padrão: 'hierarquico' (Dia > 3Dias > Semana > Mes).
+        Tolerancia: Diferença máxima percentual aceitável entre taxas (ex: 0.1 para 0.1%).
         """
         if agrupamento == 'hierarquico':
-            return self._analisar_hierarquia(processamento_id)
-        return self._detectar_variacoes(processamento_id=processamento_id, agrupamento=agrupamento)
+            return self._analisar_hierarquia(processamento_id, tolerancia=tolerancia)
+        return self._detectar_variacoes(processamento_id=processamento_id, agrupamento=agrupamento, tolerancia=tolerancia)
 
-    def _analisar_hierarquia(self, processamento_id: str) -> List[Dict[str, Any]]:
+    def _analisar_hierarquia(self, processamento_id: str, tolerancia: float = 0.0) -> List[Dict[str, Any]]:
         niveis = ['dia', '3dias', 'semana', 'mes']
         todos_resultados = []
         ids_processados = set()
 
         for nivel in niveis:
-            resultados = self._detectar_variacoes(processamento_id=processamento_id, agrupamento=nivel)
+            resultados = self._detectar_variacoes(processamento_id=processamento_id, agrupamento=nivel, tolerancia=tolerancia)
             
             novos_resultados = []
             for item in resultados:
                 if item['id'] not in ids_processados:
                     # Marca como processado
                     ids_processados.add(item['id'])
-                    
-                    # Adiciona tag do nível no display da chave (opcional, mas bom pra debug/visual)
-                    # Mas a chave_agrupamento precisa manter consistencia para o front agrupar.
-                    # Vamos injetar um campo 'nivel_analise' ou modificar a chave.
-                    # O front agrupa por 'chave_agrupamento'. Se eu mudar a chave, cria grupos separados.
-                    # Isso é BOM. Queremos ver "Variacao Dia 25" separado de "Variacao Semana X".
-                    # As chaves ja sao unicas por nivel (ex: contem 'W5' ou '2025-01-25').
-                    
                     novos_resultados.append(item)
             
             todos_resultados.extend(novos_resultados)
@@ -73,7 +66,8 @@ class AbusividadeService:
         ec_id: Optional[str] = None,
         data_ini: Optional[datetime] = None,
         data_fim: Optional[datetime] = None,
-        agrupamento: str = 'periodo_total'
+        agrupamento: str = 'periodo_total',
+        tolerancia: float = 0.0
     ) -> List[Dict[str, Any]]:
         """
         Núcleo da lógica de detecção de variação.
@@ -106,19 +100,11 @@ class AbusividadeService:
         
         vendas = query.all()
         
-        # Processamento em Memória (Pandas seria melhor pra volume, mas SQL puro é complexo para "retornar detalhes")
-        # Vamos agrupar em dicionário
-        
-        # Chave de Agrupamento: Bandeira | FormaPagamento | (Periodo)
+        # Processamento em Memória
         grupos: Dict[str, List[VendasCalculos]] = {}
 
         for v in vendas:
             key = f"{v.bandeira}|{v.forma_pagamento}"
-            
-            # Se agrupamento não for 'periodo_total' e nem processamento unico,
-            # teríamos que granularizar a chave.
-            # O pedido diz: "VARIACAO DENTRO DE UM MESMO DIA, OU 3 DIAS, OU 1 SEMANA..."
-            # Isso implica que se eu escolho "DIA", eu verifico se NO DIA X houve variacao.
             
             if agrupamento == 'dia':
                 key += f"|{v.data_venda.strftime('%Y-%m-%d')}"
@@ -142,14 +128,21 @@ class AbusividadeService:
 
         for key, lista in grupos.items():
             # Coletar taxas distintas
-            # Converter para float para evitar issues de decimal precision sutil
             taxas = set()
             for v in lista:
                 if v.tx_venda is not None:
                     taxas.add(float(v.tx_venda))
             
             if len(taxas) > 1:
-                # EUREKA: Tem variação!
+                # Verificar Tolerância
+                if tolerancia > 0.0:
+                    min_t = min(taxas)
+                    max_t = max(taxas)
+                    # Verifica a amplitude total
+                    if (max_t - min_t) <= tolerancia:
+                        continue
+
+                # EUREKA: Tem variação > Tolerancia!
                 # Adicionar todas as transações desse grupo ao resultado
                 for v in lista:
                     resultados.append({
@@ -159,7 +152,7 @@ class AbusividadeService:
                         "horario": v.data_venda.strftime("%H:%M:%S") if v.data_venda else "--",
                         "valor_venda": float(v.vl_venda) if v.vl_venda else 0.0,
                         "taxa_aplicada": float(v.tx_venda) if v.tx_venda else 0.0,
-                        "numero_maquina": v.ec_id, # Placeholder conforme combinado
+                        "numero_maquina": v.ec_id, 
                         "bandeira": v.bandeira,
                         "forma_pagamento": v.forma_pagamento,
                         "chave_agrupamento": key
