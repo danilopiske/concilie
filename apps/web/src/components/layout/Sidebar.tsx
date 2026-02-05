@@ -23,7 +23,8 @@ import {
   BarChart3,
   Calculator,
   Settings,
-  FileBarChart
+  FileBarChart,
+  Sparkles
 } from 'lucide-react';
 
 interface SidebarItem {

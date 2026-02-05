@@ -19,12 +19,13 @@ from app.api.v1.endpoints import (
     contextos,
     contextos,
     login,
-    abusividade
+    abusividade,
+    ai
 )
 
 api_router = APIRouter()
 
-api_router.include_router(abusividade.router, prefix="/abusividade", tags=["abusividade"])
+api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 
 api_router.include_router(clientes.router, prefix="/clientes", tags=["clientes"])
 

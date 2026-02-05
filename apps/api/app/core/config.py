@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    # AI
+    OPENAI_API_KEY: str = ""
+    OPENAI_API_BASE: str = "https://api.openai.com/v1"
+    AI_MODEL: str = "gpt-4o"
+
 
     # CORS (alias para ALLOWED_ORIGINS)
     CORS_ORIGINS: List[str] = ["http://localhost:3000"]
