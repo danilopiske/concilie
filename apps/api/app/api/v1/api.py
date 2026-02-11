@@ -53,5 +53,7 @@ api_router.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"]
 
 api_router.include_router(contextos.router, prefix="/contextos", tags=["contextos"])
 
+api_router.include_router(abusividade.router, prefix="/abusividade", tags=["abusividade"])
+
 api_router.include_router(login.router, tags=["login"])
 

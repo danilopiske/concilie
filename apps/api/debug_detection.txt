@@ -50,3 +50,7 @@ Ext: .xlsx
 is_multisheet_rede_file called at 2026-01-26 13:26:52.184566
 Path: C:\Users\Danilo\AppData\Local\Temp\tmp918x4rfs.xlsx
 Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-02-07 15:25:01.925652
+Path: C:\Users\Danilo\AppData\Local\Temp\tmpvu4hh4t3.xlsx
+Ext: .xlsx

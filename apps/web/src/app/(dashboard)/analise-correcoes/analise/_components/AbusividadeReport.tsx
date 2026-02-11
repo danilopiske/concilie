@@ -5,10 +5,9 @@ import { useState, useEffect } from 'react';
 import { abusividadeApi, AbusividadeItem } from '@/lib/api/abusividade';
 import { Button, Table, Alert } from '@/components/ui';
 import { Loading } from '@/components/shared/Loading';
-import { FileDown, AlertTriangle } from 'lucide-react';
+import { FileDown, AlertTriangle, Image as ImageIcon, Copy, Check } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils/formatters';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { toPng } from 'html-to-image';
 
 interface AbusividadeReportProps {
   processamentoId: string;
@@ -81,92 +80,67 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
       }
   };
 
-  const generatePDF = () => {
-    if (data.length === 0) return;
+  const handleDownloadPNG = async (elementId: string, filename: string) => {
+    const element = document.getElementById(elementId);
+    if (!element) return;
 
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text("Demonstrativo de oscilações na aplicação de taxas", 105, 20, { align: 'center' });
-    
-    // Subinfo
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Processamento: ${processamentoId}`, 105, 30, { align: 'center' });
-    doc.text(`Janela de Análise: ${translateAgrupamento(agrupamento)}`, 105, 35, { align: 'center' });
+    try {
+        const dataUrl = await toPng(element, { backgroundColor: '#ffffff' });
+        const link = document.createElement('a');
+        link.download = `${filename}.png`;
+        link.href = dataUrl;
+        link.click();
+    } catch (err) {
+        console.error('Error generating PNG:', err);
+        alert('Erro ao gerar imagem PNG.');
+    }
+  };
 
-    // Body Text
-    doc.setFontSize(10);
-    const text = "De maneira ainda mais prejudicial, apresentamos demonstração detalhada, fundamentada em informações extraídas diretamente dos extratos, dados identificados por meio de auditoria sistêmica e tecnicamente especializada.";
-    const splitText = doc.splitTextToSize(text, 180);
-    doc.text(splitText, 15, 50);
+  const handleCopyTable = (items: AbusividadeItem[]) => {
+    // Create a temporary HTML table for the clipboard
+    const tableHTML = `
+        <table border="1" style="border-collapse: collapse; width: 100%;">
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Cód. Aut.</th>
+                    <th>Valor</th>
+                    <th>Taxa Aplicada</th>
+                    <th>Máquina</th>
+                    <th>Bandeira</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${items.map(item => `
+                    <tr>
+                        <td>${new Date(item.data_venda).toLocaleDateString()}</td>
+                        <td>${item.cod_autorizacao}</td>
+                        <td>${formatCurrency(item.valor_venda)}</td>
+                        <td style="color: red; font-weight: bold;">${item.taxa_aplicada.toFixed(2)}%</td>
+                        <td>${item.numero_maquina}</td>
+                        <td>${item.bandeira}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
 
-    const text2 = "Constatou-se que a Adquirente aplicou taxas diferentes sobre a mesma bandeira e modalidade no mesmo período, evidenciando inconsistência.";
-    const splitText2 = doc.splitTextToSize(text2, 180);
-    doc.text(splitText2, 15, 65);
+    const blob = new Blob([tableHTML], { type: 'text/html' });
+    const textBlob = new Blob([items.map(i => `${new Date(i.data_venda).toLocaleDateString()}\\t${i.cod_autorizacao}\\t${formatCurrency(i.valor_venda)}\\t${i.taxa_aplicada.toFixed(2)}%`).join('\\n')], { type: 'text/plain' });
 
-    let finalY = 80;
-
-    // Group data for PDF
-    const groupedDataPDF = data.reduce((acc, item) => {
-        const key = item.chave_agrupamento;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(item);
-        return acc;
-    }, {} as Record<string, AbusividadeItem[]>);
-
-    Object.values(groupedDataPDF).forEach((items, index) => {
-        const previewItems = getPreviewItems(items);
-        const first = items[0];
-        const uniqueRates = Array.from(new Set(items.map(i => i.taxa_aplicada))).sort().map(r => `${r.toFixed(2)}%`).join(' vs ');
-        
-        // Check for page break
-        if (finalY > 250) {
-            doc.addPage();
-            finalY = 20;
-        }
-
-        // Block Header
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        const title = `${new Date(first.data_venda).toLocaleDateString()} - ${first.bandeira} - ${first.forma_pagamento}`;
-        doc.text(title, 15, finalY);
-        
-        doc.setFontSize(10);
-        doc.setTextColor(200, 0, 0);
-        doc.text(`Variação: ${uniqueRates}`, 15, finalY + 5);
-        
-        // Table
-        const tableData = previewItems.map(row => [
-            new Date(row.data_venda).toLocaleDateString(),
-            row.cod_autorizacao,
-            formatCurrency(row.valor_venda),
-            `${row.taxa_aplicada.toFixed(2)}%`,
-            row.numero_maquina,
-            row.bandeira
-        ]);
-
-        autoTable(doc, {
-            startY: finalY + 8,
-            head: [['DATA', 'CÓD. AUT.', 'VALOR', 'TAXA', 'Nº MÁQUINA', 'BANDEIRA']],
-            body: tableData,
-            theme: 'grid',
-            headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
-            styles: { fontSize: 8, cellPadding: 2 },
-            columnStyles: {
-                3: { textColor: [200, 0, 0], fontStyle: 'bold' }
-            },
-            margin: { top: 20 } // Ensure margin works on new pages
-        });
-
-        // Update Y for next block (autotable attaches finalY to the specific call instance but we can access it via lastAutoTable)
-        finalY = (doc as any).lastAutoTable.finalY + 15;
-    });
-
-    doc.save(`demonstrativo_abusividade_${processamentoId}.pdf`);
+    try {
+        const data = [new ClipboardItem({ 
+            "text/html": blob,
+            "text/plain": textBlob 
+        })];
+        navigator.clipboard.write(data);
+        alert('Tabela copiada! Cole no Word ou Excel.');
+    } catch (err) {
+        console.error('Clipboard error:', err);
+        // Fallback
+        navigator.clipboard.writeText(items.map(i => `${new Date(i.data_venda).toLocaleDateString()}\\t${i.cod_autorizacao}\\t${formatCurrency(i.valor_venda)}\\t${i.taxa_aplicada.toFixed(2)}%`).join('\\n'));
+        alert('Tabela copiada (texto simples).');
+    }
   };
 
   // Group data by 'chave_agrupamento' to create blocks for UI
@@ -227,9 +201,6 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
                             </p>
                         </div>
                     </div>
-                    <Button onClick={generatePDF} variant="primary" className="flex items-center gap-2">
-                        <FileDown className="w-4 h-4" /> Baixar PDF Laudo
-                    </Button>
                 </div>
             </>
         )}
@@ -243,8 +214,11 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
             
             const previewItems = getPreviewItems(items);
             
+            
+            const elementId = `abusividade-block-${index}`;
+
             return (
-                <div key={key} className="border rounded-lg bg-white shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${index * 100}ms` }}>
+                <div id={elementId} key={key} className="border rounded-lg bg-white shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: `${index * 100}ms` }}>
                     <div className="bg-gray-50 px-4 py-3 border-b flex justify-between items-center">
                         <div className="flex items-center gap-2">
                              <span className="font-mono text-xs bg-gray-200 px-2 py-1 rounded text-gray-600">ID: {index + 1}</span>
@@ -252,8 +226,30 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
                                 {headerDate} - <span className="text-blue-600">{first.bandeira}</span> - {first.forma_pagamento}
                              </h4>
                         </div>
-                        <div className="text-sm font-medium text-red-600 bg-red-50 px-3 py-1 rounded-full border border-red-100">
-                            Variação: {uniqueRates}
+                        <div className="flex items-center gap-3">
+                            <div className="text-sm font-medium text-red-600 bg-red-50 px-3 py-1 rounded-full border border-red-100">
+                                Variação: {uniqueRates}
+                            </div>
+                            <div className="flex gap-1" data-html2canvas-ignore>
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => handleCopyTable(previewItems)}
+                                    title="Copiar tabela para Word/Excel"
+                                    className="h-8 px-2 text-gray-500 hover:text-blue-600"
+                                >
+                                    <Copy className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={() => handleDownloadPNG(elementId, `abusividade-${index+1}`)}
+                                    title="Baixar imagem PNG"
+                                    className="h-8 px-2 text-gray-500 hover:text-green-600"
+                                >
+                                    <ImageIcon className="w-4 h-4" />
+                                </Button>
+                            </div>
                         </div>
                     </div>
                     
@@ -275,7 +271,7 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
                         />
                         {items.length > 10 && (
                             <div className="bg-gray-50 px-4 py-2 text-xs text-center text-gray-500 border-t">
-                                Exibindo {previewItems.length} de {items.length} ocorrências. (Amostra inclui todas as variações). Baixe o PDF para ver todas.
+                                Exibindo {previewItems.length} de {items.length} ocorrências. (Amostra inclui todas as variações).
                             </div>
                         )}
                     </div>
