@@ -1,7 +1,7 @@
 @echo off
-title Financial Checker - Atualizacao do Sistema
+title Financial  - Atualizacao do Sistema
 echo ========================================
-echo ATUALIZACAO DO FINANCIAL CHECKER
+echo ATUALIZACAO DO FINANCIAL 
 echo ========================================
 echo.
 echo Este script vai:

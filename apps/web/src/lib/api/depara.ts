@@ -2,8 +2,13 @@ import { apiClient } from './client';
 import { DeParaRule, DeParaCreate } from '@/lib/types/importacao';
 
 export const deparaApi = {
-  listar: async (clienteId?: number): Promise<DeParaRule[]> => {
-    const params = clienteId ? { cliente_id: clienteId } : {};
+  listar: async (params?: { 
+    cliente_id?: number; 
+    contexto?: string; 
+    tipo_origem?: string; 
+    ativo?: number; 
+    search?: string; 
+  }): Promise<DeParaRule[]> => {
     const { data } = await apiClient.get<DeParaRule[]>('/depara/', { params });
     return data;
   },

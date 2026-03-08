@@ -15,11 +15,12 @@ import React, { useRef } from 'react';
 
 interface FileUploadProps {
   accept: string;
-  onFileSelect: (file: File | null) => void;
+  onFileSelect: (files: File[] | null) => void;
   loading?: boolean;
   error?: string | null;
-  selectedFile?: File | null;
+  selectedFile?: File | File[] | null;
   disabled?: boolean;
+  multiple?: boolean;
 }
 
 export const FileUpload: React.FC<FileUploadProps> = ({
@@ -29,21 +30,31 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   error = null,
   selectedFile = null,
   disabled = false,
+  multiple = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onFileSelect(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      onFileSelect(Array.from(e.target.files));
     } else {
       onFileSelect(null);
     }
   };
 
+  const getFileName = () => {
+    if (!selectedFile) return 'Nenhum arquivo selecionado';
+    if (Array.isArray(selectedFile)) {
+      if (selectedFile.length === 1) return selectedFile[0].name;
+      return `${selectedFile.length} arquivos selecionados`;
+    }
+    return (selectedFile as File).name;
+  };
+
   return (
     <div className="flex flex-col gap-2">
       <label className="font-label" htmlFor="file-upload">
-        Selecione um arquivo
+        {multiple ? 'Selecione um ou mais arquivos' : 'Selecione um arquivo'}
       </label>
       <input
         id="file-upload"
@@ -52,6 +63,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         accept={accept}
         onChange={handleChange}
         disabled={loading || disabled}
+        multiple={multiple}
         className="hidden"
       />
       <div className="flex items-center gap-2">
@@ -64,10 +76,12 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         >
           {loading ? 'Carregando...' : 'Escolher arquivo'}
         </button>
-        <span className="text-sm text-info">
-          {selectedFile ? selectedFile.name : 'Nenhum arquivo selecionado'}
-        </span>
-        <span className="text-xs text-info">({accept})</span>
+        <div className="flex flex-col">
+          <span className="text-sm text-info">
+            {getFileName()}
+          </span>
+          <span className="text-xs text-info">({accept})</span>
+        </div>
       </div>
       {error && (
         <div className="Alert variant-error" role="alert">

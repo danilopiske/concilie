@@ -1,7 +1,7 @@
 @echo off
-title Financial Checker - Instalacao via Poetry
+title Financial  - Instalacao via Poetry
 echo ========================================
-echo INSTALACAO DO FINANCIAL CHECKER
+echo INSTALACAO DO FINANCIAL 
 echo Sistema de Conciliacao Financeira v2.0
 echo ========================================
 echo.

@@ -1,5 +1,5 @@
 @echo off
-title Financial Checker - Configuracao de Banco
+title Financial  - Configuracao de Banco
 echo ========================================
 echo CONFIGURACAO DE BANCO DE DADOS
 echo ========================================

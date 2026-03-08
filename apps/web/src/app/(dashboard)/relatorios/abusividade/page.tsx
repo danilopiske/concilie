@@ -90,7 +90,10 @@ export default function RelatorioAbusividadePage() {
             label="Cliente" 
             value={clienteId || ''} 
             onChange={(e) => { setClienteId(Number(e.target.value)); setEcId(''); }} 
-            options={clientes.map(c => ({ value: c.cliente_id, label: c.nome_fantasia }))}
+            options={clientes.map(c => ({ 
+              value: c.cliente_id, 
+              label: c.nome_fantasia || `Cliente ${c.cliente_id}` 
+            }))}
             disabled={loadingClientes}
             placeholder="Selecione..."
           />

@@ -11,10 +11,20 @@ router = APIRouter()
 @router.get("/", response_model=List[DeParaResponse])
 def listar_deparas(
     cliente_id: Optional[int] = None,
+    contexto: Optional[str] = None,
+    tipo_origem: Optional[str] = None,
+    ativo: Optional[int] = 1,
+    search: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     repo = DeParaRepository(db)
-    return repo.listar(cliente_id)
+    return repo.listar(
+        cliente_id=cliente_id,
+        contexto=contexto,
+        tipo_origem=tipo_origem,
+        ativo=ativo,
+        search=search
+    )
 
 @router.post("/", response_model=DeParaResponse)
 def criar_depara(
@@ -66,8 +76,8 @@ async def ler_cabecalhos(
         from pathlib import Path
         
         # Adicionar raiz do projeto ao path para importar proc
-        # Base: d:/Financial Checker base/Financial_P/apps/api/app/api/v1/endpoints/depara.py
-        # Target: d:/Financial Checker base/Financial_P
+        # Base: d:/Financial  base/Financial_P/apps/api/app/api/v1/endpoints/depara.py
+        # Target: d:/Financial  base/Financial_P
         # Subindo 6 níveis a partir deste arquivo ou usando caminho absoluto fixo se necessário
         # Vamos tentar relativo primeiro para ser robusto
         current_dir = Path(__file__).resolve().parent
@@ -78,7 +88,7 @@ async def ler_cabecalhos(
             from proc.proc_importacao import safe_read_multisheet_file, read_file_with_header, is_multisheet_rede_file
         except ImportError:
             # Fallback para caminho hardcoded se a relatividade falhar (ambiente de dev vs prod)
-            sys.path.append(r"d:/Financial Checker base/Financial_P")
+            sys.path.append(r"d:/Financial  base/Financial_P")
             from proc.proc_importacao import safe_read_multisheet_file, read_file_with_header, is_multisheet_rede_file
 
         # Salvar arquivo temporário

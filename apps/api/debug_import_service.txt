@@ -1,4 +1,4 @@
-ImportService calling preparar_dataframe_de_arquivo at 2026-01-26 13:25:22.393052
-Path: temp_uploads\9010f18a-9c70-4f85-bc74-5ce30f0fc91b_Rede_Rel_Vendas_01_12_2025-31_12_2025-4a1b1d49-fd61-4d74-9e33-c58b6e55ca66.xlsx
-Contexto: Rede
+ImportService calling preparar_dataframe_de_arquivo at 2026-02-14 11:11:43.257906
+Path: temp_uploads\91a37626-d665-4911-a763-0439c688d294_03 Vendas 18.11.2022 a 17.11.2023.xlsx
+Contexto: Cielo
 Tipo: V

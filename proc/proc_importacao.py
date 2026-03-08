@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 from sqlalchemy.engine import Engine
+from proc.importers.factory import ImporterFactory
 
 from conf.funcoesbd import (
     depara_carregar_mapa_completo,
@@ -37,13 +38,28 @@ def classificar_e_gravar_recebiveis(
     usuario: str,
     arquivo_origem: str = "",
     processamentoid: int | str = None,
+    progress_callback = None
 ) -> dict:
     """
     Processa, filtra e grava recebíveis nas tabelas corretas, com metadados e deduplicação.
     """
     # Termo filtrável removido - deve ser configurado manualmente se necessário
 
+    was_fresh = processamentoid is None
+
     if not df.empty:
+
+        # Deduplicação preventiva em memória (Python) antes de gravar
+        # Identificar colunas base para unicidade (todas exceto metadados de processamento)
+        cols_ignorar = {"id", "data_processamento", "usuario_processamento", "arquivo_origem", "processamentoid"}
+        cols_dedup = [c for c in df.columns if c not in cols_ignorar]
+        
+        if cols_dedup:
+            len_antes = len(df)
+            df = df.drop_duplicates(subset=cols_dedup).copy()
+            len_depois = len(df)
+            if len_antes > len_depois:
+                print(f"[DEBUG][DEDUP] Removidas {len_antes - len_depois} duplicadas em memória antes da gravação.")
 
         # Se já tem coluna 'Filtrado', refaz a filtragem com os termos atuais do banco
         if "Filtrado" in df.columns:
@@ -182,19 +198,28 @@ def classificar_e_gravar_recebiveis(
 
     # Inserir dados nas respectivas tabelas (igual às vendas)
     if n_proc:
-        recebiveis_processados_bulk_insert(engine, df_proc_db)
+        if progress_callback: progress_callback(70, "Gravando recebíveis processados...")
+        recebiveis_processados_bulk_insert(engine, df_proc_db, progress_callback=progress_callback)
     if n_filt:
-        recebiveis_filtrados_bulk_insert(engine, df_filt_db)
+        if progress_callback: progress_callback(85, "Gravando recebíveis filtrados...")
+        recebiveis_filtrados_bulk_insert(engine, df_filt_db, progress_callback=progress_callback)
 
     # Remover duplicadas (igual às vendas)
-    if n_proc:
+    # OTIMIZAÇÃO: Se for uma importação nova (was_fresh=True), a deduplicação em memória feita acima
+    # já é suficiente e muito mais rápida que o self-join no banco de dados.
+    if n_proc and not was_fresh:
+        if progress_callback: progress_callback(90, "Removendo duplicadas (processados)...")
         recebiveis_remover_duplicadas(
             engine,
             "recebiveis_processados",
             processamentoid,
             df_proc_db.columns.tolist(),
         )
-    if n_filt:
+    elif n_proc and was_fresh:
+        print(f"[DEBUG][DEDUP] Pulando remoção SQL de duplicadas para fresh import (processamentoid: {processamentoid})")
+        if progress_callback: progress_callback(95, "Deduplicação em memória concluída.")
+
+    if n_filt and not was_fresh:
         recebiveis_remover_duplicadas(
             engine, "recebiveis_filtrados", processamentoid, df_filt_db.columns.tolist()
         )
@@ -411,7 +436,11 @@ def preparar_para_tabulator(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def safe_read_multisheet_file(
-    path: str, tipo_origem: str = "V", engine=None, contexto: str = "Rede"
+    path: str,
+    tipo_origem: str = "V",
+    engine=None,
+    contexto: str = "Rede",
+    nrows: Optional[int] = None,
 ) -> dict:
     """
     Lê um arquivo Excel multi-planilhas para recebiveis da REDE:
@@ -430,7 +459,7 @@ def safe_read_multisheet_file(
 
     try:
         # Primeiro, listar todas as planilhas
-        excel_file = pd.ExcelFile(path, engine="openpyxl")
+        excel_file = pd.ExcelFile(path, engine="calamine")
 
         # Carregar configurações de depara para verificar quais abas são suportadas
         if engine and tipo_origem == "R":
@@ -574,7 +603,8 @@ def safe_read_multisheet_file(
                     dtype=str,
                     keep_default_na=False,
                     na_filter=False,
-                    engine="openpyxl",
+                    engine="calamine",
+                    nrows=nrows,
                 )
 
                 # Encontrar cabeçalho usando lógica mais robusta
@@ -1189,6 +1219,7 @@ def safe_read_multisheet_file(
                         dtype=str,
                         na_filter=False,
                         engine="openpyxl",
+                        nrows=nrows,
                     )
 
                     if len(df_raw) > 0:
@@ -1360,7 +1391,7 @@ def safe_read_multisheet_file(
             pass
 
 
-def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
+def safe_read_file(path: str, nrows: Optional[int] = None) -> tuple[pd.DataFrame, int, list[str]]:
     """
     Lê um arquivo de forma robusta:
     1) Tenta Excel com engine apropriado (openpyxl/xlrd).
@@ -1420,12 +1451,13 @@ def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
                 "dtype": str,  # Força todas as colunas como string
                 "keep_default_na": False,  # Não converte strings vazias em NaN
                 "na_filter": False,  # Não tenta converter NaN/NA
+                "nrows": nrows,
             }
             df = pd.read_excel(path, **options)
             print("[DEBUG] Leitura inicial bem sucedida, procurando cabeçalho...")
 
-            # Procura o cabeçalho nas primeiras linhas
-            for idx in range(min(10, len(df))):
+            # Procura o cabeçalho nas primeiras linhas (aumentado para 50 para suportar informativos longos)
+            for idx in range(min(50, len(df))):
                 row = df.iloc[idx]
                 if len(row) >= 10:  # Mínimo de 10 colunas
                     row_text = " ".join(str(x).lower() for x in row if str(x).strip())
@@ -1460,6 +1492,7 @@ def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
                         "dtype": str,  # Força todas as colunas como string
                         "keep_default_na": False,  # Não converte strings vazias em NaN
                         "na_filter": False,  # Não tenta converter NaN/NA
+                        "nrows": nrows,
                     }
                     df = pd.read_excel(path, **options)
                     print(
@@ -1587,6 +1620,8 @@ def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
                         rows = []
                         print("[DEBUG][FALLBACK] Primeiras 5 linhas do arquivo:")
                         for i, row in enumerate(root.findall(".//a:row", ns)):
+                            if nrows and i > (nrows + 50): # some buffer for header search
+                                break
                             values = []
                             for c in row.findall("a:c", ns):
                                 v = c.find("a:v", ns)
@@ -1855,8 +1890,14 @@ def safe_read_file(path: str) -> tuple[pd.DataFrame, int, list[str]]:
     if ext not in (".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"):
         try:
             print("\n[DEBUG] Iniciando leitura de arquivo texto...", flush=True)
-            with open(path, "rb") as f:
-                raw = f.read()
+            if nrows:
+                # Read only a chunk if nrows is provided (e.g. 1MB should be enough for few hundred rows)
+                with open(path, "rb") as f:
+                    raw = f.read(1024 * 1024) 
+                print(f"[DEBUG] Bytes lidos (limitado): {len(raw)}", flush=True)
+            else:
+                with open(path, "rb") as f:
+                    raw = f.read()
                 print(f"[DEBUG] Bytes lidos: {len(raw)}", flush=True)
 
             text = raw.decode("utf-8", errors="replace")
@@ -2053,7 +2094,7 @@ def _to_float_br(s: pd.Series) -> pd.Series:
     return result.replace([np.inf, -np.inf], np.nan)
 
 
-def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 25) -> int:
+def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 100) -> int:
     """
     Detecta a linha de cabeçalho usando heurística melhorada
     """
@@ -2180,7 +2221,9 @@ def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 25) -> int:
 
 class FonteParser(Protocol):
     def detect_score(self, path: str, head_df: pd.DataFrame) -> int: ...
-    def parse(self, path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]: ...
+    def parse(
+        self, path: str, nrows: Optional[int] = None
+    ) -> Tuple[pd.DataFrame, Dict[str, Any]]: ...
 
 
 @dataclass
@@ -2207,9 +2250,16 @@ class CieloHistoricoDetalheParser:
         score += sum(1 for k in keys if any(k in h for h in headers)) * 5
         return score
 
-    def parse(self, path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def parse(
+        self, path: str, nrows: Optional[int] = None
+    ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         df_raw = pd.read_excel(
-            path, header=None, engine="openpyxl", dtype=str, keep_default_na=False
+            path,
+            header=None,
+            engine="openpyxl",
+            dtype=str,
+            keep_default_na=False,
+            nrows=nrows,
         )
         print("[DEBUG][CieloHistoricoDetalheParser] Primeiras linhas do arquivo:")
         print(df_raw.head(5))
@@ -2304,9 +2354,16 @@ class FaturamentoECParser:
         score += sum(1 for k in keys if any(k in h for h in headers)) * 4
         return score
 
-    def parse(self, path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def parse(
+        self, path: str, nrows: Optional[int] = None
+    ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         df_raw = pd.read_excel(
-            path, header=None, engine="openpyxl", dtype=str, keep_default_na=False
+            path,
+            header=None,
+            engine="openpyxl",
+            dtype=str,
+            keep_default_na=False,
+            nrows=nrows,
         )
         idx = detectar_cabecalho(df_raw)
         headers = [str(h).strip() if h is not None else "" for h in df_raw.iloc[idx]]
@@ -2361,9 +2418,16 @@ class GenericoPlanilhaParser:
         # fallback baixo score
         return 10
 
-    def parse(self, path: str) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    def parse(
+        self, path: str, nrows: Optional[int] = None
+    ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         df_raw = pd.read_excel(
-            path, header=None, engine="openpyxl", dtype=str, keep_default_na=False
+            path,
+            header=None,
+            engine="openpyxl",
+            dtype=str,
+            keep_default_na=False,
+            nrows=nrows,
         )
         idx = detectar_cabecalho(df_raw)
         headers = [str(h).strip() if h is not None else "" for h in df_raw.iloc[idx]]
@@ -2454,13 +2518,14 @@ def is_multisheet_rede_file(path: str) -> bool:
 
 
 def preparar_dataframe_de_arquivo(
-    # ...existing code...
     path: str,
     engine: Engine,
+    cliente_id: int,
     contexto: str = "",
     tipo_origem: str = "V",
     progress_callback=None,
     log_callback=None,
+    nrows: Optional[int] = None,
 ):
     """
     Processa o arquivo com feedback de progresso e logs.
@@ -2479,8 +2544,9 @@ def preparar_dataframe_de_arquivo(
             progress_callback(val)
 
     def log(msg):
+        now = datetime.now().strftime("%H:%M:%S")
         if log_callback:
-            log_callback(msg)
+            log_callback(f"[{now}] {msg}")
 
     update_progress(5)
     log(f"Processando arquivo (1/10): Iniciando leitura robusta do arquivo...")
@@ -2496,6 +2562,18 @@ def preparar_dataframe_de_arquivo(
             f"[DEBUG][PROCESSAR] - Contexto: '{contexto}' (upper: '{contexto.upper()}')"
         )
         is_multisheet = is_multisheet_rede_file(path)
+        
+        # --- TENTATIVA MODULAR (Phase A) ---
+        if not is_multisheet:
+            importer = ImporterFactory.get_importer(engine, path, 0, cliente_id, contexto, "Sistema", tipo_origem)
+            if importer:
+                log(f"Executando motor de importação modular: {importer.__class__.__name__}")
+                importer.read(path, nrows=nrows)
+                importer.parse()
+                importer.normalize()
+                update_progress(100)
+                # O retorno padrão é (df_final, transformacoes, header_row)
+                return importer.df_proc, {}, importer.header_idx
 
         print(f"[DEBUG][PROCESSAR] ✅ is_multisheet_rede_file(): {is_multisheet}")
 
@@ -2506,7 +2584,7 @@ def preparar_dataframe_de_arquivo(
             print("[DEBUG][PROCESSAR] Arquivo multi-planilhas detectado")
 
             multisheet_data = safe_read_multisheet_file(
-                path, tipo_origem, engine, contexto
+                path, tipo_origem, engine, contexto, nrows=nrows
             )
 
             if not multisheet_data:
@@ -2744,7 +2822,7 @@ def preparar_dataframe_de_arquivo(
 
         else:
             # Lógica normal para arquivo single-sheet
-            df_raw, header_idx, header_cols = safe_read_file(path)
+            df_raw, header_idx, header_cols = safe_read_file(path, nrows=nrows)
             log(f"Processando arquivo (2/10): Arquivo lido, colunas detectadas.")
             print(
                 "[DEBUG][MAPPING] Colunas do DataFrame antes do de/para:",
@@ -2753,25 +2831,23 @@ def preparar_dataframe_de_arquivo(
 
             # --- FILTRO DE LINHAS DE RODAPÉ/AVISO/TOTAL ---
 
-            def is_footer_row(row):
-                # Se as 5 primeiras colunas estão todas vazias
-                if row.iloc[:5].isnull().all() or (row.iloc[:5] == "").all():
-                    return True
-                # Se qualquer das 5 primeiras colunas contém texto de rodapé/total
-                rodape_textos = [
-                    "total",
-                    "//este relatório",
-                    "//##microstrategy",
-                ]
-                for val in row.iloc[:5]:
-                    if isinstance(val, str):
-                        val_lower = val.lower().strip()
-                        if any(txt in val_lower for txt in rodape_textos):
-                            return True
-                return False
-
             before = len(df_raw)
-            df_raw = df_raw[~df_raw.apply(is_footer_row, axis=1)].reset_index(drop=True)
+            
+            if len(df_raw.columns) > 0:
+                cols_to_check = df_raw.columns[:5]
+                mask_empty = df_raw[cols_to_check].isnull() | (df_raw[cols_to_check] == "")
+                mask_all_empty = mask_empty.all(axis=1)
+                
+                rodape_textos = ["total", "//este relatório", "//##microstrategy"]
+                pattern = "|".join([re.escape(t) for t in rodape_textos])
+                
+                mask_has_footer = pd.Series(False, index=df_raw.index)
+                for col in cols_to_check:
+                    mask_col = df_raw[col].astype(str).str.lower().str.contains(pattern, na=False, regex=True)
+                    mask_has_footer = mask_has_footer | mask_col
+                    
+                mask_drop = mask_all_empty | mask_has_footer
+                df_raw = df_raw[~mask_drop].reset_index(drop=True)
             after = len(df_raw)
             log(
                 f"Processando arquivo (3/10): Linhas removidas por filtro de rodapé/total: {before - after}"
@@ -2840,7 +2916,7 @@ def preparar_dataframe_de_arquivo(
                     f"[DEBUG][PROCESSAR] Parser escolhido: {getattr(parser, 'SOURCE', str(parser))}"
                 )
                 update_progress(20)
-                df_norm, meta = parser.parse(path)
+                df_norm, meta = parser.parse(path, nrows=nrows)
                 update_progress(30)
                 log(
                     f"Processando arquivo (8/10): Método de fallback executado, {df_norm.shape[0]} linhas detectadas."
@@ -3256,8 +3332,14 @@ def aplicar_regras_depara(
         )
         return df_vazio, {}
 
-    # Filtrar apenas colunas que têm mapeamento
-    colunas_mapeadas = [col for col in df_limpo.columns if col in mapeamento]
+    # Filtrar apenas colunas que têm mapeamento (Case-Insensitive)
+    # Criar um mapa de nomes de colunas originais para suas versões em minúsculo
+    col_map_orig_to_lower = {col.lower().strip(): col for col in df_limpo.columns if isinstance(col, str)}
+    
+    # Criar mapeamento de regras com chaves em minúsculo
+    mapeamento_lower = {k.lower().strip(): v for k, v in mapeamento.items()}
+    
+    colunas_mapeadas = [orig_col for lower_col, orig_col in col_map_orig_to_lower.items() if lower_col in mapeamento_lower]
 
     if not colunas_mapeadas:
         print(
@@ -3505,22 +3587,24 @@ def aplicar_regras_depara(
         return bandeira, forma
 
     # Aplicar mapeamento coluna por coluna, duplicando quando necessário
-    for origem in colunas_mapeadas:
-        if origem in mapeamento:
-            destinos = mapeamento[origem]  # Já é lista
-
+    # Usar mapeamento_lower criado acima para garantir detecção case-insensitive
+    for orig_col_name in df_limpo.columns:
+        lower_col = str(orig_col_name).lower().strip()
+        if lower_col in mapeamento_lower:
+            destinos = mapeamento_lower[lower_col]
+            
             # Se tiver múltiplos destinos, logar
             if len(destinos) > 1:
                 print(
-                    f"[DEBUG][aplicar_regras_depara] ⚡ Duplicando coluna '{origem}' para {len(destinos)} destinos: {destinos}"
+                    f"[DEBUG][aplicar_regras_depara] ⚡ Duplicando coluna '{orig_col_name}' para {len(destinos)} destinos: {destinos}"
                 )
 
             # 🔥 LÓGICA ESPECIAL: Dividir "Produto cielo" em Bandeira e Forma_de_pagamento
-            if origem.lower() == "produto cielo" and set(
+            if lower_col == "produto cielo" and set(
                 ["Bandeira", "Forma_de_pagamento"]
             ).issubset(set(destinos)):
                 print(
-                    f"[DEBUG][aplicar_regras_depara] 🎯 DIVISÃO ESPECIAL: '{origem}' será dividido em Bandeira e Forma_de_pagamento"
+                    f"[DEBUG][aplicar_regras_depara] 🎯 DIVISÃO ESPECIAL: '{orig_col_name}' será dividido em Bandeira e Forma_de_pagamento"
                 )
 
                 # Aplicar divisão
@@ -3528,7 +3612,7 @@ def aplicar_regras_depara(
                 formas = []
 
                 for idx in df_limpo.index:
-                    valor = df_limpo.loc[idx, origem]
+                    valor = df_limpo.loc[idx, orig_col_name]
                     bandeira, forma = dividir_produto_cielo(valor)
                     bandeiras.append(bandeira)
                     formas.append(forma)
@@ -3537,23 +3621,14 @@ def aplicar_regras_depara(
                 if "Bandeira" in destinos:
                     df_resultado["Bandeira"] = bandeiras
                     print(
-                        f"[DEBUG][aplicar_regras_depara]    '{origem}' → 'Bandeira' (extraído: {len([b for b in bandeiras if b])} valores)"
+                        f"[DEBUG][aplicar_regras_depara]    '{orig_col_name}' → 'Bandeira' (extraído: {len([b for b in bandeiras if b])} valores)"
                     )
 
                 if "Forma_de_pagamento" in destinos:
                     df_resultado["Forma_de_pagamento"] = formas
                     print(
-                        f"[DEBUG][aplicar_regras_depara]    '{origem}' → 'Forma_de_pagamento' (extraído: {len([f for f in formas if f])} valores)"
+                        f"[DEBUG][aplicar_regras_depara]    '{orig_col_name}' → 'Forma_de_pagamento' (extraído: {len([f for f in formas if f])} valores)"
                     )
-
-                # Mostrar exemplos
-                print(f"[DEBUG][aplicar_regras_depara]    Exemplos de divisão:")
-                for i in range(min(3, len(df_limpo))):
-                    original = df_limpo.iloc[i][origem]
-                    print(
-                        f"[DEBUG][aplicar_regras_depara]      '{original}' → Bandeira: '{bandeiras[i]}', Forma: '{formas[i]}'"
-                    )
-
             else:
                 # Copiar dados da origem para cada destino (comportamento normal)
                 for destino in destinos:
@@ -3562,13 +3637,10 @@ def aplicar_regras_depara(
                         destino == "Forma_de_pagamento"
                         and "Forma_de_pagamento" in df_resultado.columns
                     ):
-                        print(
-                            f"[DEBUG][aplicar_regras_depara]    '{origem}' → '{destino}' ignorado (já normalizado pela divisão especial)"
-                        )
                         continue
-                    df_resultado[destino] = df_limpo[origem].copy()
+                    df_resultado[destino] = df_limpo[orig_col_name].copy()
                     print(
-                        f"[DEBUG][aplicar_regras_depara]    '{origem}' → '{destino}' ({len(df_limpo[origem].dropna())} valores não-nulos)"
+                        f"[DEBUG][aplicar_regras_depara]    '{orig_col_name}' → '{destino}' ({len(df_limpo[orig_col_name].dropna())} valores não-nulos)"
                     )
 
     # FILTRO DE DADOS INVÁLIDOS: Remover apenas linhas que são claramente cabeçalhos
@@ -4215,8 +4287,11 @@ def classificar_e_gravar_vendas(
     usuario: str,
     arquivo_origem: str = "",
     processamentoid: int = None,
+    progress_callback = None
 ) -> Dict[str, Any]:
     now = datetime.now()
+
+    was_fresh = processamentoid is None
 
     if processamentoid is None:
         processamentoid, _ = processamento_gerar_novo_id(engine, ec_id, now)
@@ -4256,20 +4331,49 @@ def classificar_e_gravar_vendas(
     # Removido: lógica de limpeza de valores zerados - mantém todas as vendas
     # Removido: lógica de vendas_diversas conforme solicitado
 
+    # --- DEDUPLICAÇÃO EM MEMÓRIA (PYTHON) ---
+    # Identificar colunas para unicidade (ignorar metadados de inserção)
+    cols_ignorar = {"id", "data_processamento", "usuario_processamento", "arquivo_origem", "processamentoid"}
+    
     n_proc, n_filt = len(df_proc), len(df_filt)
+
+    if n_proc:
+        cols_dedup_proc = [c for c in df_proc.columns if c not in cols_ignorar]
+        len_antes = len(df_proc)
+        df_proc = df_proc.drop_duplicates(subset=cols_dedup_proc).copy()
+        n_proc = len(df_proc)
+        if len_antes > n_proc:
+            print(f"[DEBUG][DEDUP] Removidas {len_antes - n_proc} duplicadas (Vendas Processadas) em memória.")
+
+    if n_filt:
+        cols_dedup_filt = [c for c in df_filt.columns if c not in cols_ignorar]
+        len_antes = len(df_filt)
+        df_filt = df_filt.drop_duplicates(subset=cols_dedup_filt).copy()
+        n_filt = len(df_filt)
+        if len_antes > n_filt:
+            print(f"[DEBUG][DEDUP] Removidas {len_antes - n_filt} duplicadas (Vendas Filtradas) em memória.")
 
     # Inserir dados nas respectivas tabelas
     if n_proc:
-        vendas_processadas_bulk_insert(engine, df_proc)
+        if progress_callback: progress_callback(70, "Gravando vendas processadas...")
+        vendas_processadas_bulk_insert(engine, df_proc, progress_callback=progress_callback)
     if n_filt:
-        vendas_filtradas_bulk_insert(engine, df_filt)
+        if progress_callback: progress_callback(85, "Gravando vendas filtradas...")
+        vendas_filtradas_bulk_insert(engine, df_filt, progress_callback=progress_callback)
 
     # Remover duplicadas
-    if n_proc:
+    # OTIMIZAÇÃO: Se for uma importação nova (was_fresh=True), a deduplicação em memória feita acima
+    # já é suficiente e muito mais rápida que o self-join no banco de dados.
+    if n_proc and not was_fresh:
+        if progress_callback: progress_callback(90, "Removendo duplicadas (vendas)...")
         vendas_remover_duplicadas(
             engine, "vendas_processadas", processamentoid, df_proc.columns.tolist()
         )
-    if n_filt:
+    elif n_proc and was_fresh:
+        print(f"[DEBUG][DEDUP] Pulando remoção SQL de duplicadas para fresh import (processamentoid: {processamentoid})")
+        if progress_callback: progress_callback(95, "Deduplicação em memória concluída.")
+
+    if n_filt and not was_fresh:
         vendas_remover_duplicadas(
             engine, "vendas_filtradas", processamentoid, df_filt.columns.tolist()
         )

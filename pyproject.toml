@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "financial-checker"
+name = "financial-"
 version = "2.0.0"
 description = "Sistema de conciliação financeira híbrido MySQL/SQLite"
 authors = ["Seu Nome <email@example.com>"]
@@ -67,9 +67,10 @@ pytest = "^7.0"
 black = "^23.0"
 isort = "^5.12"
 flake8 = "^6.0"
+pyinstaller = "^6.19.0"
 
 [tool.poetry.scripts]
-financial-checker = "main:main"
+financial- = "main:main"
 configure-db = "configure_db:main"
 
 [build-system]

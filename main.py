@@ -353,23 +353,23 @@ reconnect_script = """
     
     // ⚠️ Heartbeat cliente (mantém conexão viva sem backend)
     function startHeartbeat() {
-        console.log('[FinChecker] Heartbeat iniciado (intervalo: 30s)');
+        console.log('[Fin] Heartbeat iniciado (intervalo: 30s)');
         
         setInterval(function() {
             // Cria/remove elemento dummy para forçar pequena atualização DOM
             const heartbeat = document.createElement('div');
-            heartbeat.id = 'finchecker-heartbeat';
+            heartbeat.id = 'fin-heartbeat';
             heartbeat.style.display = 'none';
             heartbeat.innerHTML = '<!-- heartbeat: ' + new Date().toISOString() + ' -->';
             document.body.appendChild(heartbeat);
             
             // Remove após 100ms (mantém DOM limpo)
             setTimeout(function() {
-                const el = document.getElementById('finchecker-heartbeat');
+                const el = document.getElementById('fin-heartbeat');
                 if (el) el.remove();
             }, 100);
             
-            console.log('[FinChecker] Heartbeat:', new Date().toISOString());
+            console.log('[Fin] Heartbeat:', new Date().toISOString());
         }, 30000); // 30 segundos
     }
     
@@ -382,24 +382,24 @@ reconnect_script = """
                 const ws = doc._session._connection._socket;
                 
                 ws.addEventListener('close', function(event) {
-                    console.warn('[FinChecker] WebSocket desconectado:', event.code, event.reason);
+                    console.warn('[Fin] WebSocket desconectado:', event.code, event.reason);
                     
                     if (reconnectAttempts < maxReconnectAttempts) {
                         reconnectAttempts++;
-                        console.log(`[FinChecker] Tentando reconectar (${reconnectAttempts}/${maxReconnectAttempts})...`);
+                        console.log(`[Fin] Tentando reconectar (${reconnectAttempts}/${maxReconnectAttempts})...`);
                         
                         setTimeout(function() {
-                            console.log('[FinChecker] Recarregando página...');
+                            console.log('[Fin] Recarregando página...');
                             window.location.reload();
                         }, 2000);
                     } else {
-                        console.error('[FinChecker] Máximo de tentativas atingido. Por favor, recarregue a página manualmente.');
+                        console.error('[Fin] Máximo de tentativas atingido. Por favor, recarregue a página manualmente.');
                         alert('Conexão perdida. Por favor, recarregue a página (F5).');
                     }
                 });
                 
                 ws.addEventListener('error', function(event) {
-                    console.error('[FinChecker] Erro WebSocket:', event);
+                    console.error('[Fin] Erro WebSocket:', event);
                 });
                 
                 // Inicia heartbeat após setup de conexão
@@ -449,7 +449,7 @@ def find_free_port(start_port=8500, max_attempts=10):
 if __name__ == "__main__":
     # Parse argumentos da linha de comando
     parser = argparse.ArgumentParser(
-        description="Financial Checker - Sistema de Conciliação (MySQL)",
+        description="Financial  - Sistema de Conciliação (MySQL)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Exemplos de uso:
@@ -460,7 +460,7 @@ Exemplos de uso:
     args = parser.parse_args()
 
     print("=" * 80)
-    print("FINANCIAL CHECKER - SISTEMA DE CONCILIAÇÃO")
+    print("FINANCIAL  - SISTEMA DE CONCILIAÇÃO")
     print("=" * 80)
 
     # Detecta qual banco está sendo usado

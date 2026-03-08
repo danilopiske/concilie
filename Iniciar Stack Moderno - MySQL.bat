@@ -3,10 +3,16 @@ title Iniciar Stack Moderno - MySQL
 cls
 
 echo ============================================
-echo   FINANCIAL CHECKER v2.0
+echo   FINANCIAL  v2.0
 echo   STACK MODERNO - MODO MYSQL
 echo ============================================
 echo.
+
+echo [!] Preparando ambiente Windows (Senior Performance Mode)...
+powershell -ExecutionPolicy Bypass -File "scripts\TurboRamCleaner.ps1"
+powershell -ExecutionPolicy Bypass -File "scripts\OptimizeOS.ps1"
+
+set "API_PATH=apps\api"
 
 REM Verificar se está configurado para MySQL
 if not exist "apps\api\.env" (
@@ -85,16 +91,23 @@ echo   cd apps\web
 echo   pnpm dev
 echo.
 echo Pressione qualquer tecla para abrir os terminais...
+echo [!] Limpando processos antigos (Python/Node)...
+taskkill /f /im python.exe /t >nul 2>&1
+taskkill /f /im node.exe /t >nul 2>&1
+timeout /t 2 /nobreak >nul
+
 pause >nul
 
 REM Abrir terminal para backend
-start "Financial Checker - Backend (MySQL)" cmd /k "cd /d %CD%\apps\api && poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+echo [>] Iniciando Backend...
+start "Financial - Backend (MySQL)" cmd /k "cd /d %CD%\apps\api && set PYTHONOPTIMIZE=1 && poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --reload-dir app --reload-exclude 'node_modules/*,.next/*,dist/*'"
 
-REM Aguardar 3 segundos
-timeout /t 3 /nobreak >nul
+REM Aguardar 5 segundos para o banco estabilizar
+timeout /t 5 /nobreak >nul
 
 REM Abrir terminal para frontend
-start "Financial Checker - Frontend" cmd /k "cd /d %CD%\apps\web && pnpm dev"
+echo [>] Iniciando Frontend...
+start "Financial - Frontend" cmd /k "cd /d %CD%\apps\web && pnpm dev --turbo"
 
 echo.
 echo ========================================

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, DECIMAL, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, DECIMAL, ForeignKey, BigInteger
 from app.models.base import Base
 from datetime import datetime
 
@@ -18,7 +18,7 @@ class VendasCalculos(Base):
     bandeira = Column(String(100))
     forma_pagamento = Column(String(100))
     data_venda = Column(DateTime)
-    ec_id = Column(String(50))
+    ec_id = Column(BigInteger)
     adquirente = Column(String(100))
     arquivo_origem = Column(String(255))
     nsu = Column(String(100))

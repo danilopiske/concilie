@@ -1,8 +1,8 @@
 @echo off
-title Financial Checker - Sistema de Conciliacao v2.0
+title Financial  - Sistema de Conciliacao v2.0
 cls
 echo ========================================
-echo    FINANCIAL CHECKER v2.0
+echo    FINANCIAL  v2.0
 echo    Sistema de Conciliacao Financeira
 echo ========================================
 echo.

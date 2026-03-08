@@ -10,8 +10,12 @@ import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Table } from '@/components/ui/Table';
 
+import { useFileImport } from '@/hooks/useFileImport';
+
 export default function ImportarVendasPage() {
-  // TODO: Implementar lógica de upload, validação, processamento e resultado
+  const { upload, status, progress, result, error, isUploading, reset } = useFileImport();
+  
+  // TODO: Integrar com backend real (Done)
   // TODO: Integrar com backend real
   // TODO: Usar Design System corporativo
 
@@ -49,9 +53,11 @@ export default function ImportarVendasPage() {
   const [continuarAnterior, setContinuarAnterior] = React.useState(false);
   const [processamentoAnterior, setProcessamentoAnterior] = React.useState("");
   const [file, setFile] = React.useState<File | null>(null);
-  const [processing, setProcessing] = React.useState(false);
-  const [result, setResult] = React.useState<any>(null);
-  const [error, setError] = React.useState<string | null>(null);
+
+  const handleUpload = async () => {
+    if (!file) return;
+    await upload(file);
+  };
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-5xl mx-auto">
@@ -67,7 +73,7 @@ export default function ImportarVendasPage() {
               className="InputText w-full p-2 border border-gray-300 rounded bg-white text-gray-900"
               value={cliente}
               onChange={e => setCliente(e.target.value)}
-              disabled={processing}
+              disabled={isUploading}
             >
               <option value="">Selecione</option>
               {clientes.map(opt => (
@@ -81,7 +87,7 @@ export default function ImportarVendasPage() {
               className="InputText w-full p-2 border border-gray-300 rounded bg-white text-gray-900"
               value={ec}
               onChange={e => setEc(e.target.value)}
-              disabled={processing}
+              disabled={isUploading}
             >
               <option value="">Selecione</option>
               {ecs.map(opt => (
@@ -95,7 +101,7 @@ export default function ImportarVendasPage() {
               className="InputText w-full p-2 border border-gray-300 rounded bg-white text-gray-900"
               value={contexto}
               onChange={e => setContexto(e.target.value)}
-              disabled={processing}
+              disabled={isUploading}
             >
               <option value="">Selecione</option>
               {contextos.map(opt => (
@@ -109,7 +115,7 @@ export default function ImportarVendasPage() {
               className="InputText w-full p-2 border border-gray-300 rounded bg-white text-gray-900"
               value={tipoArquivo}
               onChange={e => setTipoArquivo(e.target.value)}
-              disabled={processing}
+              disabled={isUploading}
             >
               {tiposArquivo.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -125,7 +131,7 @@ export default function ImportarVendasPage() {
             id="continuarAnterior"
             checked={continuarAnterior}
             onChange={e => setContinuarAnterior(e.target.checked)}
-            disabled={processing}
+            disabled={isUploading}
           />
           <label htmlFor="continuarAnterior" className="font-label mr-2">
             Continuar processamento anterior
@@ -134,14 +140,14 @@ export default function ImportarVendasPage() {
             className="InputText min-w-[260px] p-2 border border-gray-300 rounded bg-white text-gray-900"
             value={processamentoAnterior}
             onChange={e => setProcessamentoAnterior(e.target.value)}
-            disabled={!continuarAnterior || processing}
+            disabled={!continuarAnterior || isUploading}
           >
             <option value="">ProcessamentoID anterior</option>
             {processamentosAnteriores.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          <Button variant="secondary" disabled={processing}>
+          <Button variant="secondary" disabled={isUploading}>
             Atualizar Processamentos
           </Button>
         </div>
@@ -153,36 +159,53 @@ export default function ImportarVendasPage() {
               accept=".csv,.xlsx"
               onFileSelect={setFile}
               selectedFile={file}
-              loading={processing}
-              disabled={processing}
+              loading={isUploading}
+              disabled={isUploading}
             />
           </div>
           <div className="flex gap-2 flex-1 justify-end">
             <Button
               variant="primary"
-              loading={processing}
-              disabled={!file || processing}
+              loading={isUploading}
+              disabled={!file || isUploading}
+              onClick={handleUpload}
             >
               Processar e Normalizar
             </Button>
             <Button
               variant="success"
-              disabled={!file || processing}
+              disabled={!file || isUploading}
             >
               Gravar no Banco
             </Button>
             <Button
               variant="secondary"
-              disabled={processing}
+              loading={isUploading}
+              disabled={isUploading}
             >
               Limpar Importação
             </Button>
           </div>
         </div>
 
+        {/* Progress Bar */}
+        {isUploading && (
+          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+            <div 
+              className="bg-blue-600 h-2.5 rounded-full" 
+              style={{ width: `${progress}%` }}
+            ></div>
+            <div className="text-xs text-center mt-1 text-gray-600">{status} ({progress}%)</div>
+          </div>
+        )}
+
         {/* Mensagem de erro/sucesso */}
         {error && <Alert variant="error">{error}</Alert>}
-        {result && <Alert variant="success">{result}</Alert>}
+        {result && (
+          <Alert variant="success">
+            Processado com sucesso! {result.rows_processed} linhas importadas.
+          </Alert>
+        )}
 
         {/* Tabela de arquivos processados */}
         <div className="mt-6">

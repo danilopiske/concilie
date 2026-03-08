@@ -11,7 +11,9 @@ from app.api.v1.endpoints import (
     depara,
     processamentos,
     correcao,
+    correcao,
     importacao,
+    importacao_async,
     analista,
     calculos,
     relatorios,
@@ -42,6 +44,8 @@ api_router.include_router(processamentos.router, prefix="/processamentos", tags=
 api_router.include_router(correcao.router, prefix="/correcao", tags=["correcao"])
 
 api_router.include_router(importacao.router, prefix="/importar", tags=["importacao"])
+
+api_router.include_router(importacao_async.router, prefix="/importacao-async", tags=["importacao-async"])
 
 api_router.include_router(analista.router, prefix="/analista", tags=["analista"])
 

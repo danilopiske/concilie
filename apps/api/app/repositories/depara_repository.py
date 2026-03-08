@@ -7,10 +7,33 @@ class DeParaRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def listar(self, cliente_id: Optional[int] = None) -> List[DeParaResponse]:
-        # Ignores cliente_id for now as the legacy model doesn't explicitly link to cliente_id per row
-        # It links via context/logic usually, but let's just return all active rules
-        return self.db.query(DeParaColunasLegacy).filter(DeParaColunasLegacy.ativo == 1).all()
+    def listar(
+        self, 
+        cliente_id: Optional[int] = None,
+        contexto: Optional[str] = None,
+        tipo_origem: Optional[str] = None,
+        ativo: Optional[int] = 1,
+        search: Optional[str] = None
+    ) -> List[DeParaResponse]:
+        query = self.db.query(DeParaColunasLegacy)
+        
+        if ativo is not None:
+            query = query.filter(DeParaColunasLegacy.ativo == ativo)
+            
+        if contexto:
+            query = query.filter(DeParaColunasLegacy.contexto == contexto)
+            
+        if tipo_origem:
+            query = query.filter(DeParaColunasLegacy.tipo_origem == tipo_origem)
+            
+        if search:
+            search_filt = f"%{search}%"
+            query = query.filter(
+                (DeParaColunasLegacy.origem_nome.ilike(search_filt)) |
+                (DeParaColunasLegacy.destino_nome.ilike(search_filt))
+            )
+            
+        return query.order_by(DeParaColunasLegacy.contexto, DeParaColunasLegacy.destino_nome).all()
 
     def criar(self, depara: DeParaCreate) -> DeParaResponse:
         db_obj = DeParaColunasLegacy(

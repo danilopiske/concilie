@@ -14,7 +14,7 @@ SQLITE_DB_PATH_CALCULATED = os.path.join(_root_dir, "data", "concilie.db")
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Financial Checker API"
+    PROJECT_NAME: str = "Financial  API"
     VERSION: str = "2.0.0"
     API_V1_STR: str = "/api/v1"
 
@@ -23,8 +23,24 @@ class Settings(BaseSettings):
         "http://localhost:8000",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:8000",
-        "http://192.168.3.190:3000"
     ]
+
+    @property
+    def CORS_ORIGINS(self) -> List[str]:
+        """
+        Dynamic CORS origins based on environment
+        """
+        origins = self.ALLOWED_ORIGINS.copy()
+        
+        # Add Railway/Production URL from env
+        if os.getenv("FRONTEND_URL"):
+            origins.append(os.getenv("FRONTEND_URL"))
+            
+        # Add Render/Heroku URLs if needed
+        if os.getenv("RAILWAY_PUBLIC_DOMAIN"):
+             origins.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
+             
+        return origins
 
     # Database
     DATABASE_TYPE: str = "mysql"  # mysql ou sqlite
@@ -43,7 +59,8 @@ class Settings(BaseSettings):
     ENV: str = "development"  # development, production
 
     # Auth
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    # Auth
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production-only-for-local")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
@@ -54,7 +71,11 @@ class Settings(BaseSettings):
 
 
     # CORS (alias para ALLOWED_ORIGINS)
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    # CORS (alias for property in Pydantic v2 might need computed_field, 
+    # but for v1 or simple usage we use the property above directly in main.py)
+    # Removing static CORS_ORIGINS to rely on the dynamic property logic or 
+    # we can use a validator if strictly needed by Pydantic. 
+    # For now, we will access settings.CORS_ORIGINS as a property where needed.
 
     class Config:
         env_file = ".env"

@@ -1,8 +1,8 @@
 ﻿{
-  "name": "financial-checker-monorepo",
+  "name": "financial--monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Financial Checker - Sistema de Conciliacao Financeira (Next.js + FastAPI)",
+  "description": "Financial  - Sistema de Conciliacao Financeira (Next.js + FastAPI)",
   "scripts": {
     "dev": "pnpm run --parallel dev",
     "dev:web": "pnpm --filter web dev",

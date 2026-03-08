@@ -11,7 +11,10 @@ from app.core.config import settings
 
 # Logger para SQL queries
 logger = logging.getLogger("sqlalchemy.engine")
-logger.setLevel(logging.INFO)
+if hasattr(settings, "DEBUG_SQL") and settings.DEBUG_SQL:
+    logger.setLevel(logging.INFO)
+else:
+    logger.setLevel(logging.WARNING)
 
 def get_database_url() -> str:
     """Get database URL based on DATABASE_TYPE"""
@@ -26,12 +29,24 @@ def get_database_url() -> str:
         return f"sqlite:///{settings.SQLITE_DB_PATH}"
 
 
-# Create engine
+# Create engine with tuned pool performance
 engine = create_engine(
     get_database_url(),
     pool_pre_ping=True,
+    pool_size=20 if settings.DATABASE_TYPE == "mysql" else None,
+    max_overflow=10 if settings.DATABASE_TYPE == "mysql" else None,
+    pool_recycle=3600,
     echo=settings.DEBUG_SQL if hasattr(settings, "DEBUG_SQL") else False,
 )
+
+# SQLite optimization: WAL mode (Write-Ahead Logging)
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    if settings.DATABASE_TYPE == "sqlite":
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.close()
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

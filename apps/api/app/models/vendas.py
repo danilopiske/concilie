@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, DECIMAL, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, DECIMAL, ForeignKey, BigInteger
 from app.models.base import Base
 from datetime import datetime
 
@@ -10,7 +10,7 @@ class Venda(Base):
     # Identificadores
     processamentoid = Column(String(50), index=True)
     cliente_id = Column(Integer, index=True)
-    ec_id = Column(String(50), index=True)
+    ec_id = Column(BigInteger, index=True)
     
     # Dados da Venda
     data_venda = Column("data_da_venda", DateTime, index=True)
@@ -37,7 +37,7 @@ class VendaFiltrada(Base):
     # Identificadores
     processamentoid = Column(String(50), index=True)
     cliente_id = Column(Integer, index=True)
-    ec_id = Column(String(50), index=True)
+    ec_id = Column(BigInteger, index=True)
     
     # Dados da Venda
     data_venda = Column("data_da_venda", DateTime, index=True)

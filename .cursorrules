@@ -4,7 +4,7 @@ When working with Python libraries (FastAPI, SQLAlchemy, Panel, Pydantic), autom
 
 When working with TypeScript/JavaScript libraries (Next.js, React, pnpm, Poetry), automatically fetch documentation from Context7.
 
-For the Financial Checker project, prioritize documentation for:
+For the Financial project, prioritize documentation for:
 - FastAPI (backend API framework)
 - SQLAlchemy (database ORM)
 - Panel/HoloViz (current UI framework)

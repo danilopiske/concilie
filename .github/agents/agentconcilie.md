@@ -1,10 +1,10 @@
-# AGENTCONCILIE.md — Guia IA Completo para Financial Checker e Stack Moderno
+# AGENTCONCILIE.md — Guia IA Completo para Financial  e Stack Moderno
 
 ---
 
 ## 1. Overview: Legado e Futuro
 
-O **Financial Checker v2.0** é uma solução robusta de conciliação financeira (MySQL/SQLite), com pipeline de importação, análise, agregação, cálculo e reporting, preparada para ambientes de alta escala e portabilidade. Este documento unifica:
+O **Financial  v2.0** é uma solução robusta de conciliação financeira (MySQL/SQLite), com pipeline de importação, análise, agregação, cálculo e reporting, preparada para ambientes de alta escala e portabilidade. Este documento unifica:
 - Descrição funcional
 - Fluxos técnicos
 - Práticas de desenvolvimento e testes
@@ -261,9 +261,9 @@ poetry run pytest
 **pyproject.toml exemplo:**
 ```toml
 [tool.poetry]
-name = "financial-checker-api"
+name = "financial--api"
 version = "2.0.0"
-description = "API FastAPI para Financial Checker"
+description = "API FastAPI para Financial "
 authors = ["Seu Nome <email@exemplo.com>"]
 
 [tool.poetry.dependencies]
@@ -314,7 +314,7 @@ pnpm start
 **package.json exemplo:**
 ```json
 {
-  "name": "financial-checker-web",
+  "name": "financial--web",
   "version": "2.0.0",
   "private": true,
   "scripts": {
@@ -446,7 +446,7 @@ from pydantic_settings import BaseSettings
 from typing import List
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Financial Checker API"
+    PROJECT_NAME: str = "Financial  API"
     VERSION: str = "2.0.0"
     API_V1_STR: str = "/api/v1"
     
@@ -1163,7 +1163,7 @@ export function VendasTable() {
 
 **Estrutura Monorepo:**
 ```
-financial-checker/
+financial-/
 ├─ apps/
 │  ├─ web/                    # Next.js + TypeScript
 │  │  ├─ package.json
@@ -1224,7 +1224,7 @@ packages:
 **Root package.json:**
 ```json
 {
-  "name": "financial-checker-monorepo",
+  "name": "financial--monorepo",
   "private": true,
   "scripts": {
     "dev": "turbo run dev",
@@ -2163,7 +2163,7 @@ Para biblioteca específica, use o ID exato:
    - Busca documentação específica
    - Parâmetros: `libraryId`, `query`
 
-### **Casos de Uso para Financial Checker**
+### **Casos de Uso para Financial **
 
 #### **Migração Frontend Panel → Next.js**
 ```

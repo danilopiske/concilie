@@ -4,7 +4,7 @@ cls
 
 echo ============================================
 echo   CONFIGURADOR DE BANCO - STACK MODERNO
-echo   Financial Checker v2.0
+echo   Financial  v2.0
 echo ============================================
 echo.
 

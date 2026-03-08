@@ -2,7 +2,7 @@ import sqlite3
 import os
 
 # Path based on find_by_name result
-db_path = r"d:\Financial Checker base\Financial_P\data\concilie.db"
+db_path = r"d:\Financial  base\Financial_P\data\concilie.db"
 
 if not os.path.exists(db_path):
     print(f"DB not found at {db_path}")

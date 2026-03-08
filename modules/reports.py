@@ -7,10 +7,8 @@ import time
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 
-import plotly.express as px
 from jinja2 import Environment, FileSystemLoader
 from sqlalchemy.engine import Engine
-import panel as pn
 from sqlalchemy import text
 
 from conf.funcoesbd import (

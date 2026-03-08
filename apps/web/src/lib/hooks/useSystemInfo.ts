@@ -4,7 +4,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { apiClient } from '@/lib/api/client';
+import { apiClient, API_URL } from '@/lib/api/client';
 
 interface DatabaseInfo {
   type: string;
@@ -29,7 +29,7 @@ export function useSystemInfo() {
       try {
         setLoading(true);
         const { data } = await apiClient.get<HealthInfo>('/health', {
-          baseURL: 'http://localhost:8000',
+          baseURL: API_URL,
         });
         setInfo(data);
         setError(null);

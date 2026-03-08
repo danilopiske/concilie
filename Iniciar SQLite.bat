@@ -1,8 +1,8 @@
 @echo off
-title Financial Checker - Modo SQLite (Single User)
+title Financial  - Modo SQLite (Single User)
 cls
 echo ========================================
-echo    FINANCIAL CHECKER v2.0
+echo    FINANCIAL  v2.0
 echo    MODO: SQLITE (SINGLE USER)
 echo ========================================
 echo.

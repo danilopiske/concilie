@@ -210,7 +210,7 @@ export function DeParaFormModal({
             <Checkbox
                 label="Ativo"
                 checked={formData.ativo === 1}
-                onChange={(e) => setFormData({ ...formData, ativo: e.target.checked ? 1 : 0 })}
+                onChange={(checked) => setFormData({ ...formData, ativo: checked ? 1 : 0 })}
             />
         </div>
 

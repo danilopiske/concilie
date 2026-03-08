@@ -366,7 +366,7 @@ export default function TermosPage() {
     <>
       {/* TopBar Fixa */}
       <TopBar>
-        <Logo>Financial Checker</Logo>
+        <Logo>Financial </Logo>
         <NavModules>
           <NavItem href="/gestao" active>Gestão</NavItem>
           <NavItem href="/importar">Importar</NavItem>

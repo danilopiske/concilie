@@ -1,5 +1,5 @@
 """
-Configurações globais do sistema Financial Checker
+Configurações globais do sistema Financial 
 Inclui configurações de banco de dados, segurança e aplicação
 """
 

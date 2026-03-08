@@ -1,31 +1,32 @@
 /**
- * Design Tokens - Concilie
- * Definições de cores, tipografia e espaçamentos do sistema
+ * Design Tokens - Financial 
+ * Navy Blue + Gold Executive Brand Identity
  */
 
 export const colors = {
-  // Primary - Azul (ações principais, links, foco)
-  primary: {
+  // Primary - Navy Blue (brand color from logo)
+  navy: {
     50: '#EFF6FF',
     100: '#DBEAFE',
     200: '#BFDBFE',
     300: '#93C5FD',
     400: '#60A5FA',
-    500: '#3B82F6',  // Primary principal
-    600: '#2563EB',
+    500: '#3B82F6',
+    600: '#2563EB',  // Navy medium
     700: '#1D4ED8',
     800: '#1E40AF',
-    900: '#1E3A8A',
+    900: '#1E3A8A',  // Navy dark (logo color)
+    950: '#172554',  // Navy darkest
   },
 
-  // Secondary - Dourado (destaque, premium, sucesso financeiro)
+  // Secondary - Gold (premium accent from logo)
   gold: {
     50: '#FFFBEB',
     100: '#FEF3C7',
     200: '#FDE68A',
     300: '#FCD34D',
-    400: '#FBBF24',
-    500: '#F59E0B',  // Dourado principal
+    400: '#FBBF24',  // Gold light
+    500: '#F59E0B',  // Gold primary (logo color)
     600: '#D97706',
     700: '#B45309',
     800: '#92400E',
@@ -93,7 +94,7 @@ export const colors = {
   border: {
     light: '#E5E7EB',
     medium: '#D1D5DB',
-     '#9CA3AF',
+    dark: '#9CA3AF',
   },
 };
 
@@ -117,7 +118,8 @@ export const radius = {
 
 export const typography = {
   fontFamily: {
-    body: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    body: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    heading: '"Poppins", "Inter", -apple-system, BlinkMacSystemFont, sans-serif',
     mono: 'ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace',
   },
   fontSize: {

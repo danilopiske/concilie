@@ -1,6 +1,6 @@
 /**
- * Componente Button - Design System
- * Paleta: Azul (primary), Cinza (neutro), Vermelho (erro), Dourado (premium)
+ * Componente Button - Executive Design System
+ * Navy + Gold Brand Colors
  */
 import React from 'react';
 
@@ -20,15 +20,15 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const baseClasses = 'font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseClasses = 'font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 focus:outline-none focus:ring-4 transform hover:scale-[1.02] active:scale-[0.98]';
   
   const variantClasses = {
-    primary: 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md hover:shadow-lg border border-transparent',
-    secondary: 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 shadow-sm hover:shadow-md',
-    danger: 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-md hover:shadow-lg border border-transparent',
-    success: 'bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-md hover:shadow-lg border border-transparent',
-    text: 'bg-transparent hover:bg-gray-100 text-gray-600 hover:text-gray-900',
-    gold: 'bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-white shadow-md hover:shadow-lg border border-transparent',
+    primary: 'bg-gradient-to-r from-[#1e3a8a] to-[#2563eb] hover:from-[#172554] hover:to-[#1e3a8a] text-white shadow-md hover:shadow-lg focus:ring-blue-200',
+    secondary: 'bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-300 shadow-sm hover:shadow-md focus:ring-gray-200',
+    danger: 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-md hover:shadow-lg focus:ring-red-200',
+    success: 'bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-md hover:shadow-lg focus:ring-green-200',
+    text: 'bg-transparent hover:bg-gray-100 text-gray-600 hover:text-gray-900 focus:ring-gray-200',
+    gold: 'bg-gradient-to-r from-[#f59e0b] to-[#fbbf24] hover:from-[#d97706] hover:to-[#f59e0b] text-white shadow-md hover:shadow-lg focus:ring-yellow-200',
   };
   
   const sizeClasses = {

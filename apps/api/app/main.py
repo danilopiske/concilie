@@ -1,5 +1,5 @@
 """
-Financial Checker API
+Financial  API
 FastAPI Application Entry Point
 """
 
@@ -16,12 +16,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.api import api_router
 from app.core.database import init_db
+import traceback
+from fastapi.responses import JSONResponse, ORJSONResponse
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="Sistema de Conciliacao Financeira",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    default_response_class=ORJSONResponse,
 )
 
 
@@ -44,6 +47,15 @@ app.add_middleware(
 
 # Include routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print(f"❌ GLOBAL EXCEPTION: {exc}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}"},
+    )
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):

@@ -21,7 +21,7 @@ else:
     bundle_dir = base_dir
 
 # --- Configuração de Ambiente ---
-app_data_dir = Path(os.getenv('APPDATA')) / 'FinancialChecker'
+app_data_dir = Path(os.getenv('APPDATA')) / 'Financial'
 app_data_dir.mkdir(parents=True, exist_ok=True)
 
 # Lógica de Seeding (Preenchimento inicial do banco)
@@ -80,21 +80,52 @@ class SPAHandler(http.server.SimpleHTTPRequestHandler):
             
         super().do_GET()
 
-def start_frontend_server():
-    """Roda servidor estático na porta 3000"""
-    PORT = 3000
+def find_free_port(start_port=3000, max_port=3100):
+    """Find a free port within a range"""
+    import socket
+    for port in range(start_port, max_port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    return 0 # Let OS choose if range is full, though we prefer a fixed range for feeling
+
+def start_frontend_server(server_ready_event, final_port_container):
+    """Roda servidor estático em uma porta livre"""
+    # Find free port
+    PORT = find_free_port()
+    if PORT == 0:
+        # Fallback to pure dynamic
+        with socketserver.TCPServer(("127.0.0.1", 0), SPAHandler) as s:
+            PORT = s.server_address[1]
+    
+    final_port_container['port'] = PORT
+    
     try:
-        with socketserver.TCPServer(("", PORT), SPAHandler) as current_httpd:
+        # We need to create the server again bound to the specific port if we used find_free_port logic
+        # Or if we just claimed it, we hope it's still free. A small race condition exists but is negligible for desktop.
+        with socketserver.TCPServer(("127.0.0.1", PORT), SPAHandler) as current_httpd:
             print(f"🌍 Frontend rodando em: http://localhost:{PORT}")
+            server_ready_event.set() # Signal that server is ready
             current_httpd.serve_forever()
     except OSError as e:
         print(f"❌ Erro ao iniciar frontend na porta {PORT}: {e}")
 
-def open_browser():
+def open_browser(port_container):
     """Abre o navegador na porta do Frontend"""
-    time.sleep(2)
-    print("🚀 Abrindo navegador...")
-    webbrowser.open("http://localhost:3000")
+    # Wait for port to be assigned (max 5 seconds)
+    import time
+    for _ in range(10):
+        if 'port' in port_container:
+            break
+        time.sleep(0.5)
+        
+    port = port_container.get('port', 3000)
+    time.sleep(1) # Small buffer
+    print(f"🚀 Abrindo navegador em http://localhost:{port}...")
+    webbrowser.open(f"http://localhost:{port}")
 
 def main():
     multiprocessing.freeze_support()
@@ -103,12 +134,16 @@ def main():
     print(f"📂 Banco de Dados: {db_path}")
 
     if static_dir.exists():
+        # Shared state for port
+        server_ready = threading.Event()
+        port_container = {}
+
         # Iniciar Frontend em Thread separada
-        t_frontend = threading.Thread(target=start_frontend_server, daemon=True)
+        t_frontend = threading.Thread(target=start_frontend_server, args=(server_ready, port_container), daemon=True)
         t_frontend.start()
         
         # Agendar abertura do browser
-        t_browser = threading.Thread(target=open_browser, daemon=True)
+        t_browser = threading.Thread(target=open_browser, args=(port_container,), daemon=True)
         t_browser.start()
     else:
         print("❌ Frontend não encontrado. Rodando apenas API.")

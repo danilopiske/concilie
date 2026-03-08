@@ -1,8 +1,8 @@
 @echo off
-title Financial Checker - Modo MySQL (Multi User)
+title Financial  - Modo MySQL (Multi User)
 cls
 echo ========================================
-echo    FINANCIAL CHECKER v2.0
+echo    FINANCIAL  v2.0
 echo    MODO: MYSQL (MULTI USER)
 echo ========================================
 echo.

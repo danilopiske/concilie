@@ -2,8 +2,8 @@ from sqlalchemy import create_engine, text
 from app.core.config import settings
 
 # Override settings to force sqlite path if needed, but assuming env is correct
-# db_url = "sqlite:///d:/Financial Checker base/Financial_P/financial_checker.db"
-db_url = "sqlite:///d:/Financial Checker base/Financial_P/financial_checker.db"
+# db_url = "sqlite:///d:/Financial  base/Financial_P/financial_.db"
+db_url = "sqlite:///d:/Financial  base/Financial_P/financial_.db"
 
 engine = create_engine(db_url)
 

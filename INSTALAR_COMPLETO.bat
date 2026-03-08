@@ -1,15 +1,15 @@
 @echo off
-title Financial Checker v2.0 - Instalacao Completa
+title Financial  v2.0 - Instalacao Completa
 cls
 echo ========================================
-echo    FINANCIAL CHECKER v2.0
+echo    FINANCIAL  v2.0
 echo    INSTALACAO COMPLETA
 echo ========================================
 echo.
 echo Este instalador vai:
 echo   [1] Verificar/Instalar Python 3.11
 echo   [2] Instalar Poetry
-echo   [3] Instalar Financial Checker
+echo   [3] Instalar Financial 
 echo   [4] Configurar banco SQLite
 echo.
 echo Requisitos:
@@ -138,7 +138,7 @@ REM ==============================================
 REM ETAPA 3: INSTALAR DEPENDENCIAS
 REM ==============================================
 echo.
-echo [3/4] Instalando Financial Checker...
+echo [3/4] Instalando Financial ...
 echo.
 echo [!] IMPORTANTE: Isso pode levar 5-15 minutos
 echo     Aguarde ate aparecer a mensagem de conclusao

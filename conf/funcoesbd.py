@@ -129,7 +129,7 @@ def _upsert_sql(
 # ==============================
 
 
-def recebiveis_processados_bulk_insert(engine: Engine, df) -> int:
+def recebiveis_processados_bulk_insert(engine: Engine, df, progress_callback=None) -> int:
     """Insere recebíveis processados em massa (MySQL/SQLite)"""
     # Usar tipo adequado ao banco
     decimal_type = sql_adapter.get_decimal_type(engine)
@@ -155,22 +155,35 @@ def recebiveis_processados_bulk_insert(engine: Engine, df) -> int:
 
                 dtype_map[col] = DECIMAL(18, 2)
             else:
-                from sqlalchemy.types import REAL
-
                 dtype_map[col] = REAL
 
-    df.to_sql(
-        name="recebiveis_processados",
-        con=engine,
-        index=False,
-        if_exists="append",
-        chunksize=10000,
-        dtype=dtype_map if dtype_map else None,
-    )
-    return len(df)
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    valid_cols = [c["name"] for c in inspector.get_columns("recebiveis_processados")]
+    total_rows = len(df)
+    inserted = 0
+    chunksize = 1000 # Further reduced chunksize to 1000 to minimize lock contention
+
+    for i in range(0, total_rows, chunksize):
+        chunk = df.iloc[i : i + chunksize]
+        chunk.to_sql(
+            name="recebiveis_processados",
+            con=engine,
+            index=False,
+            if_exists="append",
+            chunksize=chunksize,
+            dtype=dtype_map if dtype_map else None,
+        )
+        inserted += len(chunk)
+        if progress_callback:
+            progress = int((inserted / total_rows) * 100)
+            progress_callback(progress, f"Gravando recebíveis processados ({inserted}/{total_rows})...")
+        print(f"[DEBUG][BULK_INSERT] Inseridos {inserted}/{total_rows} recebíveis processados...")
+
+    return inserted
 
 
-def recebiveis_filtrados_bulk_insert(engine: Engine, df) -> int:
+def recebiveis_filtrados_bulk_insert(engine: Engine, df, progress_callback=None) -> int:
     """Insere recebíveis filtrados em massa (MySQL/SQLite)"""
     # Usar tipo adequado ao banco
     decimal_type = sql_adapter.get_decimal_type(engine)
@@ -196,19 +209,32 @@ def recebiveis_filtrados_bulk_insert(engine: Engine, df) -> int:
 
                 dtype_map[col] = DECIMAL(18, 2)
             else:
-                from sqlalchemy.types import REAL
-
                 dtype_map[col] = REAL
 
-    df.to_sql(
-        name="recebiveis_filtrados",
-        con=engine,
-        index=False,
-        if_exists="append",
-        chunksize=10000,
-        dtype=dtype_map if dtype_map else None,
-    )
-    return len(df)
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    valid_cols = [c["name"] for c in inspector.get_columns("recebiveis_filtrados")]
+    total_rows = len(df)
+    inserted = 0
+    chunksize = 1000 # Further reduced chunksize to 1000 to minimize lock contention
+
+    for i in range(0, total_rows, chunksize):
+        chunk = df.iloc[i : i + chunksize]
+        chunk.to_sql(
+            name="recebiveis_filtrados",
+            con=engine,
+            index=False,
+            if_exists="append",
+            chunksize=chunksize,
+            dtype=dtype_map if dtype_map else None,
+        )
+        inserted += len(chunk)
+        if progress_callback:
+            progress = int((inserted / total_rows) * 100)
+            progress_callback(progress, f"Gravando recebíveis filtrados ({inserted}/{total_rows})...")
+        print(f"[DEBUG][BULK_INSERT] Inseridos {inserted}/{total_rows} recebíveis filtrados...")
+
+    return inserted
 
 
 def recebiveis_remover_duplicadas(
@@ -232,9 +258,11 @@ def recebiveis_remover_duplicadas(
         return
 
     group_by_cols = ", ".join(colunas_para_groupby)
+    
+    # Identificar o tipo de banco
+    db_type = sql_adapter.get_db_type(engine)
 
-    # Adapta SQL para MySQL vs SQLite
-    if sql_adapter.get_db_type(engine) == "sqlite":
+    if db_type == "sqlite":
         # SQLite: sintaxe mais simples
         sql = f"""
         DELETE FROM {nome_tabela}
@@ -245,25 +273,39 @@ def recebiveis_remover_duplicadas(
         )
         AND processamentoid = :id_proc
         """
+        exec_sql(engine, sql, {"id_proc": processamento_id})
     else:
-        # MySQL: precisa de subquery extra
-        sql = f"""
-        DELETE FROM {nome_tabela}
-        WHERE id IN (
-            SELECT * FROM (
-                SELECT r.id FROM {nome_tabela} r
-                WHERE r.processamentoid = :id_proc
-                AND r.id NOT IN (
-                    SELECT MIN(id) FROM {nome_tabela}
-                    WHERE processamentoid = :id_proc
-                    GROUP BY {group_by_cols}
-                )
-            ) AS sub
-        )
+        # MySQL: Otimizado com TEMPORARY TABLE para evitar lock timeouts em grandes volumes
+        # 1. Criar tabela temporária com IDs a manter
+        sql_tmp = f"""
+        CREATE TEMPORARY TABLE tmp_ids_to_keep AS
+        SELECT MIN(id) as keep_id FROM {nome_tabela}
+        WHERE processamentoid = :id_proc
+        GROUP BY {group_by_cols}
         """
-
-    exec_sql(engine, sql, {"id_proc": processamento_id})
-
+        
+        # 2. Deletar os que não estão na tabela temporária usando JOIN (mais rápido que NOT IN)
+        sql_del = f"""
+        DELETE r1 FROM {nome_tabela} r1
+        LEFT JOIN tmp_ids_to_keep r2 ON r1.id = r2.keep_id
+        WHERE r1.processamentoid = :id_proc
+        AND r2.keep_id IS NULL
+        """
+        
+        # 2.5 Criar índice na tabela temporária para acelerar o JOIN
+        sql_idx = "CREATE INDEX idx_keep_id ON tmp_ids_to_keep(keep_id)"
+        
+        # 3. Remover tabela temporária
+        sql_drop = "DROP TEMPORARY TABLE IF EXISTS tmp_ids_to_keep"
+        
+        print(f"[DEBUG][DEDUP] Executando deduplicação otimizada (temp table) em {nome_tabela} para proc {processamento_id}...")
+        with engine.begin() as conn:
+            # Aumentar timeout para esta transação específica
+            conn.execute(text("SET SESSION innodb_lock_wait_timeout = 300"))
+            conn.execute(text(sql_tmp), {"id_proc": processamento_id})
+            conn.execute(text(sql_idx))
+            conn.execute(text(sql_del), {"id_proc": processamento_id})
+            conn.execute(text(sql_drop))
 
 # ...existing code...
 
@@ -393,6 +435,13 @@ def exec_sql(engine: Engine, sql: str, params: Optional[Dict[str, Any]] = None) 
     """Executes a SQL statement."""
     sql = _adapt_sql(engine, sql)  # Adapta SQL para SQLite quando necessário
     with get_conn(engine) as conn:
+        # Increase lock wait timeout for MySQL for this session
+        if sql_adapter.get_db_type(engine) == "mysql":
+            try:
+                conn.execute(text("SET SESSION innodb_lock_wait_timeout = 300"))
+            except Exception as e_timeout:
+                print(f"[WARNING] Could not set innodb_lock_wait_timeout: {e_timeout}")
+                
         conn.execute(text(sql), params or {})
 
 
@@ -1070,7 +1119,7 @@ def deletar_processamento(engine: Engine, id_processamento: str) -> Dict[str, in
         raise Exception(f"Falha ao deletar processamento: {e}")
 
 
-def vendas_processadas_bulk_insert(engine: Engine, df) -> int:
+def vendas_processadas_bulk_insert(engine: Engine, df, progress_callback=None) -> int:
     from sqlalchemy.types import DECIMAL, Float
 
     # Definir tipos explícitos para colunas decimais/numéricas
@@ -1094,18 +1143,35 @@ def vendas_processadas_bulk_insert(engine: Engine, df) -> int:
                 18, 2
             )  # Precisão de 18 dígitos, 2 casas decimais (padrão monetário)
 
-    df.to_sql(
-        name="vendas_processadas",
-        con=engine,
-        index=False,
-        if_exists="append",
-        chunksize=10000,
-        dtype=dtype_map if dtype_map else None,
-    )
-    return len(df)
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    valid_cols = [c["name"] for c in inspector.get_columns("vendas_processadas")]
+    df = df[[c for c in df.columns if c in valid_cols]]
+
+    total_rows = len(df)
+    inserted = 0
+    chunksize = 1000 # Further reduced chunksize to prevent lock timeouts and long-running transactions
+    
+    for i in range(0, total_rows, chunksize):
+        chunk = df.iloc[i : i + chunksize]
+        chunk.to_sql(
+            name="vendas_processadas",
+            con=engine,
+            index=False,
+            if_exists="append",
+            chunksize=chunksize,
+            dtype=dtype_map if dtype_map else None,
+        )
+        inserted += len(chunk)
+        if progress_callback:
+            progress = int((inserted / total_rows) * 100)
+            progress_callback(progress, f"Gravando vendas processadas ({inserted}/{total_rows})...")
+        print(f"[DEBUG][BULK_INSERT] Inseridas {inserted}/{total_rows} vendas processadas...")
+
+    return inserted
 
 
-def vendas_filtradas_bulk_insert(engine: Engine, df) -> int:
+def vendas_filtradas_bulk_insert(engine: Engine, df, progress_callback=None) -> int:
     from sqlalchemy.types import DECIMAL, Float
 
     # Definir tipos explícitos para colunas decimais/numéricas
@@ -1129,15 +1195,32 @@ def vendas_filtradas_bulk_insert(engine: Engine, df) -> int:
                 18, 2
             )  # Precisão de 18 dígitos, 2 casas decimais (padrão monetário)
 
-    df.to_sql(
-        name="vendas_filtradas",
-        con=engine,
-        index=False,
-        if_exists="append",
-        chunksize=10000,
-        dtype=dtype_map if dtype_map else None,
-    )
-    return len(df)
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    valid_cols = [c["name"] for c in inspector.get_columns("vendas_filtradas")]
+    df = df[[c for c in df.columns if c in valid_cols]]
+
+    total_rows = len(df)
+    inserted = 0
+    chunksize = 1000 # Further reduced chunksize to prevent lock timeouts and long-running transactions
+    
+    for i in range(0, total_rows, chunksize):
+        chunk = df.iloc[i : i + chunksize]
+        chunk.to_sql(
+            name="vendas_filtradas",
+            con=engine,
+            index=False,
+            if_exists="append",
+            chunksize=chunksize,
+            dtype=dtype_map if dtype_map else None,
+        )
+        inserted += len(chunk)
+        if progress_callback:
+            progress = int((inserted / total_rows) * 100)
+            progress_callback(progress, f"Gravando vendas filtradas ({inserted}/{total_rows})...")
+        print(f"[DEBUG][BULK_INSERT] Inseridas {inserted}/{total_rows} vendas filtradas...")
+
+    return inserted
 
 
 def vendas_diversas_bulk_insert(engine: Engine, df) -> int:
@@ -1163,6 +1246,11 @@ def vendas_diversas_bulk_insert(engine: Engine, df) -> int:
             dtype_map[col] = DECIMAL(
                 18, 2
             )  # Precisão de 18 dígitos, 2 casas decimais (padrão monetário)
+
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    valid_cols = [c["name"] for c in inspector.get_columns("vendas_diversas")]
+    df = df[[c for c in df.columns if c in valid_cols]]
 
     df.to_sql(
         name="vendas_diversas",
@@ -1194,24 +1282,61 @@ def vendas_remover_duplicadas(
     if not colunas_para_groupby:
         return
 
-    group_by_cols = ", ".join(colunas_para_groupby)
-
-    sql = f"""
-    DELETE FROM {nome_tabela}
-    WHERE id IN (
-        SELECT * FROM (
+    # Identificar o tipo de banco
+    db_type = sql_adapter.get_db_type(engine)
+    
+    if db_type == "sqlite":
+        # SQLite: sintaxe compatível
+        sql = f"""
+        DELETE FROM {nome_tabela}
+        WHERE id IN (
             SELECT v.id FROM {nome_tabela} v
             LEFT JOIN vendas_calculos c ON v.id = c.id_venda
             WHERE v.processamentoid = :id_proc AND c.id_venda IS NULL
             AND v.id NOT IN (
                 SELECT MIN(id) FROM {nome_tabela}
                 WHERE processamentoid = :id_proc
-                GROUP BY {group_by_cols}
+                GROUP BY {", ".join(colunas_para_groupby)}
             )
-        ) AS sub
-    )
-    """
-    exec_sql(engine, sql, {"id_proc": processamento_id})
+        )
+        """
+        exec_sql(engine, sql, {"id_proc": processamento_id})
+    else:
+        # MySQL: Otimizado com TEMPORARY TABLE para evitar lock timeouts em grandes volumes
+        # join_conditions = " AND ".join([f"v1.{col} <=> v2.{col}" for col in colunas_para_groupby])
+        
+        # 1. Criar tabela temporária com IDs a manter
+        sql_tmp = f"""
+        CREATE TEMPORARY TABLE tmp_vendas_to_keep AS
+        SELECT MIN(id) as keep_id FROM {nome_tabela}
+        WHERE processamentoid = :id_proc
+        GROUP BY {", ".join(colunas_para_groupby)}
+        """
+        
+        # 2. Deletar os duplicados que NÃO têm cálculos associados
+        sql_del = f"""
+        DELETE v1 FROM {nome_tabela} v1
+        LEFT JOIN tmp_vendas_to_keep v2 ON v1.id = v2.keep_id
+        LEFT JOIN vendas_calculos c ON v1.id = c.id_venda
+        WHERE v1.processamentoid = :id_proc
+        AND v2.keep_id IS NULL
+        AND c.id_venda IS NULL
+        """
+        
+        # 3. Remover tabela temporária
+        sql_drop = "DROP TEMPORARY TABLE IF EXISTS tmp_vendas_to_keep"
+        
+        # 4. Criar índice para melhorar a performance absurda do JOIN no DELETE
+        sql_idx = "CREATE INDEX idx_keep_id ON tmp_vendas_to_keep(keep_id)"
+        
+        print(f"[DEBUG][DEDUP] Executando deduplicação otimizada (temp table) em {nome_tabela} para proc {processamento_id}...")
+        with engine.begin() as conn:
+            # Aumentar timeout para esta transação específica
+            conn.execute(text("SET SESSION innodb_lock_wait_timeout = 300"))
+            conn.execute(text(sql_tmp), {"id_proc": processamento_id})
+            conn.execute(text(sql_idx))
+            conn.execute(text(sql_del), {"id_proc": processamento_id})
+            conn.execute(text(sql_drop))
 
 
 # ==============================

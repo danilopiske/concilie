@@ -34,13 +34,18 @@ export default function ImportarVendasPage() {
   const [continuarProcessamento, setContinuarProcessamento] = useState(false);
   const [processamentoId, setProcessamentoId] = useState<string>('');
   
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[] | null>(null);
 
   // Preview State
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [previewColumns, setPreviewColumns] = useState<string[]>([]);
   const [fileId, setFileId] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<any>(null);
+
+  // Async Task State
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [taskStatus, setTaskStatus] = useState<any>(null);
+  const [polling, setPolling] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -104,9 +109,57 @@ export default function ImportarVendasPage() {
     loadProcessamentos();
   }, [continuarProcessamento]);
 
+  // Sync client and EC when processamentoId changes
+  useEffect(() => {
+    if (continuarProcessamento && processamentoId) {
+      const selectedProc = processamentos.find(p => String(p.id) === String(processamentoId));
+      if (selectedProc) {
+        if (selectedProc.cliente_id) {
+          setClienteId(String(selectedProc.cliente_id));
+        }
+        if (selectedProc.ec_id) {
+          setEc(selectedProc.ec_id);
+        }
+      }
+    }
+  }, [processamentoId, continuarProcessamento, processamentos]);
+
+  // Polling Effect
+  useEffect(() => {
+    let interval: any;
+    if (polling && taskId) {
+      interval = setInterval(async () => {
+        try {
+          const status = await importacaoApi.getTaskStatus(taskId);
+          setTaskStatus(status);
+          
+          if (status.status === 'SUCCESS' || status.status === 'FAILED') {
+            setPolling(false);
+            setLoading(false);
+            if (status.status === 'SUCCESS') {
+              setSuccess(status.message);
+              setFileId(null);
+              setPreviewData([]);
+              setFiles(null);
+              setTaskId(null);
+            } else {
+              setError(status.message);
+            }
+          }
+        } catch (err) {
+          console.error('Erro ao consultar status da tarefa', err);
+          setPolling(false);
+          setLoading(false);
+          setError('Erro ao consultar o progresso do processamento.');
+        }
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [polling, taskId]);
+
   const handleUploadPreview = async () => {
-    if (!file) {
-      setError('Por favor, selecione um arquivo.');
+    if (!files || files.length === 0) {
+      setError('Por favor, selecione um ou mais arquivos (ou um ZIP).');
       return;
     }
     if (!layout) {
@@ -130,7 +183,7 @@ export default function ImportarVendasPage() {
       setFileId(null);
       
       const response = await importacaoApi.upload(
-        file,
+        files,
         parseInt(clienteId),
         ec,
         layout, 
@@ -142,7 +195,11 @@ export default function ImportarVendasPage() {
       setFileId(response.file_id);
       setUploadResult(response);
       
-      setSuccess(`Arquivo analisado! ${response.total_lines} linhas encontradas. Verifique a amostra abaixo e clique em Gravar.`);
+      if (response.is_partial) {
+        setSuccess(`Preview do lote: Sorteados ${response.files_in_preview} de ${response.total_files} arquivos para amostra (~${response.total_rows_preview} linhas). Ao clicar em "Gravar", os arquivos originais inteiros serão processados.`);
+      } else {
+        setSuccess(`Arquivos analisados! Mostrando ${response.total_files} arquivo(s). Amostra rápida gerada com ${response.total_rows_preview} linhas iniciais. Ao clicar em "Gravar", o arquivo completo (todas as linhas) será processado em segundo plano.`);
+      }
       
     } catch (err: any) {
       console.error(err);
@@ -166,8 +223,9 @@ export default function ImportarVendasPage() {
       try {
           setLoading(true);
           setError(null);
+          setSuccess('Iniciando processamento em segundo plano...');
           
-          const result = await importacaoApi.confirmar(
+          const result = await importacaoApi.confirmarAsync(
               fileId,
               parseInt(clienteId),
               ec,
@@ -176,19 +234,16 @@ export default function ImportarVendasPage() {
               continuarProcessamento ? processamentoId : undefined
           );
 
-          setSuccess(`Sucesso! ${result.data.processadas} linhas processadas, ${result.data.filtradas} filtradas. Total: ${result.data.total}. Processamento ID: ${result.data.processamentoid}`);
-          setFileId(null);
-          setPreviewData([]);
-          setFile(null); 
+          setTaskId(result.task_id);
+          setPolling(true);
 
       } catch (err: any) {
         console.error(err);
         setError(
             err.response?.data?.detail || 
-            'Erro ao gravar os dados. Tente novamente.'
+            'Erro ao iniciar o processamento. Tente novamente.'
         );
-      } finally {
-          setLoading(false);
+        setLoading(false);
       }
   };
 
@@ -221,7 +276,27 @@ export default function ImportarVendasPage() {
 
           {success && (
             <Alert variant="success">
-              <strong>Status:</strong> {success}
+              <div className="flex flex-col gap-2">
+                <strong>Status:</strong> {success}
+                {taskStatus && taskStatus.status === 'PROCESSING' && (
+                  <div className="mt-2 p-3 bg-white/50 rounded-md border border-green-200">
+                    <div className="flex justify-between text-xs mb-1 font-medium">
+                      <span>Progresso: {taskStatus.progress}%</span>
+                      <span>{taskStatus.updated_at}</span>
+                    </div>
+                    <div className="w-full bg-green-200 rounded-full h-2 shadow-sm">
+                      <div 
+                        className="bg-green-600 h-2 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(22,163,74,0.4)]" 
+                        style={{ width: `${taskStatus.progress}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-xs mt-2 italic text-green-800 flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      {taskStatus.message}
+                    </p>
+                  </div>
+                )}
+              </div>
             </Alert>
           )}
 
@@ -256,7 +331,7 @@ export default function ImportarVendasPage() {
               label="Cliente"
               value={clienteId}
               onChange={(e) => setClienteId(e.target.value)}
-              disabled={loading}
+              disabled={loading || (continuarProcessamento && !!processamentoId)}
               placeholder="Selecione um cliente..."
               options={clientes.map(c => ({
                 value: c.cliente_id,
@@ -314,15 +389,16 @@ export default function ImportarVendasPage() {
           <div className="border-t pt-6">
             <h3 className="text-lg font-medium mb-4">Arquivo de Vendas</h3>
             <FileUpload
-              accept=".txt,.csv,.xlsx,.xls"
+              accept=".txt,.csv,.xlsx,.xls,.zip"
+              multiple={true}
               onFileSelect={(f) => {
-                  setFile(f);
+                  setFiles(f);
                   setFileId(null); 
                   setPreviewData([]);
                   setSuccess(null);
                   setError(null);
               }}
-              selectedFile={file}
+              selectedFile={files}
               loading={loading}
               error={null}
             />
@@ -336,7 +412,10 @@ export default function ImportarVendasPage() {
               <div className="mt-8 border rounded-lg overflow-hidden">
                   <div className="bg-gray-100 px-4 py-2 border-b font-medium flex justify-between items-center">
                     <span>Amostra dos Dados ({previewData.length} linhas)</span>
-                    <span className="text-xs text-gray-500">Total no arquivo: {uploadResult?.total_lines}</span>
+                    <span className="text-xs text-gray-500">
+                      Total na amostra: {uploadResult?.total_rows_preview} de {uploadResult?.total_files} arquivos 
+                      {uploadResult?.is_partial && " (Lote grande - Preview Parcial)"}
+                    </span>
                   </div>
                   <div className="overflow-x-auto max-h-[400px]">
                       <table className="min-w-full divide-y divide-gray-200">
@@ -370,7 +449,7 @@ export default function ImportarVendasPage() {
                 <Button 
                 onClick={handleUploadPreview} 
                 loading={loading}
-                disabled={!file}
+                disabled={!files || files.length === 0}
                 className="w-full md:w-auto"
                 >
                 {!loading && 'Processar e Normalizar'}

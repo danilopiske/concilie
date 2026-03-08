@@ -1,56 +1,118 @@
-# Concilie - Financial Checker
+# Concilie (Financial )
 
-**Concilie** é uma plataforma avançada de conciliação financeira e gestão de transações, projetada para processar, validar e analisar grandes volumes de dados de vendas (cartões, PIX, etc.) e recebíveis. O sistema oferece uma interface web moderna para importação de arquivos, criação de regras de negócio (De-Para), dashboards de análise e relatórios detalhados.
+> **A Hybrid Financial Reconciliation Platform** combining a robust Python core with a modern Next.js interface.
 
----
+![Status](https://img.shields.io/badge/Status-Hybrid%20Migration-yellow)
+![Backend](https://img.shields.io/badge/Backend-FastAPI%20%2B%20Python-blue)
+![Frontend](https://img.shields.io/badge/Frontend-Next.js%20(React)-black)
+![Database](https://img.shields.io/badge/Database-MySQL%20%7C%20SQLite-green)
 
-## 🚀 Visão Geral da Tecnologia
+## 📋 Overview
 
-O sistema utiliza uma arquitetura híbrida moderna, garantindo alta performance e facilidade de distribuição:
+Concilie is a system designed to process, validate, and reconcile large volumes of financial data (Cards, PIX, etc.). It features a unique **Dual-Mode Architecture** that allows it to run as a robust server application (MySQL) or a portable standalone executable (SQLite).
 
-*   **Frontend**: [Next.js](https://nextjs.org/) (React) com Tailwind CSS para uma interface responsiva e intuitiva.
-*   **Backend**: [FastAPI](https://fastapi.tiangolo.com/) (Python) para uma API robusta, assíncrona e tipada.
-*   **Core de Processamento**: Engine Python legado (`proc`) para leitura de arquivos complexos (Excel/CSV) e regras de negócio consolidadas.
-*   **Banco de Dados**: Suporte híbrido para **SQLite** (distribuição standalone) e **MySQL** (ambientes robustos).
-
-## 📂 Estrutura do Projeto
-
-*   `apps/web`: Código fonte do Frontend (Next.js).
-*   `apps/api`: Código fonte da API (FastAPI).
-*   `proc`: Lógica de processamento e regras de negócio (Legado/Core).
-*   `conf`: Arquivos de configuração e conexão com banco de dados.
-*   `data`: Diretório para armazenamento de banco de dados local (SQLite).
-*   `docs`: Documentação técnica e manuais.
-
-## 📚 Documentação
-
-Para detalhes específicos, consulte os manuais abaixo na pasta `docs/`:
-
-1.  **[Descritivo do Sistema](docs/DESCRITIVO_SISTEMA.md)**: Detalhamento funcional de todos os módulos (Conciliação, Importação, Cadastros).
-2.  **[Guia de Instalação](docs/GUIA_INSTALACAO.md)**: Passo-a-passo para instalação em ambientes de produção/clientes.
-3.  **[Guia de Distribuição](docs/GUIA_DISTRIBUICAO.md)**: Instruções para desenvolvedores gerarem o executável (`.exe`) do sistema.
-
-## 🛠️ Início Rápido (Desenvolvimento)
-
-Pré-requisitos: Python 3.11+, Node.js 18+, pnpm.
-
-1.  **Instalar Dependências**:
-    ```bash
-    # Backend
-    cd apps/api
-    poetry install
-
-    # Frontend
-    cd apps/web
-    pnpm install
-    ```
-
-2.  **Rodar o Sistema Localmente**:
-    Use o script `Iniciar Stack Moderno - SQLite.bat` na raiz do projeto, ou inicie manualmente:
-    *   Backend: `poetry run uvicorn app.main:app --reload`
-    *   Frontend: `pnpm dev`
+### Key Features
+- **Smart Import**: Heuristic detection of headers in messy Excel/CSV files.
+- **Dual-Database Core**: Seamlessly switch between MySQL (Production) and SQLite (Distribution) without code changes.
+- **Hybrid UI**: 
+    - **Modern**: Next.js + Tailwind web interface.
+    - **Legacy**: Panel-based interface for rapid data tools.
 
 ---
 
-**Desenvolvido por Danilo Piske**
-*Versão 1.8 - Next.js Migration*
+## 🏗️ Architecture
+
+The system is split into three main layers:
+
+1.  **Core (`proc/`, `conf/`)**: The business logic engine. Handles invalid file parsing, normalization rules ("De-Para"), and database abstraction.
+2.  **API (`apps/api`)**: A FastAPI service that exposes the Core logic to the web.
+3.  **Web (`apps/web`)**: A Next.js frontend application.
+
+👉 **View the full [Architecture Diagram](docs/ARCHITECTURE.md)**
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Python 3.11+
+- Node.js 18+ & pnpm
+- (Optional) MySQL Server 8.0+
+
+### 1. Installation
+
+**Backend Setup**
+```bash
+cd apps/api
+poetry install
+```
+
+**Frontend Setup**
+```bash
+cd apps/web
+pnpm install
+```
+
+### 2. Database Configuration (Critical)
+
+The system needs to know which database mode to use.
+
+**Option A: Developer Mode (MySQL)**
+*Requires a running MySQL server on localhost:3306*
+```bash
+python configure_db.py mysql
+```
+
+**Option B: Distribution Mode (SQLite)**
+*Runs immediately with a local file in `data/concilie.db`*
+```bash
+python configure_db.py sqlite
+```
+
+### 3. Running the System
+
+You can run the full stack using the provided scripts in the root directory:
+
+- **MySQL Mode**: Run `Iniciar Stack Moderno - MySQL.bat`
+- **SQLite Mode**: Run `Iniciar Stack Moderno - SQLite.bat`
+
+Or manually:
+
+```bash
+# Terminal 1 (Backend)
+cd apps/api
+poetry run uvicorn app.main:app --reload --port 8000
+
+# Terminal 2 (Frontend)
+cd apps/web
+pnpm dev
+```
+
+---
+
+## 📚 Documentation
+
+- **[Evaluation Report](docs/EVALUATION_REPORT.md)**: Current state assessment and code quality analysis.
+- **[Architecture](docs/ARCHITECTURE.md)**: System design and data flow.
+- **[System Description](docs/DESCRITIVO_SISTEMA.md)**: Functional details of modules.
+
+---
+
+## 🛠️ Project Structure
+
+```
+Financial_P/
+├── apps/
+│   ├── api/          # FastAPI Backend (The Bridge)
+│   └── web/          # Next.js Frontend (The Face)
+├── proc/             # Core Business Logic (Legacy)
+├── conf/             # Configuration & DB Adapters
+├── data/             # SQLite storage (concilie.db)
+├── docs/             # Documentation
+└── main.py           # Legacy Panel Entry Point
+```
+
+---
+
+**Version 1.8 - Hybrid Migration Stage**
+User: Danilo Piske

@@ -1,16 +1,16 @@
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Body
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Body, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.services.import_service import ImportService
 from app.schemas.importacao import ImportacaoConfirmar
-from typing import Optional
+from typing import Optional, List
 
 router = APIRouter()
 
 @router.post("/upload")
 async def upload_arquivo_preview(
-    file: UploadFile = File(...),
+    files: List[UploadFile] = File(...),
     cliente_id: int = Form(...),
     ec_id: str = Form(...),
     contexto: str = Form(...),
@@ -26,7 +26,7 @@ async def upload_arquivo_preview(
     """
     service = ImportService(db)
     return await service.preview_upload(
-        file=file,
+        files=files,
         cliente_id=cliente_id,
         ec_id=ec_id,
         contexto=contexto,

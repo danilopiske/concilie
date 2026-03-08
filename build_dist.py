@@ -54,25 +54,32 @@ def main():
     dist_output_dir.mkdir()
 
     # 1. Build Frontend
-    print("\n--- Building Frontend ---")
-    # Verificar se node_modules existe, senão instalar
-    if not (web_dir / "node_modules").exists():
-         run_command("pnpm install", cwd=web_dir)
-    
-    web_out_dir = web_dir / "out"
-    
-    # Always clean previous build to ensure fresh artifacts
-    if web_out_dir.exists():
-        print("Cleaning previous frontend build...")
-        robust_rmtree(web_out_dir)
+    if os.getenv("SKIP_FRONTEND") != "true":
+        print("\n--- Building Frontend ---")
+        # Verificar se node_modules existe, senão instalar
+        if not (web_dir / "node_modules").exists():
+             run_command("pnpm install", cwd=web_dir)
+        
+        web_out_dir = web_dir / "out"
+        
+        # Always clean previous build to ensure fresh artifacts
+        if web_out_dir.exists():
+            print("Cleaning previous frontend build...")
+            robust_rmtree(web_out_dir)
 
-    # Build e Export
-    run_command("pnpm run build", cwd=web_dir)
-    
-    # Verificar se output existe
-    if not web_out_dir.exists():
-        print("Erro: Diretório apps/web/out não foi criado. Verifique se 'output: export' está no next.config.ts")
-        sys.exit(1)
+        # Build e Export
+        run_command("pnpm run build", cwd=web_dir)
+        
+        # Verificar se output existe
+        if not web_out_dir.exists():
+            print("Erro: Diretório apps/web/out não foi criado. Verifique se 'output: export' está no next.config.ts")
+            sys.exit(1)
+    else:
+        print("\n--- Skipping Frontend Build (SKIP_FRONTEND=true) ---")
+        web_out_dir = web_dir / "out"
+        if not web_out_dir.exists():
+             print("❌ Error: SKIP_FRONTEND is set but apps/web/out does not exist.")
+             sys.exit(1)
 
     # 2. Build Backend (PyInstaller)
     print("\n--- Building Backend (PyInstaller) ---")
@@ -83,8 +90,39 @@ def main():
     # Definir separador de path correto para --add-data
     sep = ";" if os.name == 'nt' else ":"
     
-    base_name = "FinancialChecker"
+    base_name = "Financial"
     entry_point = api_dir / "app" / "dist_main.py"
+
+    # --- Resolve API Python Environment (MOVED UP) ---
+    # We need to know which python to use for both dependency checking AND PyInstaller
+    venv_python = sys.executable # Default fallback
+    try:
+        # Get path to poetry environment for apps/api
+        print(f"Resolving API environment path via poetry in {api_dir}...")
+        # Use shell=True for windows consistency with poetry
+        api_env_path = subprocess.check_output(
+            ["poetry", "env", "info", "--path"], 
+            cwd=api_dir, 
+            text=True,
+            shell=True
+        ).strip()
+        
+        print(f"📦 Found API Environment base at: {api_env_path}")
+        
+        if sys.platform == "win32":
+             candidate_python = str(Path(api_env_path) / "Scripts" / "python.exe")
+        else:
+             candidate_python = str(Path(api_env_path) / "bin" / "python")
+             
+        if not os.path.exists(candidate_python):
+            print(f"⚠️ Warning: Python executable not found at {candidate_python}")
+        else:
+            print(f"✅ Using API Python: {candidate_python}")
+            venv_python = candidate_python
+            
+    except Exception as e:
+        print(f"⚠️ Failed to resolve API venv path: {e}")
+        print("Fallback to current python executable...")
     
     # Obter paths de dependencias manuais
     manual_deps = ["pydantic_settings", "typing_inspection", "dotenv", "typing_extensions"]
@@ -98,7 +136,7 @@ def main():
             # Tentar importar e pegar o path
             cmd = f"import {dep}; import os; print(os.path.dirname({dep}.__file__))"
             path = subprocess.check_output(
-                ["poetry", "run", "python", "-c", cmd],
+                [venv_python, "-c", cmd],
                 cwd=api_dir,
                 text=True
             ).strip()
@@ -143,8 +181,8 @@ def main():
     else:
         print(f"⚠️ Warning: Seed database not found at {seed_db}")
 
-    # Use explicit python path to avoid poetry environment issues
-    venv_python = r"C:\Users\Danilo\AppData\Local\pypoetry\Cache\virtualenvs\financial-checker-api-k43NfNxY-py3.11\Scripts\python.exe"
+    # Use API python path to ensure correct environment
+    # (MOVED UP - Logic already executed and stored in venv_python)
     
     pyinstaller_cmd = (
         f"\"{venv_python}\" -m PyInstaller "
@@ -173,7 +211,7 @@ def main():
     
     # 3. Mover diretório gerado para raiz/dist
     # PyInstaller cria pasta 'dist' dentro do diretório de trabalho (apps/api/dist)
-    # Com --onedir, o output será uma pasta chamada 'FinancialChecker'
+    # Com --onedir, o output será uma pasta chamada 'Financial'
     
     src_dir = api_dir / "dist" / f"{base_name}"
     dst_dir = dist_output_dir / f"{base_name}"

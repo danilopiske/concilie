@@ -14,6 +14,7 @@ from app.models.taxa import Taxa
 from app.models.vendas import Venda, VendaFiltrada
 from app.models.recebiveis import Recebivel, RecebivelFiltrado
 from app.models.log import LogCorrecao
+from app.models.import_task import ImportTask
 
 __all__ = [
     "Base",
@@ -33,4 +34,5 @@ __all__ = [
     "Recebivel",
     "RecebivelFiltrado",
     "LogCorrecao",
+    "ImportTask",
 ]

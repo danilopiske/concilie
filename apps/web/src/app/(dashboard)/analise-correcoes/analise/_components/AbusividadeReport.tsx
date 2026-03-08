@@ -232,7 +232,7 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
                             </div>
                             <div className="flex gap-1" data-html2canvas-ignore>
                                 <Button 
-                                    variant="ghost" 
+                                    variant="text" 
                                     size="sm" 
                                     onClick={() => handleCopyTable(previewItems)}
                                     title="Copiar tabela para Word/Excel"
@@ -241,7 +241,7 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
                                     <Copy className="w-4 h-4" />
                                 </Button>
                                 <Button 
-                                    variant="ghost" 
+                                    variant="text" 
                                     size="sm" 
                                     onClick={() => handleDownloadPNG(elementId, `abusividade-${index+1}`)}
                                     title="Baixar imagem PNG"

@@ -34,7 +34,7 @@ class ProcessamentoRepository:
             
             # Use bindparam with expanding=True for robust list handling
             query_proc = text("""
-                SELECT processamentoid, COUNT(*), MIN(data_processamento), MAX(data_processamento)
+                SELECT processamentoid, COUNT(id)
                 FROM vendas_processadas 
                 WHERE processamentoid IN :pids
                 GROUP BY processamentoid
@@ -45,8 +45,8 @@ class ProcessamentoRepository:
                 for r in rows_proc:
                     stats_processadas[r[0]] = {
                         'count': r[1],
-                        'min': r[2],
-                        'max': r[3]
+                        'min': None,
+                        'max': None
                     }
             except Exception as e:
                 print(f"Error getting stats: {e}")
@@ -56,7 +56,7 @@ class ProcessamentoRepository:
         if not simple and proc_ids:
             from sqlalchemy import bindparam
             query_filt = text("""
-                SELECT processamentoid, COUNT(*)
+                SELECT processamentoid, COUNT(id)
                 FROM vendas_filtradas
                 WHERE processamentoid IN :pids
                 GROUP BY processamentoid
