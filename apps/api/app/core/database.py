@@ -33,8 +33,8 @@ def get_database_url() -> str:
 engine = create_engine(
     get_database_url(),
     pool_pre_ping=True,
-    pool_size=20 if settings.DATABASE_TYPE == "mysql" else None,
-    max_overflow=10 if settings.DATABASE_TYPE == "mysql" else None,
+    pool_size=20 if settings.DATABASE_TYPE == "mysql" else 5,
+    max_overflow=10 if settings.DATABASE_TYPE == "mysql" else 10,
     pool_recycle=3600,
     echo=settings.DEBUG_SQL if hasattr(settings, "DEBUG_SQL") else False,
 )
