@@ -36,6 +36,7 @@ from modules.ui_correcao import (
     criar_ui_correcao,
 )  # <-- IMPORTAÇÃO DA CORREÇÃO DE IMPORTAÇÕES
 from proc.proc_usuarios import get_user_by_credentials
+from modules.ui_theme import apply_template_patch
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -342,6 +343,7 @@ template = pn.template.FastListTemplate(
     sidebar_width=280,
     collapsed_sidebar=False,
 )
+apply_template_patch(template)
 
 # ⚠️ Script de reconexão automática + heartbeat (evita "página não responde")
 reconnect_script = """

@@ -21,6 +21,7 @@ from conf.funcoesbd import (
     listar_processamentos_detalhado,
     deletar_processamento,
 )
+from modules.ui_theme import create_glass_card, premium_metric
 
 from proc.proc_importacao import (
     preparar_dataframe_de_arquivo,
@@ -377,15 +378,26 @@ def _make_tab_depara(
     )
 
     return pn.Column(
-        pn.pane.Markdown("### De-Para de Colunas"),
-        pn.Row(btn_refresh),
-        grid,
-        pn.layout.Divider(),
-        pn.pane.Markdown("#### Formulário de Mapeamento"),
-        pn.Row(amostra_file, btn_ler_cabecalho, align="end"),
-        form_layout,
-        pn.Row(btn_novo, btn_inserir, btn_atualizar, btn_excluir),
-        msg_pane,
+        pn.pane.Markdown("# Mapeamento De-Para", css_classes=["premium-header"]),
+        create_glass_card(
+            pn.Column(
+                pn.Row(btn_refresh),
+                grid,
+            ),
+            title="📋 Regras de Mapeamento"
+        ),
+        pn.Spacer(height=20),
+        create_glass_card(
+            pn.Column(
+                pn.Row(amostra_file, btn_ler_cabecalho, align="end"),
+                form_layout,
+                pn.Row(btn_novo, btn_inserir, btn_atualizar, btn_excluir),
+                msg_pane,
+            ),
+            title="🛠️ Configurar Novo Campo"
+        ),
+        sizing_mode="stretch_width",
+        margin=(10, 20)
     )
 
 
@@ -515,7 +527,7 @@ def _make_tab_importar(
     btn_gravar = pn.widgets.Button(name="Gravar no Banco", button_type="success")
 
     info = pn.pane.Markdown("", sizing_mode="stretch_width")
-    resumo = pn.pane.Markdown("", sizing_mode="stretch_width")
+    resumo = pn.Column(sizing_mode="stretch_width")
     preview = pn.widgets.Tabulator(
         pd.DataFrame(),
         height=320,
@@ -858,47 +870,64 @@ def _make_tab_importar(
                 resultados.append((arq["arquivo"], result, None))
             except Exception as e:
                 resultados.append((arq["arquivo"], None, str(e)))
-        # Monta resumo
-        resumo_txt = ""
+        # Monta resumo premium
+        metrics_rows = []
         for fname, result, err in resultados:
             if err:
-                resumo_txt += f"\n**{fname}**: Erro ao gravar: {err}"
+                metrics_rows.append(pn.pane.Alert(f"**{fname}**: Erro ao gravar: {err}", alert_type="danger"))
             else:
-                diversas_info = (
-                    f" | Diversas: {result.get('diversas', 0)}"
-                    if result.get("diversas", 0) > 0
-                    else ""
+                p_id = result.get('processamentoid', '-')
+                total_val = result.get('total', 0)
+                metrics_rows.append(
+                    pn.Row(
+                        pn.pane.Markdown(f"### {fname}"),
+                        premium_metric("Processamento ID", p_id),
+                        premium_metric("Total de Linhas", f"{total_val:,}"),
+                        premium_metric("Status", "Gravado", color="#238636"),
+                        sizing_mode="stretch_width"
+                    )
                 )
-                resumo_txt += (
-                    f"\n**{fname}**: Processamento ID `{result['processamentoid']}`\n"
-                    f"- Processadas: {result['processadas']} | Filtradas: {result['filtradas']}{diversas_info} | Total: {result['total']}"
-                )
-        resumo.object = resumo_txt.strip()
-        _notify("success", f"Gravação concluída para {len(arquivos)} arquivo(s).")
+        resumo.objects = metrics_rows
+        _notify("success", f"Gravaçāo concluída para {len(arquivos)} arquivo(s).")
 
     btn_processar.on_click(on_process)
     btn_gravar.on_click(on_gravar)
 
-    return pn.Column(
-        pn.pane.Markdown("### Importar Arquivo"),
-        pn.Row(cliente_select, ec_select, contexto_select, tipo_select),
-        pn.layout.Divider(),
-        pn.pane.Markdown("**Opções de Processamento:**"),
-        pn.Row(
-            continuar_checkbox, processamentoid_select, btn_atualizar_processamentoid
+    # Layout Refatorado (Premium UI)
+    header_section = create_glass_card(
+        pn.Column(
+            pn.Row(cliente_select, ec_select, contexto_select, tipo_select, sizing_mode="stretch_width"),
+            pn.Row(continuar_checkbox, processamentoid_select, btn_atualizar_processamentoid, sizing_mode="stretch_width"),
+            pn.Row(file_input, btn_processar, btn_gravar, btn_reset, align="end", sizing_mode="stretch_width"),
+            progress_importacao,
         ),
-        pn.layout.Divider(),
-        pn.Row(file_input, btn_processar, btn_gravar, btn_reset, align="end"),
-        progress_importacao,
-        pn.layout.Divider(),
-        pn.pane.Markdown("**Arquivos Processados:**"),
-        arquivos_tabulator,
-        pn.Row(btn_refresh_preview, align="end"),
-        info,
-        preview,
-        pn.layout.Divider(),
-        pn.pane.Markdown("### Resultado da Gravação"),
+        title="📥 Configuração de Importação"
+    )
+
+    preview_section = create_glass_card(
+        pn.Column(
+            arquivos_tabulator,
+            pn.Row(btn_refresh_preview, align="end"),
+            info,
+            preview,
+        ),
+        title="🔍 Preview dos Dados"
+    )
+
+    result_section = create_glass_card(
         resumo,
+        title="📊 Resultado da Gravação"
+    )
+
+    return pn.Column(
+        pn.pane.Markdown("# Importação de Arquivos", css_classes=["premium-header"]),
+        header_section,
+        pn.Spacer(height=20),
+        preview_section,
+        pn.Spacer(height=20),
+        result_section,
+        sizing_mode="stretch_width",
+        margin=(10, 20)
     )
 
 
@@ -1060,16 +1089,18 @@ def _make_tab_gestao_processamentos(
 
     # Layout da aba
     return pn.Column(
-        pn.pane.Markdown("### Gestão de Processamentos"),
-        pn.pane.Markdown(
-            "**Instruções:** Selecione um processamento na tabela e clique em **Deletar** para remover todas as vendas associadas."
+        pn.pane.Markdown("# Gestão de Processamentos", css_classes=["premium-header"]),
+        create_glass_card(
+            pn.Column(
+                pn.Row(btn_atualizar, btn_deletar, align="start"),
+                status_pane,
+                pn.layout.Divider(),
+                processamentos_tabulator,
+            ),
+            title="🗂️ Histórico de Cargas"
         ),
-        pn.layout.Divider(),
-        pn.Row(btn_atualizar, btn_deletar, align="start"),
-        status_pane,
-        pn.layout.Divider(),
-        processamentos_tabulator,
         sizing_mode="stretch_width",
+        margin=(10, 20)
     )
 
 

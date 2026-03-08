@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 from conf.funcoesbd import fetch_all
 from modules.reconciliation_core import ReconciliationCore
+from modules.ui_theme import create_glass_card, premium_metric
 
 
 def _remove_collate_if_sqlite(engine, sql: str) -> str:
@@ -958,59 +959,68 @@ def make_calculos_view(engine):
         # Inicializar
         carregar_calculos()
         return pn.Column(
-            pn.pane.Markdown("### Gestão de Cálculos Existentes"),
-            pn.Row(
-                filtro_tipo,
-                filtro_usuario,
-                filtro_data_ini,
-                filtro_data_fim,
-                btn_atualizar,
+            pn.pane.Markdown("# Gestão de Cálculos", css_classes=["premium-header"]),
+            create_glass_card(
+                pn.Column(
+                    pn.Row(
+                        filtro_tipo,
+                        filtro_usuario,
+                        filtro_data_ini,
+                        filtro_data_fim,
+                        btn_atualizar,
+                        sizing_mode="stretch_width"
+                    ),
+                    tab_gestao,
+                    pn.Row(btn_deletar, status_gestao),
+                ),
+                title="🗄️ Histórico de Cálculos"
             ),
-            tab_gestao,
-            pn.Row(btn_deletar, status_gestao),
             sizing_mode="stretch_width",
+            margin=(10, 20)
         )
 
-    # --- Tabs principal ---
-    aba_calculo = pn.Column(
-        pn.pane.Markdown(
-            "## Cálculo de Taxas sobre Vendas", sizing_mode="stretch_width"
-        ),
-        pn.Card(
-            pn.Column(
-                pn.Row(proc_select, sizing_mode="stretch_width"),
-                pn.Spacer(height=10),
-                pn.Row(usar_taxa_cad_checkbox, sizing_mode="stretch_width"),
-                pn.Spacer(height=10),
-                pn.Row(taxa_select, sizing_mode="stretch_width"),
-                pn.Spacer(height=10),
-                pn.Row(receba_rapido_checkbox, sizing_mode="stretch_width"),
-                pn.Spacer(height=10),
-                pn.Row(
-                    btn_preview,
-                    btn_processar,
-                    sizing_mode="stretch_width",
-                    align="center",
-                ),
+    # --- Layout Refatorado (Premium UI) ---
+    params_card = create_glass_card(
+        pn.Column(
+            pn.Row(proc_select, sizing_mode="stretch_width"),
+            pn.Spacer(height=10),
+            pn.Row(usar_taxa_cad_checkbox, sizing_mode="stretch_width"),
+            pn.Spacer(height=10),
+            pn.Row(taxa_select, sizing_mode="stretch_width"),
+            pn.Spacer(height=10),
+            pn.Row(receba_rapido_checkbox, sizing_mode="stretch_width"),
+            pn.Spacer(height=10),
+            pn.Row(
+                btn_preview,
+                btn_processar,
                 sizing_mode="stretch_width",
+                align="center",
             ),
-            title="Parâmetros do Cálculo",
-            sizing_mode="stretch_width",
-            margin=(10, 0, 10, 0),
-            header_background="#f5f5f5",
         ),
+        title="⚙️ Parâmetros do Processamento"
+    )
+
+    results_section = create_glass_card(
+        pn.Column(
+            pn.pane.Markdown("### Vendas processadas com taxas aplicadas", sizing_mode="stretch_width"),
+            tabulator,
+            pn.Spacer(height=20),
+            pn.pane.Markdown("### Resumo estatístico da amostra", sizing_mode="stretch_width"),
+            resumo_tabulator,
+        ),
+        title="📊 Resultados & Estatísticas"
+    )
+
+    aba_calculo = pn.Column(
+        pn.pane.Markdown("# Cálculo de Taxas sobre Vendas", css_classes=["premium-header"]),
+        params_card,
+        pn.Spacer(height=20),
         status_msg,
         preview_pane,
-        pn.pane.Markdown(
-            "### Vendas processadas com taxas aplicadas", sizing_mode="stretch_width"
-        ),
-        tabulator,
-        pn.pane.Markdown(
-            "### Resumo estatístico da amostra", sizing_mode="stretch_width"
-        ),
-        resumo_tabulator,
+        pn.Spacer(height=20),
+        results_section,
         sizing_mode="stretch_width",
-        min_width=500,
+        margin=(10, 20)
     )
 
     return pn.Tabs(
