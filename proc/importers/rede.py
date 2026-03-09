@@ -28,7 +28,7 @@ class RedeImporter(BaseImporter):
         
         return score
 
-    def read(self, path: str, nrows: Optional[int] = None):
+    def read(self, path: str, nrows: Optional[int] = None, progress_callback=None):
         """Rede-specific read: handles multi-sheet logic."""
         self.arquivo_origem = os.path.basename(path)
         
@@ -38,35 +38,42 @@ class RedeImporter(BaseImporter):
             
             if self.is_multisheet:
                 self.log("Arquivo multi-planilhas detectado. Processando todas as abas.")
+                if progress_callback: progress_callback(10, "Lendo arquivo multi-planilhas Rede...")
                 self.multisheet_data = safe_read_multisheet_file(
                     path, self.tipo_arquivo, self.engine, self.contexto, nrows=nrows
                 )
                 self.df_raw = pd.DataFrame() # Will be populated in parse
+                if progress_callback: progress_callback(30, "Abas lidas com sucesso.")
             else:
-                super().read(path, nrows)
+                super().read(path, nrows, progress_callback)
         except Exception as e:
             self.log(f"Erro na leitura Rede: {str(e)}", "ERROR")
             raise e
 
-    def parse(self):
+    def parse(self, progress_callback=None):
         """Rede-specific parse: concatenates sheets if multi-sheet."""
         if not hasattr(self, "is_multisheet") or not self.is_multisheet:
-            super().parse()
+            super().parse(progress_callback)
             self._aplicar_concatenacao_rede()
             return
 
         # Multi-sheet logic
         self.log(f"Processando {len(self.multisheet_data)} abas...")
+        if progress_callback: progress_callback(40, "Processando abas Rede...")
         combined_dfs = []
         
         from conf.funcoesbd import depara_carregar_mapa_completo
         from proc.proc_importacao import aplicar_regras_depara
         regras = depara_carregar_mapa_completo(self.engine, contexto=self.contexto, tipo_origem=self.tipo_arquivo)
 
-        for sheet_name, sheet_info in self.multisheet_data.items():
+        total_sheets = len(self.multisheet_data)
+        for i, (sheet_name, sheet_info) in enumerate(self.multisheet_data.items()):
             df_sheet = sheet_info["df"]
             if df_sheet is not None and not df_sheet.empty:
                 self.log(f"Mapeando aba: {sheet_name}")
+                if progress_callback: 
+                    p = 40 + int((i / total_sheets) * 30)
+                    progress_callback(p, f"Mapeando aba: {sheet_name}")
                 df_mapped, _ = aplicar_regras_depara(df_sheet, regras)
                 if not df_mapped.empty:
                     df_mapped["planilha_origem"] = sheet_name

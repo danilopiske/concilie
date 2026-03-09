@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "E:\Financial_P\modules\reconciliation_core.py", line 204, in calculate_rates
+    print(f"[RECON-CORE] \u2705 ConcluÝdo com Sucesso em {t_total:.2f}s!")
+  File "C:\Python311\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 13: character maps to <undefined>
+Starting Reconciliation Benchmark (Polars Edition)
+--------------------------------------------------
+Using Processamento ID: 96617268
+[RECON-CORE] Iniciando cßlculo Polars para Processamento 96617268 (log_mensal)
+[RECON-CORE] 32373 vendas carregadas.
+[RECON-CORE] Aplicando Taxas CAD...
+[RECON-CORE] Aplicando l¾gica de LOG...
+[RECON-CORE] Calculando valores financeiros...
+[RECON-CORE] Preparado para inserir 32373 registros.
+
+BENCHMARK FAILED: 'charmap' codec can't encode character '\u2705' in position 13: character maps to <undefined>

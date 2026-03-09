@@ -1,0 +1,32 @@
+Traceback (most recent call last):
+  File "E:\Financial_P\modules\reconciliation_core.py", line 37, in calculate_rates
+    df_vendas = df_vendas.with_columns([
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Danilo\AppData\Local\pypoetry\Cache\virtualenvs\financial--4u53t5QX-py3.11\Lib\site-packages\polars\dataframe\frame.py", line 10473, in with_columns
+    .collect(optimizations=QueryOptFlags._eager())
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Danilo\AppData\Local\pypoetry\Cache\virtualenvs\financial--4u53t5QX-py3.11\Lib\site-packages\polars\_utils\deprecation.py", line 97, in wrapper
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Danilo\AppData\Local\pypoetry\Cache\virtualenvs\financial--4u53t5QX-py3.11\Lib\site-packages\polars\lazyframe\opt_flags.py", line 326, in wrapper
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Danilo\AppData\Local\pypoetry\Cache\virtualenvs\financial--4u53t5QX-py3.11\Lib\site-packages\polars\lazyframe\frame.py", line 2440, in collect
+    return wrap_df(ldf.collect(engine, callback))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+polars.exceptions.InvalidOperationError: conversion from `str` to `date` failed in column 'Data_da_venda' for 32373 out of 32373 values: ["2025-11-30 00:00:00.000000", "2025-11-30 00:00:00.000000", à "2025-11-30 00:00:00.000000"]
+
+You might want to try:
+- setting `strict=False` to set values that cannot be converted to `null`
+- using `str.strptime`, `str.to_date`, or `str.to_datetime` and providing a format string
+Starting Reconciliation Benchmark (Polars Edition)
+--------------------------------------------------
+Using Processamento ID: 96617268
+[RECON-CORE] Iniciando cßlculo Polars para Processamento 96617268 (log_mensal)
+[RECON-CORE] 32373 vendas carregadas.
+
+BENCHMARK FAILED: conversion from `str` to `date` failed in column 'Data_da_venda' for 32373 out of 32373 values: ["2025-11-30 00:00:00.000000", "2025-11-30 00:00:00.000000", à "2025-11-30 00:00:00.000000"]
+
+You might want to try:
+- setting `strict=False` to set values that cannot be converted to `null`
+- using `str.strptime`, `str.to_date`, or `str.to_datetime` and providing a format string

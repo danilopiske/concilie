@@ -1,0 +1,17 @@
+Traceback (most recent call last):
+  File "E:\Financial_P\test_db.py", line 12, in <module>
+    from app.core.database import engine
+  File "E:\Financial_P\apps\api\app\core\database.py", line 33, in <module>
+    engine = create_engine(
+             ^^^^^^^^^^^^^^
+  File "<string>", line 2, in create_engine
+  File "C:\Users\Danilo\AppData\Local\pypoetry\Cache\virtualenvs\financial--4u53t5QX-py3.11\Lib\site-packages\sqlalchemy\util\deprecations.py", line 281, in warned
+    return fn(*args, **kwargs)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Danilo\AppData\Local\pypoetry\Cache\virtualenvs\financial--4u53t5QX-py3.11\Lib\site-packages\sqlalchemy\engine\create.py", line 686, in create_engine
+    pool = poolclass(creator, **pool_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Danilo\AppData\Local\pypoetry\Cache\virtualenvs\financial--4u53t5QX-py3.11\Lib\site-packages\sqlalchemy\pool\impl.py", line 137, in __init__
+    self._overflow = 0 - pool_size
+                     ~~^~~~~~~~~~~
+TypeError: unsupported operand type(s) for -: 'int' and 'NoneType'

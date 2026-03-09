@@ -13,9 +13,10 @@ class CieloHistoricoDetalheImporter(BaseImporter):
         score = sum(3 for kw in keywords if kw in cols_text)
         return score
 
-    def parse(self):
+    def parse(self, progress_callback=None):
         """Cielo specific column mapping."""
         self.log("Mapeando colunas Cielo Historico Detalhe...")
+        if progress_callback: progress_callback(40, "Mapeando colunas Cielo...")
         df = self.df_raw.copy()
         
         mapping = {
@@ -41,10 +42,12 @@ class CieloHistoricoDetalheImporter(BaseImporter):
                 
         self.df_mapped = df
         self.log(f"Mapeamento concluído. {len(self.df_mapped)} colunas identificadas.")
+        if progress_callback: progress_callback(70, "Mapeamento Cielo concluído.")
 
-    def normalize(self):
+    def normalize(self, progress_callback=None):
         """Normalization and enrichment."""
         self.log("Normalizando dados Cielo...")
+        if progress_callback: progress_callback(80, "Normalizando dados Cielo...")
         df = self.df_mapped.copy()
         
         # Conversions
@@ -58,6 +61,7 @@ class CieloHistoricoDetalheImporter(BaseImporter):
         
         self.df_proc = df
         self.log("Normalização concluída.")
+        if progress_callback: progress_callback(90, "Normalização Cielo concluída.")
 
     def save(self):
         """Persists to database."""

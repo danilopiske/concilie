@@ -2563,19 +2563,26 @@ def preparar_dataframe_de_arquivo(
         )
         is_multisheet = is_multisheet_rede_file(path)
         
-        # --- TENTATIVA MODULAR (Phase A) ---
+        # --- TENTATIVA MODULAR (Strategy Pattern) ---
         if not is_multisheet:
-            importer = ImporterFactory.get_importer(engine, path, 0, cliente_id, contexto, "Sistema", tipo_origem)
+            importer = ImporterFactory.get_importer(engine, path, 0, cliente_id, contexto, usuario, tipo_origem)
             if importer:
                 log(f"Executando motor de importação modular: {importer.__class__.__name__}")
                 importer.read(path, nrows=nrows)
                 importer.parse()
                 importer.normalize()
+                
+                # Enriquecimento de metadados antes de retornar
+                if importer.df_proc is not None and not importer.df_proc.empty:
+                    importer.df_proc["arquivo_origem"] = os.path.basename(path)
+                    if "ec_id" not in importer.df_proc.columns or importer.df_proc["ec_id"].isna().all():
+                        importer.df_proc["ec_id"] = str(ec_id)
+                
                 update_progress(100)
-                # O retorno padrão é (df_final, transformacoes, header_row)
-                return importer.df_proc, {}, importer.header_idx
-
-        print(f"[DEBUG][PROCESSAR] ✅ is_multisheet_rede_file(): {is_multisheet}")
+                # Formato esperado: (df_final, transformacoes, header_row)
+                return importer.df_proc, getattr(importer, 'transformacoes', {}), importer.header_idx
+            else:
+                raise ValueError("Nenhum motor de importação compatível encontrado para este arquivo.")
 
         if is_multisheet:
             log(
@@ -2819,142 +2826,6 @@ def preparar_dataframe_de_arquivo(
             print(
                 f"[DEBUG][MULTISHEET] - Transformações: {len(transformacoes)} aplicadas"
             )
-
-        else:
-            # Lógica normal para arquivo single-sheet
-            df_raw, header_idx, header_cols = safe_read_file(path, nrows=nrows)
-            log(f"Processando arquivo (2/10): Arquivo lido, colunas detectadas.")
-            print(
-                "[DEBUG][MAPPING] Colunas do DataFrame antes do de/para:",
-                df_raw.columns.tolist(),
-            )
-
-            # --- FILTRO DE LINHAS DE RODAPÉ/AVISO/TOTAL ---
-
-            before = len(df_raw)
-            
-            if len(df_raw.columns) > 0:
-                cols_to_check = df_raw.columns[:5]
-                mask_empty = df_raw[cols_to_check].isnull() | (df_raw[cols_to_check] == "")
-                mask_all_empty = mask_empty.all(axis=1)
-                
-                rodape_textos = ["total", "//este relatório", "//##microstrategy"]
-                pattern = "|".join([re.escape(t) for t in rodape_textos])
-                
-                mask_has_footer = pd.Series(False, index=df_raw.index)
-                for col in cols_to_check:
-                    mask_col = df_raw[col].astype(str).str.lower().str.contains(pattern, na=False, regex=True)
-                    mask_has_footer = mask_has_footer | mask_col
-                    
-                mask_drop = mask_all_empty | mask_has_footer
-                df_raw = df_raw[~mask_drop].reset_index(drop=True)
-            after = len(df_raw)
-            log(
-                f"Processando arquivo (3/10): Linhas removidas por filtro de rodapé/total: {before - after}"
-            )
-            print(
-                f"[DEBUG][PROCESSAR] Linhas removidas por filtro de rodapé/total: {before - after}"
-            )
-
-            if "Produto cielo" in df_raw.columns:
-                print(
-                    "[DEBUG][MAPPING] Valores únicos Produto cielo:",
-                    df_raw["Produto cielo"].unique(),
-                )
-            if "Bandeira" in df_raw.columns:
-                print(
-                    "[DEBUG][MAPPING] Valores únicos Bandeira:",
-                    df_raw["Bandeira"].unique(),
-                )
-            if "Forma_de_pagamento" in df_raw.columns:
-                print(
-                    "[DEBUG][MAPPING] Valores únicos Forma_de_pagamento:",
-                    df_raw["Forma_de_pagamento"].unique(),
-                )
-            if "Resumo_da_operação" in df_raw.columns:
-                print(
-                    "[DEBUG][MAPPING] Valores únicos Resumo_da_operação:",
-                    df_raw["Resumo_da_operação"].unique(),
-                )
-
-            update_progress(25)
-            log(
-                f"Processando arquivo (4/10): Arquivo lido com sucesso. {len(df_raw)} linhas, cabeçalho na linha {header_idx}"
-            )
-            log(
-                f"Processando arquivo (5/10): Colunas detectadas: {len(header_cols)} colunas: {header_cols}"
-            )
-            print(
-                f"[DEBUG][PROCESSAR] DataFrame lido: {len(df_raw)} linhas, {len(header_cols)} colunas"
-            )
-            print(f"[DEBUG][PROCESSAR] Colunas detectadas: {header_cols}")
-            print(f"[DEBUG][PROCESSAR] Primeiras 3 linhas:\n{df_raw.head(3)}")
-
-            # Se o safe_read_file não conseguiu detectar cabeçalho adequadamente,
-            # tenta o método antigo como fallback
-
-            if not header_cols or len(header_cols) < 5:
-                log(
-                    "Processando arquivo (6/10): Fallback: tentando detecção de parser antiga..."
-                )
-                print("[DEBUG][PROCESSAR] Fallback: tentando parser alternativo...")
-                update_progress(10)
-                head_df = pd.read_excel(
-                    path,
-                    header=None,
-                    engine="openpyxl",
-                    nrows=120,
-                    dtype=str,
-                    keep_default_na=False,
-                )
-                update_progress(15)
-                parser = escolher_parser(path, head_df)
-                log(
-                    f"Processando arquivo (7/10): Parser escolhido: {getattr(parser, 'SOURCE', str(parser))}"
-                )
-                print(
-                    f"[DEBUG][PROCESSAR] Parser escolhido: {getattr(parser, 'SOURCE', str(parser))}"
-                )
-                update_progress(20)
-                df_norm, meta = parser.parse(path, nrows=nrows)
-                update_progress(30)
-                log(
-                    f"Processando arquivo (8/10): Método de fallback executado, {df_norm.shape[0]} linhas detectadas."
-                )
-                print(
-                    f"[DEBUG][PROCESSAR] DataFrame do parser: {df_norm.shape[0]} linhas, {df_norm.shape[1]} colunas"
-                )
-                print(f"[DEBUG][PROCESSAR] Colunas do parser: {list(df_norm.columns)}")
-                print(
-                    f"[DEBUG][PROCESSAR] Primeiras 3 linhas do parser:\n{df_norm.head(3)}"
-                )
-            else:
-                # Usar resultado do safe_read_file
-                df_norm = df_raw.copy()
-                meta = {
-                    "source": "SafeReadFile",
-                    "header_row": header_idx,
-                    "columns_raw": header_cols,
-                }
-                update_progress(30)
-                log(f"Processando arquivo (9/10): Usando resultado do safe_read_file.")
-                print(f"[DEBUG][PROCESSAR] Usando resultado do safe_read_file.")
-
-            # aplica de/para para arquivo single-sheet
-            print(f"[DEBUG][PROCESSAR] Carregando regras de de/para...")
-            print(
-                f"[DEBUG][PROCESSAR] - Parâmetros: contexto='{contexto}', tipo_origem='{tipo_origem}'"
-            )
-            regras = depara_carregar_mapa_completo(
-                engine, contexto=(contexto or ""), tipo_origem=tipo_origem
-            )
-            update_progress(40)
-            log(
-                f"Processando arquivo (10/10): Aplicando regras de de/para ({len(regras)} regras)..."
-            )
-            print(f"[DEBUG][PROCESSAR] Total de regras carregadas: {len(regras)}")
-            print(f"[DEBUG][PROCESSAR] Aplicando {len(regras)} regras de de/para...")
-            df_final, transformacoes = aplicar_regras_depara(df_norm, regras)
 
     except Exception as e:
         log(f"Erro na leitura do arquivo: {e}")
