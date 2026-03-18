@@ -26,7 +26,7 @@ def get_formas_pagamento(processamento_id: str, db: Session = Depends(get_db)):
 @router.get("/{processamento_id:path}/periodos", response_model=List[AgregacaoPeriodo])
 def get_periodos(
     processamento_id: str, 
-    tipo: str = Query(..., regex="^(mes|trimestre|semestre|ano)$"), 
+    tipo: str = Query(..., pattern="^(mes|trimestre|semestre|ano)$"),
     db: Session = Depends(get_db)
 ):
     repo = AnalistaRepository(db)

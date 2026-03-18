@@ -203,6 +203,10 @@ local_settings.py
 .env.*.local
 conf/local_*.py
 
+# Mas manter exemplos de configuração
+!.env.example
+!**/.env.example
+
 # Temporários
 temp/
 tmp/
@@ -247,3 +251,58 @@ backup/
 
 # Exceptions
 !apps/web/src/lib/
+
+# Environment & Secrets (AIOX)
+*.key
+*.pem
+
+# Dependencies (AIOX)
+node_modules/
+node_modules
+
+# AIOX Local (AIOX)
+.aiox-core/local/
+.claude/settings.local.json
+.aiox/install-log.txt
+
+# AI Tool Configs (local, não versionar)
+.agent/
+.aiox-core/
+.antigravity/
+.claude/
+.codex/
+.cursor/
+.gemini/
+
+# ==================
+# Scripts de Debug / Diagnóstico (não versionar)
+# ==================
+apps/api/check_*.py
+apps/api/debug_*.py
+apps/api/diag_*.py
+apps/api/verify_*.py
+apps/api/quick_*.py
+apps/api/dump_*.py
+apps/api/kill_*.py
+apps/api/list_*.py
+apps/api/safe_*.py
+apps/api/stress_*.py
+apps/api/export_*.py
+apps/api/migrate_tasks*.py
+apps/api/*.txt
+check_*.py
+check_db_*.py
+check_deps.py
+check_schema.py
+discover_venvs.py
+export_db.py
+trace_imports.py
+tmp_*.py
+db_check_results.txt
+db_export.json
+schema_output.txt
+venvs.txt
+
+# package-lock.json (projeto usa pnpm)
+package-lock.json
+]

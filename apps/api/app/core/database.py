@@ -30,11 +30,19 @@ def get_database_url() -> str:
 
 
 # Create engine with tuned pool performance
+db_url = get_database_url()
+db_type = settings.DATABASE_TYPE
+p_size = 20 if db_type == "mysql" else 5
+m_overflow = 10 if db_type == "mysql" else 10
+
+db_logger = logging.getLogger(__name__)
+db_logger.info(f"Database: {db_type} | pool_size={p_size}")
+
 engine = create_engine(
-    get_database_url(),
+    db_url,
     pool_pre_ping=True,
-    pool_size=20 if settings.DATABASE_TYPE == "mysql" else 5,
-    max_overflow=10 if settings.DATABASE_TYPE == "mysql" else 10,
+    pool_size=p_size,
+    max_overflow=m_overflow,
     pool_recycle=3600,
     echo=settings.DEBUG_SQL if hasattr(settings, "DEBUG_SQL") else False,
 )

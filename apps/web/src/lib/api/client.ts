@@ -6,20 +6,11 @@ import axios, { AxiosInstance } from 'axios';
 // API URL - Hardcoded to 8000 as requested for the split-port topology
 // Frontend runs on 3000, Backend on 8000.
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
-console.log('[DEBUG] API Client URL:', API_URL);
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: `${API_URL}/api/v1`,
   timeout: 300000, // 5 minutes default timeout
-});
-
-// Interceptor para adicionar token (futuro)
-apiClient.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
+  withCredentials: true, // envia cookie HttpOnly automaticamente
 });
 
 // Interceptor para tratamento de erros
