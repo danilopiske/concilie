@@ -64,12 +64,27 @@ class CalculoRepository:
         )
 
     def processar_calculo(self, req: CalculoRequest, usuario_logado: str = "sistema"):
-        # 1. Clear previous calculation for this ID/Type
-        self.db.query(VendasCalculos).filter(
-            VendasCalculos.calc_id == req.processamento_id,
-            VendasCalculos.calc_tipo == req.tipo_taxa
-        ).delete()
-        self.db.commit()
+        # 0. Generate Unique ID: {ec_id}_{tipo_sem_log}_{timestamp}
+        # First, find the ec_id for this processamento
+        ec_sql = text("SELECT ec_id FROM vendas_processadas WHERE processamentoid = :pid LIMIT 1")
+        ec_res = self.db.execute(ec_sql, {"pid": req.processamento_id}).fetchone()
+        ec_id = str(ec_res[0]) if ec_res else "unknown"
+        
+        tipo_clean = req.tipo_taxa.replace("log_", "")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        custom_id = f"{ec_id}_{tipo_clean}_{timestamp}"
+
+        # 1. Clear previous calculation IF substituir is True
+        if req.substituir:
+            # We delete calculations of the same TYPE for this PROCESSAMENTO
+            # We reference by the sales that belong to this processamento_id
+            sql_del = text("""
+                DELETE FROM vendas_calculos 
+                WHERE id_venda IN (SELECT id FROM vendas_processadas WHERE processamentoid = :pid)
+                AND calc_tipo = :tipo
+            """)
+            self.db.execute(sql_del, {"pid": req.processamento_id, "tipo": req.tipo_taxa})
+            self.db.commit()
 
         # 2. Insert Base Data (Massive Insert)
         # We insert all sales into vendas_calculos with NULL calculated fields initially
@@ -94,13 +109,15 @@ class CalculoRepository:
         """)
         
         self.db.execute(insert_sql, {
-            "calc_id": req.processamento_id,
+            "calc_id": custom_id,
             "calc_tipo": req.tipo_taxa,
             "usuario": usuario_logado,
             "now": datetime.now(),
             "pid": req.processamento_id
         })
         self.db.commit() # Commit insert before updates
+        
+        return custom_id
         
         # 3. Apply Calculations (UPDATEs)
         
@@ -203,10 +220,37 @@ class CalculoRepository:
         
         self.db.commit()
     
-    def listar_resultados(self, calc_id: str, skip: int = 0, limit: int = 100):
-        # Return paginated results, ordering by Perda (descending) to show biggest discrepancies first
-        return self.db.query(VendasCalculos)\
-            .filter(VendasCalculos.calc_id == calc_id)\
+    def listar_resultados(self, calc_id_or_pid: str, skip: int = 0, limit: int = 100):
+        # We try to match by calc_id first, then fallback to proc_id if no results (for legacy)
+        results = self.db.query(VendasCalculos)\
+            .filter(VendasCalculos.calc_id == calc_id_or_pid)\
             .order_by(VendasCalculos.perda.asc())\
             .offset(skip).limit(limit).all()
+            
+        if not results:
+             # Fallback to see if any calculation exists for this processamento_id as calc_id
+             return self.db.query(VendasCalculos)\
+                .filter(VendasCalculos.calc_id == calc_id_or_pid)\
+                .order_by(VendasCalculos.perda.asc())\
+                .offset(skip).limit(limit).all()
+        return results
+
+    def listar_historico(self, skip: int = 0, limit: int = 50):
+        # Returns summary of unique calculations
+        sql = text("""
+            SELECT 
+                calc_id, calc_tipo, calc_usuario, MAX(calc_data) as calc_data,
+                COUNT(*) as total_registros,
+                SUM(vl_venda) as total_valor,
+                SUM(perda) as perda_total
+            FROM vendas_calculos
+            GROUP BY calc_id, calc_tipo, calc_usuario
+            ORDER BY calc_data DESC
+            LIMIT :limit OFFSET :offset
+        """)
+        return self.db.execute(sql, {"limit": limit, "offset": skip}).fetchall()
+
+    def deletar_calculo(self, calc_id: str):
+        self.db.query(VendasCalculos).filter(VendasCalculos.calc_id == calc_id).delete(synchronize_session=False)
+        self.db.commit()
 

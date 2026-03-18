@@ -25,10 +25,23 @@ class ResumoResponse(BaseModel):
 class AtualizarRequest(BaseModel):
     processamento_id: str
     campo: str  # 'forma_pagamento', 'bandeira', 'status', 'lancamento'
-    valor_antigo: str
+    valores_antigos: List[str]
     valor_novo: str
 
 class RemoverRequest(BaseModel):
     processamento_id: str
     campo: str  # 'forma_pagamento', 'bandeira', 'status', 'lancamento'
-    valor: str
+    valores: List[str]
+
+class FiltrosBCResponse(BaseModel):
+    formas: List[str]
+    bandeiras: List[str]
+
+class AplicarTaxaBCRequest(BaseModel):
+    processamento_id: str
+    forma_pagamento: str  # 'TODOS' ou valor específico
+    bandeira: str         # 'TODOS' ou valor específico
+    data_ini: Optional[str] = None
+    data_fim: Optional[str] = None
+    nova_taxa: float
+    usuario: str = "sistema"

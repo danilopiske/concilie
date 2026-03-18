@@ -1,6 +1,6 @@
 from datetime import timedelta
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -14,6 +14,7 @@ router = APIRouter()
 
 @router.post("/login/access-token", response_model=Token)
 def login_access_token(
+    response: Response,
     db: Session = Depends(deps.get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
@@ -59,9 +60,23 @@ def login_access_token(
     # if not user.is_active: ... (Model doesn't seem to have is_active, maybe 'ativo'?)
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    return {
-        "access_token": security.create_access_token(
-            subject=user.id, expires_delta=access_token_expires
-        ),
-        "token_type": "bearer",
-    }
+    access_token = security.create_access_token(
+        subject=user.id, expires_delta=access_token_expires
+    )
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        samesite="lax",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/logout")
+def logout(response: Response) -> Any:
+    """Limpa o cookie de autenticação."""
+    response.delete_cookie(key="access_token")
+    return {"message": "Logout realizado com sucesso"}

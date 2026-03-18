@@ -73,20 +73,21 @@ class CorrecaoRepository:
         )
         self.db.add(log)
 
-    def atualizar_em_massa(self, processamento_id: str, campo: str, valor_antigo: str, valor_novo: str) -> int:
+    def atualizar_em_massa(self, processamento_id: str, campo: str, valores_antigos: List[str], valor_novo: str, usuario: str = "sistema") -> int:
         if campo == 'lancamento':
             # Update Recebiveis
             result = self.db.query(Recebivel).filter(
                 Recebivel.processamentoid == processamento_id,
-                Recebivel.lancamento == valor_antigo
+                Recebivel.lancamento.in_(valores_antigos)
             ).update({Recebivel.lancamento: valor_novo}, synchronize_session=False)
             
             self._registrar_log(
                 processamento_id, 
                 'atualizacao_lancamento_recebiveis', 
-                valor_antigo, 
+                ", ".join(valores_antigos), 
                 valor_novo, 
-                result
+                result,
+                usuario
             )
         else:
             # Update Vendas
@@ -102,21 +103,22 @@ class CorrecaoRepository:
 
             result = self.db.query(Venda).filter(
                 Venda.processamentoid == processamento_id,
-                target_col == valor_antigo
+                target_col.in_(valores_antigos)
             ).update({target_col: valor_novo}, synchronize_session=False)
             
             self._registrar_log(
                 processamento_id, 
                 f'atualizacao_{campo}', 
-                valor_antigo, 
+                ", ".join(valores_antigos), 
                 valor_novo, 
-                result
+                result,
+                usuario
             )
         
         self.db.commit()
         return result
 
-    def mover_para_filtradas(self, processamento_id: str, campo: str, valor: str) -> int:
+    def mover_para_filtradas(self, processamento_id: str, campo: str, valores: List[str], usuario: str = "sistema") -> int:
         try:
             if campo == 'lancamento':
                 # 1. Copiar dados para RecebivelFiltrado usando INSERT ... SELECT
@@ -136,7 +138,7 @@ class CorrecaoRepository:
                         Recebivel.arquivo_origem
                     ).filter(
                         Recebivel.processamentoid == processamento_id,
-                        Recebivel.lancamento == valor
+                        Recebivel.lancamento.in_(valores)
                     )
                 )
                 self.db.execute(stmt)
@@ -144,15 +146,16 @@ class CorrecaoRepository:
                 # 2. Remover da tabela original
                 result = self.db.query(Recebivel).filter(
                     Recebivel.processamentoid == processamento_id,
-                    Recebivel.lancamento == valor
+                    Recebivel.lancamento.in_(valores)
                 ).delete(synchronize_session=False)
 
                 self._registrar_log(
                     processamento_id, 
                     'remocao_lancamento_recebiveis', 
-                    valor, 
+                    ", ".join(valores), 
                     None, 
-                    result
+                    result,
+                    usuario
                 )
                 
                 self.db.commit()
@@ -186,27 +189,25 @@ class CorrecaoRepository:
                         Venda.data_processamento
                     ).filter(
                         Venda.processamentoid == processamento_id,
-                        target_col == valor
+                        target_col.in_(valores)
                     )
                 )
                 self.db.execute(stmt)
 
                 # 2. DELETE DEPENDENCIES (vendas_calculos)
-                # Optimize: Get IDs first to avoid subquery locking issues in MySQL
                 ids_to_delete = [
                     r[0] for r in self.db.query(Venda.id).filter(
                         Venda.processamentoid == processamento_id,
-                        target_col == valor
+                        target_col.in_(valores)
                     ).all()
                 ]
 
                 if ids_to_delete:
-                    # Delete in chunks if too many? (Assuming typical volume is manageable)
                     self.db.query(VendasCalculos).filter(
                         VendasCalculos.id_venda.in_(ids_to_delete)
                     ).delete(synchronize_session=False)
 
-                    # 3. Remover da tabela original using same IDs for consistency/speed
+                    # 3. Remover da tabela original
                     result = self.db.query(Venda).filter(
                         Venda.id.in_(ids_to_delete)
                     ).delete(synchronize_session=False)
@@ -214,9 +215,10 @@ class CorrecaoRepository:
                     self._registrar_log(
                         processamento_id, 
                         f'remocao_{campo}', 
-                        valor, 
+                        ", ".join(valores), 
                         None, 
-                        result
+                        result,
+                        usuario
                     )
                 else:
                     result = 0
@@ -230,7 +232,7 @@ class CorrecaoRepository:
                 f.write(f"Error in mover_para_filtradas: {str(e)}\n{traceback.format_exc()}")
             raise e
 
-    def deletar_filtradas(self, processamento_id: str, campo: str, valor: str) -> int:
+    def deletar_filtradas(self, processamento_id: str, campo: str, valores: List[str], usuario: str = "sistema") -> int:
         """
         Remove permanentemente itens da tabela de filtrados (VendaFiltrada ou RecebivelFiltrado).
         Ação destrutiva.
@@ -240,15 +242,16 @@ class CorrecaoRepository:
                 # Delete from RecebivelFiltrado
                 result = self.db.query(RecebivelFiltrado).filter(
                     RecebivelFiltrado.processamentoid == processamento_id,
-                    RecebivelFiltrado.lancamento == valor
+                    RecebivelFiltrado.lancamento.in_(valores)
                 ).delete(synchronize_session=False)
 
                 self._registrar_log(
                     processamento_id, 
                     'exclusao_permanente_recebiveis_filtrados', 
-                    valor, 
+                    ", ".join(valores), 
                     None, 
-                    result
+                    result,
+                    usuario
                 )
                 
                 self.db.commit()
@@ -268,15 +271,16 @@ class CorrecaoRepository:
 
                 result = self.db.query(VendaFiltrada).filter(
                     VendaFiltrada.processamentoid == processamento_id,
-                    target_col == valor
+                    target_col.in_(valores)
                 ).delete(synchronize_session=False)
 
                 self._registrar_log(
                     processamento_id, 
                     f'exclusao_permanente_{campo}_filtradas', 
-                    valor, 
+                    ", ".join(valores), 
                     None, 
-                    result
+                    result,
+                    usuario
                 )
             
                 self.db.commit()
@@ -287,3 +291,67 @@ class CorrecaoRepository:
             with open("debug_error_delete_filtered.txt", "w") as f:
                 f.write(f"Error in deletar_filtradas: {str(e)}\n{traceback.format_exc()}")
             raise e
+
+    def listar_filtros_taxa_bc(self, processamento_id: str) -> dict:
+        """
+        Retorna formas de pagamento e bandeiras únicas para o calc_id (processamento_id).
+        """
+        formas = self.db.query(VendasCalculos.forma_pagamento).filter(
+            VendasCalculos.calc_id == processamento_id
+        ).distinct().all()
+        
+        bandeiras = self.db.query(VendasCalculos.bandeira).filter(
+            VendasCalculos.calc_id == processamento_id
+        ).distinct().all()
+        
+        return {
+            "formas": [r[0] for r in formas if r[0]],
+            "bandeiras": [r[0] for r in bandeiras if r[0]]
+        }
+
+    def aplicar_taxa_bc(
+        self, 
+        processamento_id: str, 
+        forma_pagamento: str, 
+        bandeira: str, 
+        data_ini: Optional[str], 
+        data_fim: Optional[str], 
+        nova_taxa: float,
+        usuario: str = "sistema"
+    ) -> int:
+        """
+        Aplica nova taxa BC e recalcula campos financeiros.
+        """
+        query = self.db.query(VendasCalculos).filter(VendasCalculos.calc_id == processamento_id)
+        
+        if forma_pagamento and forma_pagamento != "TODOS":
+            query = query.filter(VendasCalculos.forma_pagamento == forma_pagamento)
+            
+        if bandeira and bandeira != "TODOS":
+            query = query.filter(VendasCalculos.bandeira == bandeira)
+            
+        if data_ini:
+            query = query.filter(VendasCalculos.data_venda >= data_ini)
+            
+        if data_fim:
+            query = query.filter(VendasCalculos.data_venda <= data_fim)
+            
+        # SQLAlchemy update with expressions
+        result = query.update({
+            VendasCalculos.tx_calc: nova_taxa,
+            VendasCalculos.desc_calc: VendasCalculos.vl_venda * nova_taxa / 100,
+            VendasCalculos.vl_liq_calc: VendasCalculos.vl_venda - (VendasCalculos.vl_venda * nova_taxa / 100),
+            VendasCalculos.perda: VendasCalculos.vl_liq_venda - (VendasCalculos.vl_venda - (VendasCalculos.vl_venda * nova_taxa / 100))
+        }, synchronize_session=False)
+        
+        self._registrar_log(
+            processamento_id,
+            'taxa_bc',
+            None,
+            f"Taxa: {nova_taxa}% | FP: {forma_pagamento} | B: {bandeira}",
+            result,
+            usuario
+        )
+        
+        self.db.commit()
+        return result

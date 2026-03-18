@@ -45,3 +45,10 @@ class VendasCalculos(Base):
     perda = Column(DECIMAL(18, 2), nullable=True)
     perda_rr = Column(DECIMAL(18, 2), nullable=True)
 
+    @property
+    def diff_taxa(self):
+        """Calculates difference between vendor rate and calculated rate"""
+        if self.tx_venda is not None and self.tx_calc is not None:
+            return self.tx_venda - self.tx_calc
+        return None
+

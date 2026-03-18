@@ -15,6 +15,8 @@ from app.models.vendas import Venda, VendaFiltrada
 from app.models.recebiveis import Recebivel, RecebivelFiltrado
 from app.models.log import LogCorrecao
 from app.models.import_task import ImportTask
+from app.models.calculo_task import CalculoTask
+from app.models.relatorio_task import RelatorioTask
 
 __all__ = [
     "Base",
@@ -35,4 +37,6 @@ __all__ = [
     "RecebivelFiltrado",
     "LogCorrecao",
     "ImportTask",
+    "CalculoTask",
+    "RelatorioTask"
 ]

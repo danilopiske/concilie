@@ -6,11 +6,15 @@ FastAPI Application Entry Point
 import sys
 from pathlib import Path
 
-# Adicionar diretório root ao path para importar módulos legados (conf, proc, etc)
+# TODO(C6): Remover este sys.path após migrar os módulos legados para apps/api/app/
+# Dependências identificadas:
+#   - apps/api/app/repositories/taxas_repository.py       → conf.funcoesbd
+#   - apps/api/app/services/import_service.py             → proc.proc_importacao + conf.funcoesbd
+#   - apps/api/app/api/v1/endpoints/depara.py             → proc.proc_importacao
 root_dir = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(root_dir))
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
@@ -18,6 +22,7 @@ from app.api.v1.api import api_router
 from app.core.database import init_db
 import traceback
 from fastapi.responses import JSONResponse, ORJSONResponse
+from app.api.deps import get_current_user
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -33,13 +38,13 @@ app = FastAPI(
 async def startup_event():
     """Criar tabelas se não existirem"""
     init_db()
-    print("✅ Banco de dados inicializado")
+    print("Banco de dados inicializado")
 
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,18 +55,19 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    print(f"❌ GLOBAL EXCEPTION: {exc}")
+    print(f"[ERROR] GLOBAL EXCEPTION: {exc}")
     traceback.print_exc()
+    detail = str(exc) if settings.DEBUG else "Internal Server Error"
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal Server Error: {str(exc)}"},
+        content={"detail": detail},
     )
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    print(f"📥 [{request.method}] {request.url.path}")
+    print(f"[IN]  [{request.method}] {request.url.path}")
     response = await call_next(request)
-    print(f"📤 [{response.status_code}] {request.url.path}")
+    print(f"[OUT] [{response.status_code}] {request.url.path}")
     return response
 
 
@@ -96,7 +102,7 @@ async def health_check():
 
 
 @app.get("/debug/db-info")
-async def debug_database_info():
+async def debug_database_info(_: str = Depends(get_current_user)):
     """Endpoint de debug - informações detalhadas do banco"""
     from app.core.database import get_db_info, engine
 

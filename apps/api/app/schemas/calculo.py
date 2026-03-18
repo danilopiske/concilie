@@ -10,7 +10,7 @@ class CalculoPreviewRequest(BaseModel):
     tem_receba_rapido: bool = False
 
 class CalculoRequest(CalculoPreviewRequest):
-    pass
+    substituir: bool = False
 
 class CalculoStats(BaseModel):
     total_vendas: int
@@ -25,6 +25,7 @@ class CalculoStats(BaseModel):
     
 class CalculoResultado(BaseModel):
     id: int
+    calc_id: str
     id_venda: int
     data_venda: datetime
     bandeira: str
@@ -35,5 +36,17 @@ class CalculoResultado(BaseModel):
     diff_taxa: Optional[Decimal] # tx_venda - tx_calc
     perda: Optional[Decimal]
     
+    class Config:
+        from_attributes = True
+
+class CalculoHistoryItem(BaseModel):
+    calc_id: str
+    calc_tipo: str
+    calc_usuario: str
+    calc_data: datetime
+    total_registros: int
+    total_valor: Optional[Decimal] = Decimal(0)
+    perda_total: Optional[Decimal] = Decimal(0)
+
     class Config:
         from_attributes = True

@@ -9,6 +9,7 @@ from datetime import datetime
 
 from app.core.database import get_db, engine
 from app.schemas.relatorio import RelatorioRequest, RelatorioResponse, RelatorioOptions
+from app.services.relatorio_service import RelatorioService
 
 # Importar lógica legada
 # O path já está configurado no main.py, então import direto deve funcionar
@@ -65,14 +66,27 @@ def get_opcoes(processamento_id: str = None):
         except Exception as e:
             print(f"Erro ao buscar adquirentes: {e}")
             
-    return options
+    return opcoes
 
 @router.get("/adquirentes")
-def get_adquirentes(processamento_id: str):
-    """Retorna lista de adquirentes para um processamento"""
+def get_adquirentes(processamento_id: str, calc_tipo: str = None):
+    """Retorna lista de adquirentes e período disponível para um processamento e tipo de cálculo"""
     try:
-        adquirentes = obter_adquirentes_distintos_processamento(engine, processamento_id)
-        return ["Todos"] + (sorted(adquirentes) if adquirentes else [])
+        from modules.reports import obter_adquirentes_e_periodo_processamento
+        adquirentes, periodo, available_types = obter_adquirentes_e_periodo_processamento(engine, processamento_id, calc_tipo=calc_tipo)
+        
+        # Converter dates para strings para o JSON
+        if periodo:
+            if 'data_min' in periodo and periodo['data_min']:
+                periodo['data_min'] = periodo['data_min'].isoformat() if hasattr(periodo['data_min'], 'isoformat') else str(periodo['data_min'])
+            if 'data_max' in periodo and periodo['data_max']:
+                periodo['data_max'] = periodo['data_max'].isoformat() if hasattr(periodo['data_max'], 'isoformat') else str(periodo['data_max'])
+                
+        return {
+            "adquirentes": ["Todos"] + (sorted(adquirentes) if adquirentes else []),
+            "periodo": periodo,
+            "available_types": available_types
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -164,19 +178,120 @@ def gerar_relatorio(req: RelatorioRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Erro na geração do relatório: {str(e)}")
 
+@router.post("/gerar-async")
+async def gerar_relatorio_async(
+    req: RelatorioRequest,
+    background_tasks: BackgroundTasks,
+    usuario: str = "api_user",
+    db: Session = Depends(get_db)
+):
+    """
+    Inicia a geração do relatório em segundo plano.
+    """
+    service = RelatorioService(db)
+    
+    # Preparar metadados para a task
+    metadata = req.dict()
+    # Converter datas para string ISO para armazenamento JSON
+    if metadata.get('data_inicio'):
+        metadata['data_inicio'] = metadata['data_inicio'].isoformat()
+    if metadata.get('data_fim'):
+        metadata['data_fim'] = metadata['data_fim'].isoformat()
+    
+    # Flag para abusividade (pode vir no request ou ser inferido)
+    metadata['gerar_abusividade'] = True # Padrão para este endpoint assíncrono
+
+    task = service.create_task(
+        processamento_id=req.processamento_id,
+        tipo_relatorio=req.tipo_relatorio,
+        usuario=usuario,
+        metadata=metadata
+    )
+    
+    background_tasks.add_task(service.run_async_report, task.id)
+    
+    return {
+        "status": "processing",
+        "task_id": task.id,
+        "message": "Geração de relatório iniciada em segundo plano."
+    }
+
+@router.get("/task/{task_id:path}")
+async def get_task_status(
+    task_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Retorna o status atual de uma tarefa de relatório.
+    """
+    service = RelatorioService(db)
+    task = service.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+    
+    return {
+        "id": task.id,
+        "status": task.status,
+        "progress": task.progress,
+        "message": task.message,
+        "tipo_relatorio": task.tipo_relatorio,
+        "result_path": task.result_path,
+        "abusividade_path": task.abusividade_path,
+        "sintetico_path": task.sintetico_path,
+        "excel_path": task.excel_path,
+        "updated_at": task.updated_at
+    }
+
 @router.get("/download")
 def download_relatorio(path: str):
     """
     Endpoint para baixar o arquivo gerado.
     Valida se o arquivo existe e está na pasta correta (segurança básica).
     """
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    # Normalizar o path para evitar problemas de encoding/barras
+    import urllib.parse
+    actual_path = urllib.parse.unquote(path)
     
-    # Basic security check: ensure it's in reports dir
-    # (Adjust logic as needed for your path structure)
-    if "relatorios" not in path.lower() and "financial" not in path.lower():
+    # Se for um path absoluto com backslashes vindo do Windows, normalizar
+    actual_path = os.path.normpath(actual_path)
+    
+    print(f"📥 Tentativa de download: {actual_path}")
+    
+    if not os.path.exists(actual_path):
+        # Tentar resolver se for relativo à raiz do projeto
+        from pathlib import Path
+        root = Path(__file__).resolve().parent.parent.parent.parent.parent
+        resolved_path = root / actual_path
+        if resolved_path.exists():
+            actual_path = str(resolved_path)
+            print(f"✅ Path resolvido para: {actual_path}")
+        else:
+            print(f"❌ Arquivo não encontrado: {actual_path}")
+            raise HTTPException(status_code=404, detail=f"Arquivo não encontrado: {os.path.basename(actual_path)}")
+    
+    # Basic security check: ensure it's in a known report directory
+    path_lower = actual_path.lower()
+    if "relatorios" not in path_lower and "temp" not in path_lower:
          raise HTTPException(status_code=403, detail="Acesso negado a este arquivo")
 
-    filename = os.path.basename(path)
-    return FileResponse(path, filename=filename)
+    filename = os.path.basename(actual_path)
+    # Encode filename for Content-Disposition (RFC 5987) to handle special characters/spaces
+    import urllib.parse
+    encoded_filename = urllib.parse.quote(filename)
+    headers = {
+        "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+    }
+    return FileResponse(actual_path, headers=headers)
+@router.get("/historico")
+async def get_historico(
+    processamento_id: str = None,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    """
+    Retorna o histórico de relatórios gerados.
+    """
+    service = RelatorioService(db)
+    tasks = service.list_tasks(skip=skip, limit=limit, processamento_id=processamento_id)
+    return tasks

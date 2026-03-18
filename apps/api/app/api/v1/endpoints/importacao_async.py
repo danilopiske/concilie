@@ -37,7 +37,7 @@ async def confirmar_importacao_async(
         "message": "Processamento iniciado em segundo plano."
     }
 
-@router.get("/task/{task_id}")
+@router.get("/task/{task_id:path}")
 async def get_task_status(
     task_id: str,
     db: Session = Depends(get_db)
