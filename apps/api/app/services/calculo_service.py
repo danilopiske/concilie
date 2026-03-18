@@ -1,7 +1,11 @@
+import logging
+
 from sqlalchemy.orm import Session
-import traceback
+
 from app.models.calculo_task import CalculoTask
-from modules.reconciliation_core import ReconciliationCore
+
+logger = logging.getLogger(__name__)
+from app.services.reconciliation_core import ReconciliationCore
 from typing import Optional
 
 class CalculoService:
@@ -105,4 +109,4 @@ class CalculoService:
                 task.status = "FAILED"
                 task.message = f"Erro inesperado: {str(e)}"[:255]
                 db.commit()
-                traceback.print_exc()
+                logger.exception("Erro inesperado na task de cálculo")

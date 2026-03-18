@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.repositories.calculo_repository import CalculoRepository
 from app.services.calculo_service import CalculoService
-from modules.reconciliation_core import ReconciliationCore
+from app.services.reconciliation_core import ReconciliationCore
 from fastapi import BackgroundTasks
 from app.schemas.calculo import (
     CalculoPreviewRequest, 
