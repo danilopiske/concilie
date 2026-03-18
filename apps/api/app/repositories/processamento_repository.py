@@ -1,9 +1,50 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.engine import Engine
 from app.models.legacy_processamento import LegacyProcessamento
 from app.schemas.processamento import ProcessamentoResponse, ProcessamentoFilter
-from typing import List, Optional
+from app.core.db_helpers import fetch_one, exec_sql
+from typing import List, Optional, Tuple
 from datetime import datetime
 from sqlalchemy import text
+
+
+# ---------------------------------------------------------------------------
+# Standalone helpers (replaces conf.funcoesbd.processamento_*)
+# ---------------------------------------------------------------------------
+
+def gerar_novo_id(engine: Engine, ec_id: str, now: datetime) -> Tuple[str, datetime]:
+    """Generate a unique processamento ID based on sequence count."""
+    total = fetch_one(
+        engine,
+        "SELECT COUNT(*) AS total FROM controle_processamentos WHERE ec_id = :ec_id",
+        {"ec_id": ec_id},
+    )
+    sequencial = ((total or {}).get("total") or 0) + 1
+    return f"{ec_id}_{sequencial:04d} - {now.strftime('%d/%m/%Y %H:%M:%S')}", now
+
+
+def salvar(
+    engine: Engine,
+    ec_id: str,
+    cliente_id: int,
+    id_processamento: str,
+    descricao: str,
+    data_processamento: datetime,
+) -> None:
+    """Persist a new processamento record."""
+    exec_sql(
+        engine,
+        "INSERT INTO controle_processamentos "
+        "(id_processamento, cliente_id, ec_id, descricao, data_processamento) "
+        "VALUES (:id_processamento, :cliente_id, :ec_id, :descricao, :data_processamento)",
+        {
+            "id_processamento": id_processamento,
+            "cliente_id": cliente_id,
+            "ec_id": ec_id,
+            "descricao": descricao,
+            "data_processamento": data_processamento,
+        },
+    )
 
 class ProcessamentoRepository:
     def __init__(self, db: Session):

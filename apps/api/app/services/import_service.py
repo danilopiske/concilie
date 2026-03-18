@@ -20,7 +20,7 @@ from proc.proc_importacao import (
     classificar_e_gravar_vendas,
     classificar_e_gravar_recebiveis
 )
-from conf.funcoesbd import processamento_gerar_novo_id, processamento_salvar
+from app.repositories.processamento_repository import gerar_novo_id as processamento_gerar_novo_id, salvar as processamento_salvar
 from datetime import datetime
 
 import zipfile
