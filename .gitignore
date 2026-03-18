@@ -191,10 +191,15 @@ docs/
 docs_old/
 scripts/
 
-# Arquivos de teste
-test_*.py
-*_test.py
-tests/
+# Arquivos de teste temporários (debug scripts na raiz)
+check_*.py
+debug_*.py
+diag_*.py
+verify_*.py
+stress_*.py
+
+# MCP config (contém API keys)
+.mcp.json
 
 # Configurações locais (senhas, etc)
 local_settings.py

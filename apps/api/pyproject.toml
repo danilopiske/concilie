@@ -45,6 +45,13 @@ isort = "^5.13.2"
 httpx = "^0.28.1"
 pyinstaller = "^6.0"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
