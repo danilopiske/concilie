@@ -5,6 +5,7 @@ export interface CalculoPreviewRequest {
   tipo_taxa: string;
   usar_taxa_cad: boolean;
   tem_receba_rapido: boolean;
+  substituir?: boolean;
 }
 
 export interface CalculoStats {
@@ -21,6 +22,7 @@ export interface CalculoStats {
 
 export interface CalculoResultado {
   id: number;
+  calc_id: string;
   id_venda: number;
   data_venda: string;
   bandeira: string;
@@ -32,20 +34,61 @@ export interface CalculoResultado {
   perda?: number;
 }
 
+export interface CalculoHistoryItem {
+  calc_id: string;
+  calc_tipo: string;
+  calc_usuario: string;
+  calc_data: string;
+  total_registros: number;
+  total_valor: number;
+  perda_total: number;
+}
+
+export interface CalculoTask {
+  id: string;
+  status: 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED';
+  progress: number;
+  message: string;
+  updated_at: string;
+  processamento_id: number;
+  tipo_taxa: string;
+}
+
 export const calculoApi = {
   preview: async (req: CalculoPreviewRequest): Promise<CalculoStats> => {
-    const response = await apiClient.post<CalculoStats>('/calculos/preview', req);
+    const response = await apiClient.post<CalculoStats>('calculos/preview', req);
     return response.data;
   },
 
   processar: async (req: CalculoPreviewRequest): Promise<void> => {
-    await apiClient.post('/calculos/processar', req);
+    await apiClient.post('calculos/processar', req);
+  },
+
+  processarAsync: async (req: CalculoPreviewRequest): Promise<{ task_id: string }> => {
+    const response = await apiClient.post<{ task_id: string }>('calculos/processar-async', req);
+    return response.data;
+  },
+
+  getTaskStatus: async (taskId: string): Promise<CalculoTask> => {
+    const response = await apiClient.get<CalculoTask>(`calculos/task/${taskId}`);
+    return response.data;
   },
 
   listarResultados: async (calcId: string, skip = 0, limit = 100): Promise<CalculoResultado[]> => {
-    const response = await apiClient.get<CalculoResultado[]>(`/calculos/resultados/${calcId}`, {
+    const response = await apiClient.get<CalculoResultado[]>(`calculos/resultados/${calcId}`, {
       params: { skip, limit }
     });
     return response.data;
+  },
+
+  getHistory: async (skip = 0, limit = 50): Promise<CalculoHistoryItem[]> => {
+    const response = await apiClient.get<CalculoHistoryItem[]>('calculos/historico-calculos', {
+      params: { skip, limit }
+    });
+    return response.data;
+  },
+
+  deleteCalculo: async (calcId: string): Promise<void> => {
+    await apiClient.delete(`calculos/${calcId}`);
   }
 };

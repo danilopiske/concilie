@@ -12,6 +12,7 @@ import { Loading } from '@/components/shared/Loading';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { importacaoApi } from '@/lib/api/importacao';
 import { correcaoService } from '@/lib/api/correcao';
+import { useAuth } from '@/hooks/useAuth';
 import { Processamento } from '@/lib/types/importacao';
 import { ResumoResponse, ResumoItem, HistoricoItem } from '@/lib/types/correcao';
 import { formatCurrency } from '@/lib/utils/formatters';
@@ -53,6 +54,27 @@ export default function CorrecaoToolPage() {
   const [newValue, setNewValue] = useState('');
   const [processingAction, setProcessingAction] = useState(false);
 
+  // Taxa BC
+  const [bcFiltros, setBcFiltros] = useState<{ formas: string[], bandeiras: string[] }>({ formas: [], bandeiras: [] });
+  const [bcSelectedForma, setBcSelectedForma] = useState('TODOS');
+  const [bcSelectedBandeira, setBcSelectedBandeira] = useState('TODOS');
+  const [bcDataIni, setBcDataIni] = useState('');
+  const [bcDataFim, setBcDataFim] = useState('');
+  const [bcNovaTaxa, setBcNovaTaxa] = useState<number | ''>('');
+  const [loadingBcFiltros, setLoadingBcFiltros] = useState(false);
+  const [applyingBC, setApplyingBC] = useState(false);
+
+  // Auth
+  const { user } = useAuth();
+
+  // Multi-selection
+  const [selectedItems, setSelectedItems] = useState<Record<string, string[]>>({
+    forma_pagamento: [],
+    bandeira: [],
+    status: [],
+    lancamento: []
+  });
+
 
 
   useEffect(() => {
@@ -62,8 +84,10 @@ export default function CorrecaoToolPage() {
   useEffect(() => {
     if (selectedProcessamento) {
       fetchResumo(selectedProcessamento);
+      fetchBcFiltros(selectedProcessamento);
     } else {
       setResumo(null);
+      setBcFiltros({ formas: [], bandeiras: [] });
     }
   }, [selectedProcessamento]);
 
@@ -120,28 +144,73 @@ export default function CorrecaoToolPage() {
     }
   };
 
-
-
-  const handleEdit = (campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento', item: ResumoItem, customNewValue?: string) => {
-    setActionItem({ campo, item });
-    setNewValue(customNewValue || item.valor);
-    if (!customNewValue) {
-        setEditModalOpen(true); // Open modal if no value provided directly
-    } else {
-        // If value provided (from input field), confirm directly? No, usually safer to confirm.
-        // Assuming the UI flow: Type in Input -> Click "Update Selected" (which iterates over selection).
-        // Since we are web, we usually do row-based actions.
-        // HOWEVER, the Legacy UI has a "Batch Update" flow: Type generic name -> Select Checkboxes -> Update All.
-        // Implementing row-based for simplicity unless batch is strictly required. 
-        // The user asked for "match legacy". Legacy is Batch.
-        // Let's stick to row based for now as it's safer and easier in web, but style it like the legacy.
-        // Actually, let's keep the row actions but style the header inputs to look like they could be used for batch later if we implement selection.
-        setEditModalOpen(true);
+  const fetchBcFiltros = async (id: string) => {
+    try {
+      setLoadingBcFiltros(true);
+      const data = await correcaoService.obterFiltrosTaxaBC(id);
+      setBcFiltros(data);
+    } catch (err) {
+      console.error('Erro ao carregar filtros BC:', err);
+    } finally {
+      setLoadingBcFiltros(false);
     }
   };
 
-  const handleDelete = (campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento', item: ResumoItem) => {
-    setActionItem({ campo, item });
+  const handleAplicarTaxaBC = async () => {
+    if (!selectedProcessamento || bcNovaTaxa === '') {
+        alert('Selecione um processamento e informe a nova taxa.');
+        return;
+    }
+    
+    try {
+      setApplyingBC(true);
+      const res = await correcaoService.aplicarTaxaBC({
+        processamento_id: selectedProcessamento,
+        forma_pagamento: bcSelectedForma,
+        bandeira: bcSelectedBandeira,
+        data_ini: bcDataIni || undefined,
+        data_fim: bcDataFim || undefined,
+        nova_taxa: Number(bcNovaTaxa)
+      });
+      alert(`Sucesso! ${res.linhas_afetadas} linhas atualizadas.`);
+      if (selectedProcessamento) fetchResumo(selectedProcessamento);
+    } catch (err) {
+      alert('Erro ao aplicar Taxa BC: ' + err);
+    } finally {
+      setApplyingBC(false);
+    }
+  };
+
+
+
+  const handleEdit = (campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento', item: ResumoItem | 'selected', customNewValue?: string) => {
+    if (item === 'selected') {
+      const selected = selectedItems[campo];
+      if (!selected || selected.length === 0) {
+        alert('Selecione ao menos um item');
+        return;
+      }
+      // Create a dummy item for the modal logic
+      setActionItem({ campo, item: { valor: selected.join(', '), quantidade: 0, valor_total: 0 } });
+    } else {
+      setActionItem({ campo, item });
+    }
+    
+    setNewValue(customNewValue || (typeof item === 'string' ? '' : item.valor));
+    setEditModalOpen(true);
+  };
+
+  const handleDelete = (campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento', item: ResumoItem | 'selected') => {
+    if (item === 'selected') {
+      const selected = selectedItems[campo];
+      if (!selected || selected.length === 0) {
+        alert('Selecione ao menos um item');
+        return;
+      }
+      setActionItem({ campo, item: { valor: selected.join(', '), quantidade: 0, valor_total: 0 } });
+    } else {
+      setActionItem({ campo, item });
+    }
     setDeleteDialogOpen(true);
   };
 
@@ -150,11 +219,15 @@ export default function CorrecaoToolPage() {
     
     try {
       setProcessingAction(true);
+      const isBatch = actionItem.item.quantidade === 0 && actionItem.item.valor.includes(', ');
+      const valores_antigos = isBatch ? selectedItems[actionItem.campo] : [actionItem.item.valor];
+
       await correcaoService.atualizarEmMassa({
         processamento_id: selectedProcessamento,
         campo: actionItem.campo,
-        valor_antigo: actionItem.item.valor,
-        valor_novo: newValue
+        valores_antigos,
+        valor_novo: newValue,
+        usuario: user?.usuario
       });
     } catch (err) {
       alert('Erro ao atualizar: ' + err);
@@ -163,6 +236,8 @@ export default function CorrecaoToolPage() {
       setProcessingAction(false);
       setEditModalOpen(false);
       setActionItem(null);
+      // Clear selection after batch action
+      setSelectedItems(prev => ({ ...prev, [actionItem.campo]: [] }));
     }
 
     // Refresh outside the lock
@@ -170,32 +245,33 @@ export default function CorrecaoToolPage() {
   };
 
   const confirmDelete = async () => {
-    console.log('[DEBUG] confirmDelete triggered for:', actionItem);
     if (!actionItem || !selectedProcessamento) return;
     
     try {
       setProcessingAction(true);
+      const isBatch = actionItem.item.quantidade === 0 && actionItem.item.valor.includes(', ');
+      const valores = isBatch ? selectedItems[actionItem.campo] : [actionItem.item.valor];
+
       await correcaoService.removerEmMassa({
         processamento_id: selectedProcessamento,
         campo: actionItem.campo,
-        valor: actionItem.item.valor
+        valores,
+        usuario: user?.usuario
       });
-      console.log('[DEBUG] Delete successful');
     } catch (err: any) {
       console.error(err);
       const msg = err.response?.data?.detail || err.message || 'Erro desconhecido';
       alert(`Erro ao remover: ${msg}`);
       return;
     } finally {
-      console.log('[DEBUG] Cleanup after delete');
       setProcessingAction(false);
       setDeleteDialogOpen(false);
-      
-      // Force clear immediately
       setActionItem(null); 
+      // Clear selection after batch action
+      setSelectedItems(prev => ({ ...prev, [actionItem.campo]: [] }));
     }
 
-    // Refresh independent of the modal action (Fire and forget from modal perspective)
+    // Refresh
     fetchResumo(selectedProcessamento);
   };
 
@@ -205,7 +281,48 @@ export default function CorrecaoToolPage() {
     campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento',
     icon: any
   ) => {
+    const selected = selectedItems[campo] || [];
+    const isAllSelected = data.length > 0 && selected.length === data.length;
+
+    const toggleAll = () => {
+        setSelectedItems(prev => ({
+            ...prev,
+            [campo]: isAllSelected ? [] : data.map(i => i.valor)
+        }));
+    };
+
+    const toggleItem = (valor: string) => {
+        setSelectedItems(prev => {
+            const current = prev[campo] || [];
+            if (current.includes(valor)) {
+                return { ...prev, [campo]: current.filter(v => v !== valor) };
+            } else {
+                return { ...prev, [campo]: [...current, valor] };
+            }
+        });
+    };
+
     const columns: TableColumn<ResumoItem>[] = [
+      {
+        key: 'select',
+        label: (
+            <input 
+                type="checkbox" 
+                checked={isAllSelected}
+                onChange={toggleAll}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+        ),
+        width: '40px',
+        render: (_, item) => (
+            <input 
+                type="checkbox" 
+                checked={selected.includes(item.valor)}
+                onChange={() => toggleItem(item.valor)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+        )
+      },
       { key: 'valor', label: 'Nome Original' },
       { key: 'quantidade', label: 'Qtd', width: '100px' },
       { 
@@ -241,17 +358,39 @@ export default function CorrecaoToolPage() {
 
     return (
       <Panel className="mb-6">
-        <PanelHeader icon={icon}>{title}</PanelHeader>
-        <PanelBody>
-            {/* Legacy UI Simulation: Input + Batch Buttons REMOVED as per user request */}
-
-            <Table 
-              columns={columns} 
-              data={data} 
-              emptyMessage="Nenhum registro encontrado."
-              pagination={true}
-              pageSize={10}
-            />
+        <PanelHeader icon={icon}>
+            <div className="flex justify-between items-center w-full">
+                <span>{title}</span>
+                {selected.length > 0 && (
+                    <div className="flex gap-2 mr-4">
+                        <Button 
+                            variant="primary" 
+                            size="sm" 
+                            onClick={() => handleEdit(campo, 'selected')}
+                        >
+                            <Edit2 className="w-4 h-4 mr-1" /> Mapear {selected.length}
+                        </Button>
+                        <Button 
+                            variant="secondary" 
+                            size="sm" 
+                            onClick={() => handleDelete(campo, 'selected')}
+                            className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 shadow-none border"
+                        >
+                            <Trash2 className="w-4 h-4 mr-1" /> Remover {selected.length}
+                        </Button>
+                    </div>
+                )}
+            </div>
+        </PanelHeader>
+        <PanelBody className="p-0">
+          <Table 
+            columns={columns} 
+            data={data} 
+            emptyMessage="Nenhum registro encontrado."
+            pagination={data.length > 10}
+            pageSize={10}
+            rowKey="valor"
+          />
         </PanelBody>
       </Panel>
     );
@@ -359,6 +498,90 @@ export default function CorrecaoToolPage() {
           {renderSection('4. Bandeiras', (resumo.bandeiras || []).filter(i => i.valor !== 'N/A'), 'bandeira', CreditCard)}
           {renderSection('5. Recebíveis', (resumo.recebiveis || []).filter(i => i.valor !== 'N/A'), 'lancamento', DollarSign)}
           {renderSection('6. Status', resumo.status || [], 'status', Info)}
+
+          {/* 7. Ferramenta de Taxa BC */}
+          <Panel>
+              <PanelHeader icon={RefreshCw}>7. Ferramenta de Aplicar Taxa BC</PanelHeader>
+              <PanelBody>
+                  <div className="bg-blue-50 p-4 border border-blue-200 rounded text-sm text-blue-800 mb-6">
+                      <p><strong>Atenção:</strong> Esta ferramenta aplica uma taxa percentual fixa e recalcula automaticamente o desconto, valor líquido e perda na tabela <code>vendas_calculos</code>.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                          <div>
+                              <label className="text-sm font-medium text-gray-700 mb-1 block">Forma de Pagamento</label>
+                              <select 
+                                  className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 min-h-[40px]"
+                                  value={bcSelectedForma}
+                                  onChange={(e) => setBcSelectedForma(e.target.value)}
+                                  disabled={loadingBcFiltros || !selectedProcessamento}
+                              >
+                                  <option value="TODOS">TODOS</option>
+                                  {bcFiltros.formas.map(f => <option key={f} value={f}>{f}</option>)}
+                              </select>
+                          </div>
+                          <div>
+                              <label className="text-sm font-medium text-gray-700 mb-1 block">Bandeira</label>
+                              <select 
+                                  className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 min-h-[40px]"
+                                  value={bcSelectedBandeira}
+                                  onChange={(e) => setBcSelectedBandeira(e.target.value)}
+                                  disabled={loadingBcFiltros || !selectedProcessamento}
+                              >
+                                  <option value="TODOS">TODOS</option>
+                                  {bcFiltros.bandeiras.map(b => <option key={b} value={b}>{b}</option>)}
+                              </select>
+                          </div>
+                      </div>
+
+                      <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                  <label className="text-sm font-medium text-gray-700 mb-1 block">Data Inicial</label>
+                                  <Input 
+                                      type="date" 
+                                      value={bcDataIni} 
+                                      onChange={(e) => setBcDataIni(e.target.value)} 
+                                      disabled={!selectedProcessamento}
+                                  />
+                              </div>
+                              <div>
+                                  <label className="text-sm font-medium text-gray-700 mb-1 block">Data Final</label>
+                                  <Input 
+                                      type="date" 
+                                      value={bcDataFim} 
+                                      onChange={(e) => setBcDataFim(e.target.value)}
+                                      disabled={!selectedProcessamento}
+                                  />
+                              </div>
+                          </div>
+                          <div>
+                              <label className="text-sm font-medium text-gray-700 mb-1 block font-bold text-blue-600">Nova Taxa BC (%)</label>
+                              <div className="flex gap-2">
+                                  <Input 
+                                      type="number" 
+                                      step="0.0001"
+                                      placeholder="Ex: 2.50"
+                                      value={bcNovaTaxa}
+                                      onChange={(e) => setBcNovaTaxa(e.target.value === '' ? '' : Number(e.target.value))}
+                                      className="flex-1"
+                                      disabled={!selectedProcessamento}
+                                  />
+                                  <Button 
+                                      variant="primary" 
+                                      onClick={handleAplicarTaxaBC}
+                                      disabled={!selectedProcessamento || applyingBC || bcNovaTaxa === ''}
+                                      loading={applyingBC}
+                                  >
+                                      🚀 Aplicar Taxa BC
+                                  </Button>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </PanelBody>
+          </Panel>
         </div>
       )}
 

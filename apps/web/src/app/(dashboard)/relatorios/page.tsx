@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/Button';
 import { Loading } from '@/components/shared/Loading';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { importacaoApi } from '@/lib/api/importacao';
-import { relatorioApi, RelatorioResponse } from '@/lib/api/relatorio';
+import { relatorioApi, RelatorioResponse, RelatorioTask } from '@/lib/api/relatorio';
+import { calculoApi, CalculoHistoryItem } from '@/lib/api/calculo';
+import { useRelatorio } from '@/hooks/useRelatorio';
 import { Processamento } from '@/lib/types/importacao';
 import { 
   FileText, 
@@ -14,12 +16,13 @@ import {
   ExternalLink,
   Filter,
   Calendar,
-  Settings
+  Settings,
+  Clock
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 
 export default function RelatoriosPage() {
-  const [processamentos, setProcessamentos] = useState<Processamento[]>([]);
+  const [calculos, setCalculos] = useState<CalculoHistoryItem[]>([]);
   const [selectedProcessamento, setSelectedProcessamento] = useState<string>('');
   const [loadingProc, setLoadingProc] = useState(true);
   
@@ -40,9 +43,10 @@ export default function RelatoriosPage() {
   const [apenasPerdas, setApenasPerdas] = useState(false);
 
   // States
-  const [loadingAction, setLoadingAction] = useState(false);
-  const [result, setResult] = useState<RelatorioResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [refreshHistory, setRefreshHistory] = useState(0);
+  const { task, loading: loadingAsync, error: errorAsync, startGeracao, resetTask } = useRelatorio();
+  const displayError = error || errorAsync;
 
   useEffect(() => {
     fetchProcessamentos();
@@ -50,32 +54,38 @@ export default function RelatoriosPage() {
 
   useEffect(() => {
     if (selectedProcessamento) {
-      fetchAdquirentes(selectedProcessamento);
+      fetchAdquirentes(selectedProcessamento, calcTipo);
     } else {
       setAdquirenteOptions(['Todos']);
       setSelectedAdquirente('Todos');
     }
-  }, [selectedProcessamento]);
+  }, [selectedProcessamento, calcTipo]);
 
   const fetchProcessamentos = async () => {
     try {
       setLoadingProc(true);
-      const data = await importacaoApi.processamentos.listar(undefined, undefined, true);
-      setProcessamentos(data);
+      const data = await calculoApi.getHistory();
+      setCalculos(data);
     } catch (err) {
-      setError('Erro ao carregar lista de processamentos');
+      setError('Erro ao carregar histórico de cálculos');
       console.error(err);
     } finally {
       setLoadingProc(false);
     }
   };
 
-  const fetchAdquirentes = async (procId: string) => {
+  const fetchAdquirentes = async (procId: string, type?: string) => {
     try {
       setLoadingAdquirentes(true);
-      const data = await relatorioApi.getAdquirentes(procId);
-      setAdquirenteOptions(data);
+      const { adquirentes: data, periodo } = await relatorioApi.getAdquirentes(procId, type);
+      setAdquirenteOptions(data || ['Todos']);
       setSelectedAdquirente('Todos');
+
+      // Auto-preencher datas se o período estiver disponível (sempre sobrescrever para manter sincronia)
+      if (periodo && periodo.data_min && periodo.data_max) {
+        setDataInicio(periodo.data_min.split('T')[0]);
+        setDataFim(periodo.data_max.split('T')[0]);
+      }
     } catch (err) {
       console.error('Erro ao carregar adquirentes', err);
     } finally {
@@ -87,27 +97,19 @@ export default function RelatoriosPage() {
     if (!selectedProcessamento) return;
     
     setError(null);
-    setResult(null);
-    setLoadingAction(true);
+    resetTask();
     
-    try {
-      const data = await relatorioApi.gerar({
-        processamento_id: selectedProcessamento,
-        tipo_relatorio: tipoRelatorio,
-        calc_tipo: calcTipo,
-        adquirente: selectedAdquirente,
-        data_inicio: dataInicio || undefined,
-        data_fim: dataFim || undefined,
-        incluir_filtradas: incluirFiltradas,
-        incluir_recebiveis_filtrados: incluirRecebiveis,
-        apenas_com_perdas: apenasPerdas
-      });
-      setResult(data);
-    } catch (err: any) {
-      setError('Erro ao gerar relatório: ' + (err.response?.data?.detail || err.message));
-    } finally {
-      setLoadingAction(false);
-    }
+    startGeracao({
+      processamento_id: selectedProcessamento,
+      tipo_relatorio: tipoRelatorio,
+      calc_tipo: calcTipo,
+      adquirente: selectedAdquirente,
+      data_inicio: dataInicio || undefined,
+      data_fim: dataFim || undefined,
+      incluir_filtradas: incluirFiltradas,
+      incluir_recebiveis_filtrados: incluirRecebiveis,
+      apenas_com_perdas: apenasPerdas
+    });
   };
 
   const openFile = (path: string) => {
@@ -131,39 +133,60 @@ export default function RelatoriosPage() {
 
       </div>
 
-      {error && <ErrorMessage message={error} />}
+
+      {displayError && <ErrorMessage message={displayError} />}
+
+      {/* Progress Bar for Async Task */}
+      {task && task.status !== 'SUCCESS' && task.status !== 'FAILED' && (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg space-y-2 animate-pulse">
+          <div className="flex justify-between items-center text-sm font-medium text-blue-700">
+            <span>{task.message}</span>
+            <span>{task.progress}%</span>
+          </div>
+          <div className="w-full bg-blue-200 rounded-full h-2.5">
+            <div 
+              className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
+              style={{ width: `${task.progress}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* Left Column: Filters */}
         <div className="lg:col-span-2 space-y-6">
           <Panel>
             <PanelHeader icon={Settings}>Configuração do Relatório</PanelHeader>
             <PanelBody className="space-y-6">
-                
-                {/* 1. Processamento */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Processamento</label>
-                  <select
-                      className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                      value={selectedProcessamento}
-                      onChange={(e) => setSelectedProcessamento(e.target.value)}
-                      disabled={loadingProc || loadingAction}
-                  >
-                      <option value="">Selecione...</option>
-                      {processamentos.map(p => (
-                          <option key={p.id} value={String(p.id)}>
-                              {p.id} - {p.tipo_arquivo} - {p.nome_arquivo}
-                          </option>
-                      ))}
-                  </select>
-                </div>
-
-                {/* 2. Tipo e Adquirente Row */}
+                {/* 1. Cálculo Selection */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo de Relatório</label>
-                      <div className="flex gap-4 mt-2">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Cálculo (ID)</label>
+                    <select
+                        className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        value={selectedProcessamento}
+                        onChange={(e) => {
+                            const id = e.target.value;
+                            setSelectedProcessamento(id);
+                            const calc = calculos.find(c => c.calc_id === id);
+                            if (calc) {
+                                setCalcTipo(calc.calc_tipo);
+                            }
+                        }}
+                        disabled={loadingProc || loadingAsync}
+                    >
+                        <option value="">{loadingProc ? 'Carregando cálculos...' : 'Selecione...'}</option>
+                        {calculos.map((c, idx) => (
+                            <option key={`${c.calc_id}-${idx}`} value={c.calc_id}>
+                                {c.calc_id} ({c.calc_tipo}) - {new Date(c.calc_data).toLocaleString()}
+                            </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Tipo de Relatório</label>
+                    <div className="flex gap-4 mt-2">
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input 
                             type="radio" 
@@ -172,9 +195,9 @@ export default function RelatoriosPage() {
                             checked={tipoRelatorio === 'retroativo'}
                             onChange={() => setTipoRelatorio('retroativo')}
                             className="text-blue-600 focus:ring-blue-500" 
-                            disabled={loadingAction}
+                            disabled={loadingAsync}
                           />
-                          <span className="text-sm text-gray-700">Retroativo (Completo)</span>
+                          <span className="text-sm text-gray-700">Retroativo</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input 
@@ -184,28 +207,33 @@ export default function RelatoriosPage() {
                             checked={tipoRelatorio === 'mensal'}
                             onChange={() => setTipoRelatorio('mensal')} 
                             className="text-blue-600 focus:ring-blue-500"
-                            disabled={loadingAction}
+                            disabled={loadingAsync}
                           />
                           <span className="text-sm text-gray-700">Mensal</span>
                         </label>
-                      </div>
-                   </div>
+                    </div>
+                  </div>
+                </div>
 
-                   <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">
-                        Adquirente {loadingAdquirentes && '(Carregando...)'}
-                      </label>
-                      <select
-                          className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                          value={selectedAdquirente}
-                          onChange={(e) => setSelectedAdquirente(e.target.value)}
-                          disabled={!selectedProcessamento || loadingAdquirentes || loadingAction}
-                      >
-                          {adquirenteOptions.map(opt => (
+                {/* 2. Adquirente */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">
+                    Adquirente {loadingAdquirentes && '(Carregando...)'}
+                  </label>
+                  <select
+                      className="w-full border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      value={selectedAdquirente}
+                      onChange={(e) => setSelectedAdquirente(e.target.value)}
+                      disabled={!selectedProcessamento || loadingAdquirentes || loadingAsync}
+                  >
+                      {loadingAdquirentes ? (
+                          <option value="">Carregando adquirentes...</option>
+                      ) : (
+                          adquirenteOptions.map(opt => (
                               <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                      </select>
-                   </div>
+                          ))
+                      )}
+                  </select>
                 </div>
 
                 {/* 3. Dates */}
@@ -219,14 +247,14 @@ export default function RelatoriosPage() {
                         className="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 w-full"
                         value={dataInicio}
                         onChange={(e) => setDataInicio(e.target.value)}
-                        disabled={loadingAction}
+                        disabled={loadingAsync}
                       />
                       <input 
                         type="date" 
                         className="border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 w-full"
                         value={dataFim}
                         onChange={(e) => setDataFim(e.target.value)}
-                        disabled={loadingAction}
+                        disabled={loadingAsync}
                       />
                    </div>
                 </div>
@@ -239,7 +267,7 @@ export default function RelatoriosPage() {
                           checked={apenasPerdas} 
                           onChange={(e) => setApenasPerdas(e.target.checked)}
                           className="rounded text-blue-600 focus:ring-blue-500"
-                          disabled={loadingAction}
+                          disabled={loadingAsync}
                         />
                         <span className="text-sm text-gray-700">Apenas transações com perdas</span>
                     </label>
@@ -250,7 +278,7 @@ export default function RelatoriosPage() {
                           checked={incluirFiltradas} 
                           onChange={(e) => setIncluirFiltradas(e.target.checked)}
                           className="rounded text-blue-600 focus:ring-blue-500"
-                          disabled={loadingAction}
+                          disabled={loadingAsync}
                         />
                         <span className="text-sm text-gray-700">Incluir Vendas Filtradas (Removidas)</span>
                     </label>
@@ -261,7 +289,7 @@ export default function RelatoriosPage() {
                           checked={incluirRecebiveis} 
                           onChange={(e) => setIncluirRecebiveis(e.target.checked)}
                           className="rounded text-blue-600 focus:ring-blue-500"
-                          disabled={loadingAction}
+                          disabled={loadingAsync}
                         />
                         <span className="text-sm text-gray-700">Incluir Recebíveis Filtrados</span>
                     </label>
@@ -270,81 +298,91 @@ export default function RelatoriosPage() {
                 <div className="pt-4 mt-2 border-t flex justify-end">
                     <Button 
                       onClick={handleGerar}
-                      disabled={!selectedProcessamento || loadingAction}
+                      disabled={!selectedProcessamento || loadingAsync}
                       className="w-full md:w-auto min-w-[200px]"
                     >
-                      {loadingAction ? 'Gerando Relatório...' : 'Gerar Relatório'}
+                      {loadingAsync ? 'Gerando Relatório...' : 'Gerar Relatório'}
                     </Button>
                 </div>
-
             </PanelBody>
           </Panel>
         </div>
 
-        {/* Right Column: Results/Status */}
         <div className="lg:col-span-1">
-           {result ? (
-             <Card className="p-6 bg-green-50 border-green-200 h-full animate-in fade-in slide-in-from-right-4 duration-500">
-                <div className="flex flex-col h-full items-center justify-center text-center space-y-6">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl">
-                      ✅
-                    </div>
-                    <h3 className="text-xl font-bold text-green-800">Sucesso!</h3>
-                    <p className="text-sm text-green-700">
-                      O relatório foi gerado e salvo no servidor.
-                    </p>
-                    
-                    <div className="w-full space-y-3">
-                        {result.html_path && (
-                          <Button 
-                            variant="primary" 
-                            className="w-full flex items-center justify-center gap-2"
-                            onClick={() => openFile(result.html_path!)}
-                          >
-                            <ExternalLink className="w-4 h-4" /> Abrir Relatório HTML
-                          </Button>
-                        )}
-                        
-                        {result.excel_path && (
-                          <Button 
-                            variant="secondary" 
-                            className="w-full flex items-center justify-center gap-2"
-                            onClick={() => openFile(result.excel_path!)}
-                          >
-                            <Download className="w-4 h-4" /> Baixar Excel
-                          </Button>
-                        )}
+          {task?.status === 'SUCCESS' ? (
+            <Card className="p-6 bg-green-50 border-green-200 h-full animate-in fade-in slide-in-from-right-4 duration-500">
+              <div className="flex flex-col h-full items-center justify-center text-center space-y-6">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl">
+                    ✅
+                  </div>
+                  <h3 className="text-xl font-bold text-green-800">Sucesso!</h3>
+                  <p className="text-sm text-green-700">
+                    O relatório foi gerado e salvo no servidor.
+                  </p>
+                  
+                  <div className="w-full space-y-3">
+                      {task.result_path && (
+                        <Button 
+                          variant="primary" 
+                          className="w-full flex items-center justify-center gap-2"
+                          onClick={() => openFile(task.result_path!)}
+                        >
+                          <ExternalLink className="w-4 h-4" /> Abrir Relatório HTML
+                        </Button>
+                      )}
+                      
+                      {task.excel_path && (
+                        <Button 
+                          variant="secondary" 
+                          className="w-full flex items-center justify-center gap-2"
+                          onClick={() => openFile(task.excel_path!)}
+                        >
+                          <Download className="w-4 h-4" /> Baixar Excel
+                        </Button>
+                      )}
 
-                       {result.sintetico_path && (
-                          <Button 
-                            variant="secondary" 
-                            className="w-full flex items-center justify-center gap-2"
-                            onClick={() => openFile(result.sintetico_path!)}
-                          >
-                            <FileText className="w-4 h-4" /> Abrir Resumo Sintético
-                          </Button>
-                        )}
+                     {task.sintetico_path && (
+                        <Button 
+                          variant="secondary" 
+                          className="w-full flex items-center justify-center gap-2"
+                          onClick={() => openFile(task.sintetico_path!)}
+                        >
+                          <FileText className="w-4 h-4" /> Abrir Resumo Sintético
+                        </Button>
+                      )}
 
-                        {result.abusividade_path && (
-                          <Button 
-                            variant="primary" 
-                            className="w-full flex items-center justify-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white"
-                            onClick={() => openFile(result.abusividade_path!)}
-                          >
-                            <span className="text-lg">⚠️</span> Abrir Demonstrativo de Abusividade
-                          </Button>
-                        )}
-                    </div>
-                </div>
-             </Card>
-           ) : (
-             <Card className="p-6 h-full flex flex-col items-center justify-center text-center text-gray-400 border-dashed">
-                <FileText className="w-12 h-12 mb-4 opacity-50" />
-                <p>Configure os filtros e clique em "Gerar" para visualizar os resultados.</p>
-             </Card>
-           )}
+                      {task.abusividade_path && (
+                        <Button 
+                          variant="primary" 
+                          className="w-full flex items-center justify-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white"
+                          onClick={() => openFile(task.abusividade_path!)}
+                        >
+                          <span className="text-lg">⚠️</span> Abrir Demonstrativo de Abusividade
+                        </Button>
+                      )}
+                      
+                      <Button 
+                         variant="secondary" 
+                         className="w-full mt-4"
+                         onClick={resetTask}
+                       >
+                         Nova Geração
+                       </Button>
+                  </div>
+              </div>
+            </Card>
+          ) : (
+            <Card className="p-6 h-full flex flex-col items-center justify-center text-center text-gray-400 border-dashed">
+              <FileText className="w-12 h-12 mb-4 opacity-50" />
+              <p>Configure os filtros e clique em "Gerar" para visualizar os resultados.</p>
+              {task?.status === 'PROCESSING' && (
+                 <div className="mt-4 text-blue-600 animate-pulse">
+                     Geração em curso... {task.progress}%
+                 </div>
+              )}
+            </Card>
+          )}
         </div>
-
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import { Loading } from '@/components/shared/Loading';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { importacaoApi } from '@/lib/api/importacao';
 import { calculoApi, CalculoStats, CalculoResultado } from '@/lib/api/calculo';
+import { useCalculo } from '@/hooks/useCalculo';
 import { Processamento } from '@/lib/types/importacao';
 import { formatCurrency } from '@/lib/utils/formatters';
 import { 
@@ -18,7 +19,8 @@ import {
   TrendingDown, 
   AlertTriangle,
   Settings,
-  BarChart2
+  BarChart2,
+  RefreshCw
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 
@@ -31,18 +33,24 @@ export default function CalculosToolPage() {
   const [tipoTaxa, setTipoTaxa] = useState('log_mensal');
   const [usarTaxaCad, setUsarTaxaCad] = useState(false);
   const [temRecebaRapido, setTemRecebaRapido] = useState(false);
+  const [substituir, setSubstituir] = useState(false);
 
   // States
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [loadingCalc, setLoadingCalc] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<CalculoStats | null>(null);
   const [resultsData, setResultsData] = useState<CalculoResultado[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const { task, loading: loadingAsync, error: errorAsync, startCalculo, resetTask } = useCalculo();
+
+  // Unified error handling
+  const displayError = error || errorAsync;
 
   useEffect(() => {
     fetchProcessamentos();
   }, []);
+
 
   const fetchProcessamentos = async () => {
     try {
@@ -85,23 +93,23 @@ export default function CalculosToolPage() {
     
     setError(null);
     setSuccessMsg(null);
-    setLoadingCalc(true);
+    resetTask();
     
-    try {
-      await calculoApi.processar({
-        processamento_id: selectedProcessamento,
-        tipo_taxa: tipoTaxa,
-        usar_taxa_cad: usarTaxaCad,
-        tem_receba_rapido: temRecebaRapido
-      });
+    startCalculo({
+      processamento_id: selectedProcessamento,
+      tipo_taxa: tipoTaxa,
+      usar_taxa_cad: usarTaxaCad,
+      tem_receba_rapido: temRecebaRapido,
+      substituir: substituir
+    });
+  };
+
+  useEffect(() => {
+    if (task?.status === 'SUCCESS') {
       setSuccessMsg('Cálculo realizado com sucesso!');
       fetchResultados();
-    } catch (err: any) {
-      setError('Erro ao processar cálculo: ' + (err.response?.data?.detail || err.message));
-    } finally {
-      setLoadingCalc(false);
     }
-  };
+  }, [task?.status]);
 
   const fetchResultados = async () => {
     if (!selectedProcessamento) return;
@@ -127,7 +135,7 @@ export default function CalculosToolPage() {
     },
   ];
 
-  const anyLoading = loadingProc || loadingPreview || loadingCalc;
+  const anyLoading = loadingProc || loadingPreview || loadingAsync;
 
   return (
     <div className="max-w-7xl mx-auto pb-10 space-y-6">
@@ -142,10 +150,26 @@ export default function CalculosToolPage() {
         </p>
       </div>
 
-      {error && <ErrorMessage message={error} />}
+      {displayError && <ErrorMessage message={displayError} />}
       {successMsg && (
         <div className="bg-green-50 text-green-700 p-4 rounded border border-green-200 flex items-center gap-2">
             <span>✅</span> {successMsg}
+        </div>
+      )}
+
+      {/* Progress Bar for Async Task */}
+      {task && task.status !== 'SUCCESS' && task.status !== 'FAILED' && (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg space-y-2 animate-pulse">
+          <div className="flex justify-between items-center text-sm font-medium text-blue-700">
+            <span>{task.message}</span>
+            <span>{task.progress}%</span>
+          </div>
+          <div className="w-full bg-blue-200 rounded-full h-2.5">
+            <div 
+              className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" 
+              style={{ width: `${task.progress}%` }}
+            ></div>
+          </div>
         </div>
       )}
 
@@ -227,6 +251,17 @@ export default function CalculosToolPage() {
                               />
                               <span className="text-sm text-gray-700 font-medium">Cliente tem Receba Rápido?</span>
                           </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer pt-2 border-t mt-2">
+                              <input 
+                                type="checkbox" 
+                                checked={substituir} 
+                                onChange={(e) => setSubstituir(e.target.checked)}
+                                className="rounded text-orange-600 focus:ring-orange-500 w-4 h-4"
+                                disabled={anyLoading}
+                              />
+                              <span className="text-sm text-orange-700 font-bold">Substituir cálculo existente?</span>
+                          </label>
                       </div>
                   </div>
               </div>
@@ -234,7 +269,7 @@ export default function CalculosToolPage() {
               <div className="flex gap-3 mt-6 pt-4 border-t justify-end">
                   <Button 
                     onClick={handlePreview} 
-                    disabled={!selectedProcessamento || loadingCalc}
+                    disabled={!selectedProcessamento || anyLoading}
                     loading={loadingPreview}
                     variant="secondary"
                     className="w-40"
@@ -242,14 +277,14 @@ export default function CalculosToolPage() {
                     {!loadingPreview && <><Search className="w-4 h-4 mr-2" /> Preview</>}
                   </Button>
                   
-                  <Button 
+                   <Button 
                     onClick={handleProcessar} 
                     disabled={!selectedProcessamento || loadingPreview}
-                    loading={loadingCalc}
+                    loading={loadingAsync}
                     variant="primary"
                     className="w-48"
                   >
-                    {!loadingCalc && <><Play className="w-4 h-4 mr-2" /> Calcular Taxas</>}
+                    {!loadingAsync && <><Play className="w-4 h-4 mr-2" /> Calcular Taxas</>}
                   </Button>
               </div>
 
@@ -334,6 +369,7 @@ export default function CalculosToolPage() {
               </PanelBody>
           </Panel>
       )}
+
 
     </div>
   );

@@ -5,22 +5,22 @@ export const importacaoApi = {
   depara: {
     async listar(clienteId?: number): Promise<DeParaRule[]> {
       const params = clienteId ? { cliente_id: clienteId } : {};
-      const { data } = await apiClient.get<DeParaRule[]>('/depara/', { params });
+      const { data } = await apiClient.get<DeParaRule[]>('depara/', { params });
       return data;
     },
 
     async criar(config: DeParaCreate): Promise<DeParaRule> {
-      const { data } = await apiClient.post<DeParaRule>('/depara/', config);
+      const { data } = await apiClient.post<DeParaRule>('depara/', config);
       return data;
     },
 
     async atualizar(id: number, config: Partial<DeParaCreate>): Promise<DeParaRule> {
-      const { data } = await apiClient.put<DeParaRule>(`/depara/${id}`, config);
+      const { data } = await apiClient.put<DeParaRule>(`depara/${id}`, config);
       return data;
     },
 
     async deletar(id: number): Promise<void> {
-      await apiClient.delete(`/depara/${id}`);
+      await apiClient.delete(`depara/${id}`);
     },
   },
 
@@ -30,7 +30,7 @@ export const importacaoApi = {
       if (clienteId) params.cliente_id = clienteId;
       if (status) params.status = status;
       
-      const { data } = await apiClient.get<Processamento[]>('/processamentos/', { 
+      const { data } = await apiClient.get<Processamento[]>('processamentos/', { 
         params,
         timeout: 300000 // 5 minutes
       });
@@ -38,7 +38,7 @@ export const importacaoApi = {
     },
 
     async deletarMany(ids: string[]): Promise<void> {
-      await apiClient.post('/processamentos/batch-delete', ids);
+      await apiClient.post('processamentos/batch-delete', ids);
     }
   },
 
@@ -61,7 +61,7 @@ export const importacaoApi = {
     formData.append('contexto', contexto);
     formData.append('tipo', tipo);
 
-    const { data } = await apiClient.post('/importar/upload', formData, {
+    const { data } = await apiClient.post('importar/upload', formData, {
       timeout: 300000, 
     });
     return data;
@@ -75,7 +75,7 @@ export const importacaoApi = {
     tipo: string,
     processamentoid?: number | string
   ) {
-    const { data } = await apiClient.post('/importar/confirmar', {
+    const { data } = await apiClient.post('importar/confirmar', {
         file_id: fileId,
         cliente_id: clienteId,
         ec_id: ecId,
@@ -96,7 +96,7 @@ export const importacaoApi = {
     tipo: string,
     processamentoid?: number | string
   ) {
-    const { data } = await apiClient.post<{ status: string, task_id: string, message: string }>('/importacao-async/confirmar', {
+    const { data } = await apiClient.post<{ status: string, task_id: string, message: string }>('importacao-async/confirmar', {
         file_id: fileId,
         cliente_id: clienteId,
         ec_id: ecId,
@@ -111,7 +111,7 @@ export const importacaoApi = {
     const formData = new FormData();
     formData.append('file', file);
     
-    const { data } = await apiClient.post<{ task_id: string, status_url: string }>('/importacao-async/upload/async', formData);
+    const { data } = await apiClient.post<{ task_id: string, status_url: string }>('importacao-async/upload/async', formData);
     return data;
   },
 
@@ -122,7 +122,7 @@ export const importacaoApi = {
       progress: number;
       message: string;
       updated_at: string;
-    }>(`/importacao-async/task/${taskId}`);
+    }>(`importacao-async/task/${taskId}`);
     return data;
   },
 
@@ -135,7 +135,7 @@ export const importacaoApi = {
       updated_at: string;
       tipo_arquivo: string;
       contexto: string;
-    }>>(`/importacao-async/active-tasks`, {
+    }>>(`importacao-async/active-tasks`, {
       params: { cliente_id: clienteId }
     });
     return data;

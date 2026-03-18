@@ -13,12 +13,23 @@ import { importacaoApi } from '@/lib/api/importacao';
 import { clientesApi, Cliente } from '@/lib/api/clientes';
 import { contextosApi, Contexto } from '@/lib/api/contextos';
 import { Processamento } from '@/lib/types/importacao';
+import { useImportacao } from '@/hooks/useImportacao';
+import {
+  History,
+  Upload,
+  CheckCircle2,
+  AlertCircle,
+  FileSpreadsheet,
+  Layers,
+  Search,
+  Zap
+} from 'lucide-react';
 
 export default function ImportarVendasPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Data Lists
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [contextos, setContextos] = useState<Contexto[]>([]);
@@ -42,10 +53,17 @@ export default function ImportarVendasPage() {
   const [fileId, setFileId] = useState<string | null>(null);
   const [uploadResult, setUploadResult] = useState<any>(null);
 
-  // Async Task State
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const [taskStatus, setTaskStatus] = useState<any>(null);
-  const [polling, setPolling] = useState(false);
+  // Hook for Async Import
+  const { 
+    task, 
+    loading: loadingAsync, 
+    error: errorAsync, 
+    startImport, 
+    resetTask,
+    setError: setTaskError 
+  } = useImportacao();
+
+  const displayError = error || errorAsync;
 
   // Load initial data
   useEffect(() => {
@@ -124,38 +142,7 @@ export default function ImportarVendasPage() {
     }
   }, [processamentoId, continuarProcessamento, processamentos]);
 
-  // Polling Effect
-  useEffect(() => {
-    let interval: any;
-    if (polling && taskId) {
-      interval = setInterval(async () => {
-        try {
-          const status = await importacaoApi.getTaskStatus(taskId);
-          setTaskStatus(status);
-          
-          if (status.status === 'SUCCESS' || status.status === 'FAILED') {
-            setPolling(false);
-            setLoading(false);
-            if (status.status === 'SUCCESS') {
-              setSuccess(status.message);
-              setFileId(null);
-              setPreviewData([]);
-              setFiles(null);
-              setTaskId(null);
-            } else {
-              setError(status.message);
-            }
-          }
-        } catch (err) {
-          console.error('Erro ao consultar status da tarefa', err);
-          setPolling(false);
-          setLoading(false);
-          setError('Erro ao consultar o progresso do processamento.');
-        }
-      }, 2000);
-    }
-    return () => clearInterval(interval);
-  }, [polling, taskId]);
+  // Removing inline polling useEffect since it's now in the hook
 
   const handleUploadPreview = async () => {
     if (!files || files.length === 0) {
@@ -213,39 +200,35 @@ export default function ImportarVendasPage() {
   };
 
   const handleConfirmar = async () => {
-      if (!fileId) return;
-      
-      if (continuarProcessamento && !processamentoId) {
-        setError('Por favor, selecione o ID do processamento para continuar.');
-        return;
-      }
+    if (!fileId) return;
+    
+    if (continuarProcessamento && !processamentoId) {
+      setError('Por favor, selecione o ID do processamento para continuar.');
+      return;
+    }
 
-      try {
-          setLoading(true);
-          setError(null);
-          setSuccess('Iniciando processamento em segundo plano...');
-          
-          const result = await importacaoApi.confirmarAsync(
-              fileId,
-              parseInt(clienteId),
-              ec,
-              layout,
-              tipoArquivo,
-              continuarProcessamento ? processamentoId : undefined
-          );
-
-          setTaskId(result.task_id);
-          setPolling(true);
-
-      } catch (err: any) {
-        console.error(err);
-        setError(
-            err.response?.data?.detail || 
-            'Erro ao iniciar o processamento. Tente novamente.'
-        );
-        setLoading(false);
-      }
+    resetTask();
+    setError(null);
+    setSuccess(null);
+    
+    startImport({
+      file_id: fileId,
+      cliente_id: parseInt(clienteId),
+      ec_id: ec,
+      contexto: layout,
+      tipo: tipoArquivo,
+      processamentoid: continuarProcessamento ? processamentoId : undefined
+    });
   };
+
+  useEffect(() => {
+    if (task?.status === 'SUCCESS') {
+      setSuccess('Importação finalizada com sucesso! Verifique o painel de processamentos.');
+      setFileId(null);
+      setPreviewData([]);
+      setFiles(null);
+    }
+  }, [task?.status]);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -268,36 +251,61 @@ export default function ImportarVendasPage() {
       <Card className="p-6">
         <div className="space-y-6">
           
-          {error && (
+          {displayError && (
             <Alert variant="error">
-              <strong>Erro:</strong> {error}
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <div className="flex flex-col">
+                  <strong>Erro no Processamento</strong>
+                  <span className="text-sm opacity-90">{displayError}</span>
+                </div>
+              </div>
             </Alert>
           )}
 
-          {success && (
+          {success && !task && (
             <Alert variant="success">
-              <div className="flex flex-col gap-2">
-                <strong>Status:</strong> {success}
-                {taskStatus && taskStatus.status === 'PROCESSING' && (
-                  <div className="mt-2 p-3 bg-white/50 rounded-md border border-green-200">
-                    <div className="flex justify-between text-xs mb-1 font-medium">
-                      <span>Progresso: {taskStatus.progress}%</span>
-                      <span>{taskStatus.updated_at}</span>
-                    </div>
-                    <div className="w-full bg-green-200 rounded-full h-2 shadow-sm">
-                      <div 
-                        className="bg-green-600 h-2 rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(22,163,74,0.4)]" 
-                        style={{ width: `${taskStatus.progress}%` }}
-                      ></div>
-                    </div>
-                    <p className="text-xs mt-2 italic text-green-800 flex items-center gap-2">
-                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                      {taskStatus.message}
-                    </p>
-                  </div>
-                )}
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+                <span>{success}</span>
               </div>
             </Alert>
+          )}
+
+          {/* Progress Section (Glassmorphism) */}
+          {task && (task.status === 'PROCESSING' || task.status === 'PENDING') && (
+            <div className="relative overflow-hidden bg-blue-100/30 backdrop-blur-md border border-blue-200/50 p-6 rounded-xl shadow-inner animate-in fade-in zoom-in duration-300">
+               <div className="flex justify-between items-end mb-3">
+                 <div className="space-y-1">
+                   <h3 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-blue-600 animate-pulse" />
+                      {task.status === 'PENDING' ? 'Aguardando Início...' : 'Processando dados...'}
+                   </h3>
+                   <p className="text-xs text-blue-700/80 italic font-medium">
+                     {task.message}
+                   </p>
+                 </div>
+                 <div className="text-right">
+                    <span className="text-2xl font-black text-blue-900 tracking-tighter">
+                      {task.progress}<span className="text-sm font-bold opacity-50">%</span>
+                    </span>
+                 </div>
+               </div>
+               
+               <div className="relative w-full bg-blue-900/10 rounded-full h-4 overflow-hidden border border-blue-900/5">
+                 <div 
+                   className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-400 h-full rounded-full transition-all duration-700 ease-out shadow-[0_0_15px_rgba(37,99,235,0.4)]" 
+                   style={{ width: `${task.progress}%` }}
+                 >
+                    <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:20px_20px] animate-[stripe-move_1s_linear_infinite]"></div>
+                 </div>
+               </div>
+               
+               <div className="mt-3 flex justify-between items-center text-[10px] uppercase font-bold text-blue-900/40 tracking-widest">
+                  <span>Importação em Segundo Plano</span>
+                  <span>Não feche esta aba</span>
+               </div>
+            </div>
           )}
 
           <div className="bg-gray-50 p-4 rounded-md border border-gray-200">

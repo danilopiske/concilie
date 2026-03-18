@@ -13,15 +13,10 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for token on mount
-    const token = localStorage.getItem('token');
+    // Cookie é gerenciado pelo browser; apenas restaura dados do usuário para exibição
     const savedUser = localStorage.getItem('user');
-    
-    if (token) {
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
-      }
-      // Optionally verify token validity here
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
     }
     setLoading(false);
   }, []);
@@ -37,12 +32,9 @@ export function useAuth() {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       });
 
-      const { access_token } = response.data;
-      
-      localStorage.setItem('token', access_token);
-      
-      // Store minimal user info (or fetch full profile)
-      const userData = { id: 0, usuario }; // ID is in token, but we assume 0 for now until we fetch /me
+      // Cookie HttpOnly é setado automaticamente pelo backend
+      // Armazena apenas dados de exibição (sem token sensível)
+      const userData = { id: 0, usuario };
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
       
@@ -54,10 +46,15 @@ export function useAuth() {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
+  const logout = async () => {
     localStorage.removeItem('user');
     setUser(null);
+    // Limpa o cookie via backend (ou expira localmente via max-age=0)
+    try {
+      await apiClient.post('/login/logout');
+    } catch {
+      // silencioso — mesmo sem endpoint de logout, o cookie expira naturalmente
+    }
     router.push('/login');
   };
 

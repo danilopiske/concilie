@@ -1,5 +1,12 @@
 import { apiClient as api } from './client';
-import type { ResumoResponse, AtualizarRequest, RemoverRequest, HistoricoItem } from '../types/correcao';
+import type { 
+  ResumoResponse, 
+  AtualizarRequest, 
+  RemoverRequest, 
+  HistoricoItem,
+  FiltrosBCResponse,
+  AplicarTaxaBCRequest
+} from '../types/correcao';
 
 export const correcaoService = {
   obterResumo: async (processamentoId: string): Promise<ResumoResponse> => {
@@ -19,6 +26,16 @@ export const correcaoService = {
 
   obterHistorico: async (processamentoId: string): Promise<HistoricoItem[]> => {
     const { data } = await api.get<HistoricoItem[]>('/correcao/historico', { params: { processamento_id: processamentoId } });
+    return data;
+  },
+  
+  obterFiltrosTaxaBC: async (processamentoId: string): Promise<FiltrosBCResponse> => {
+    const { data } = await api.get<FiltrosBCResponse>('/correcao/filtros-taxa-bc', { params: { processamento_id: processamentoId } });
+    return data;
+  },
+
+  aplicarTaxaBC: async (req: AplicarTaxaBCRequest): Promise<{ linhas_afetadas: number }> => {
+    const { data } = await api.post<{ linhas_afetadas: number }>('/correcao/aplicar-taxa-bc', req);
     return data;
   }
 };

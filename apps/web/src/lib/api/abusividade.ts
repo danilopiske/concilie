@@ -15,7 +15,7 @@ export interface AbusividadeItem {
 
 export const abusividadeApi = {
   getAnalise: async (processamentoId: string, agrupamento: string = 'dia', tolerancia: number = 0) => {
-    const { data } = await apiClient.get<AbusividadeItem[]>(`/abusividade/analise/${encodeURIComponent(processamentoId)}?agrupamento=${agrupamento}&tolerancia=${tolerancia}`);
+    const { data } = await apiClient.get<AbusividadeItem[]>(`abusividade/analise/${encodeURIComponent(processamentoId)}?agrupamento=${agrupamento}&tolerancia=${tolerancia}`);
     return data;
   },
 
@@ -35,7 +35,7 @@ export const abusividadeApi = {
 
     if (params.ec_id) query.append('ec_id', params.ec_id);
 
-    const { data } = await apiClient.get<AbusividadeItem[]>(`/abusividade/relatorio?${query.toString()}`);
+    const { data } = await apiClient.get<AbusividadeItem[]>(`abusividade/relatorio?${query.toString()}`);
     return data;
   }
 };

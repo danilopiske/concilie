@@ -31,33 +31,71 @@ export interface RelatorioResponse {
   filename?: string;
 }
 
+export interface RelatorioTask {
+  id: string;
+  status: 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED';
+  progress: number;
+  message: string;
+  tipo_relatorio: string;
+  result_path?: string;
+  abusividade_path?: string;
+  sintetico_path?: string;
+  excel_path?: string;
+  processamento_id?: string;
+  updated_at: string;
+  metadata?: any;
+}
+
 export const relatorioApi = {
+  getHistorico: async (processamentoId?: string, skip: number = 0, limit: number = 50): Promise<RelatorioTask[]> => {
+    const params = { processamento_id: processamentoId, skip, limit };
+    const response = await apiClient.get<RelatorioTask[]>('/relatorios/historico', { params });
+    return response.data;
+  },
+
   getOpcoes: async (processamentoId?: string): Promise<RelatorioOptions> => {
     const params = processamentoId ? { processamento_id: processamentoId } : undefined;
     const response = await apiClient.get<RelatorioOptions>('/relatorios/opcoes', { params });
     return response.data;
   },
 
-  getAdquirentes: async (processamentoId: string): Promise<string[]> => {
-    // Using query param to safely handle special chars in ID
-    const response = await apiClient.get<string[]>('/relatorios/adquirentes', { 
-      params: { processamento_id: processamentoId } 
+  getAdquirentes: async (processamentoId: string, calcTipo?: string): Promise<{
+    adquirentes: string[], 
+    periodo: {data_min: string, data_max: string} | null,
+    available_types: string[]
+  }> => {
+    const response = await apiClient.get<{
+      adquirentes: string[], 
+      periodo: {data_min: string, data_max: string} | null,
+      available_types: string[]
+    }>('/relatorios/adquirentes', { 
+      params: { 
+        processamento_id: processamentoId,
+        calc_tipo: calcTipo
+      } 
     });
     return response.data;
   },
 
   gerar: async (req: RelatorioRequest): Promise<RelatorioResponse> => {
-    // Reports can take long, override default 30s timeout to 5min
     const response = await apiClient.post<RelatorioResponse>('/relatorios/gerar', req, {
         timeout: 300000 
     });
     return response.data;
   },
 
+  gerarAsync: async (req: RelatorioRequest): Promise<{task_id: string}> => {
+    const response = await apiClient.post<{task_id: string}>('/relatorios/gerar-async', req);
+    return response.data;
+  },
+
+  getTaskStatus: async (taskId: string): Promise<RelatorioTask> => {
+    const response = await apiClient.get<RelatorioTask>(`/relatorios/task/${taskId}`);
+    return response.data;
+  },
+
   downloadUrl: (path: string) => {
-    // Construct absolute URL for download if needed, or use a proxy endpoint
-    // Assuming backend is at same host/port for now or standard base URL
-    // Actually we need to call the download endpoint
-    return `${apiClient.defaults.baseURL}/relatorios/download?path=${encodeURIComponent(path)}`;
+    const baseUrl = apiClient.defaults.baseURL;
+    return `${baseUrl}/relatorios/download?path=${encodeURIComponent(path)}`;
   }
 };

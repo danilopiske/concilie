@@ -24,12 +24,29 @@ export interface ResumoResponse {
 export interface AtualizarRequest {
     processamento_id: string;
     campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento';
-    valor_antigo: string;
+    valores_antigos: string[];
     valor_novo: string;
+    usuario?: string;
 }
 
 export interface RemoverRequest {
     processamento_id: string;
     campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento';
-    valor: string;
+    valores: string[];
+    usuario?: string;
+}
+
+export interface FiltrosBCResponse {
+    formas: string[];
+    bandeiras: string[];
+}
+
+export interface AplicarTaxaBCRequest {
+    processamento_id: string;
+    forma_pagamento: string;
+    bandeira: string;
+    data_ini?: string;
+    data_fim?: string;
+    nova_taxa: number;
+    usuario?: string;
 }

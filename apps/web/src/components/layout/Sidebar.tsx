@@ -72,6 +72,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     modulePrefix: '/calculos',
     items: [
       { label: 'Cálculo de Taxas', href: '/calculos', icon: Calculator },
+      { label: 'Gestão de Cálculos', href: '/calculos/gestao', icon: History },
     ],
   },
   {
@@ -79,6 +80,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     modulePrefix: '/relatorios',
     items: [
       { label: 'Gerar Relatórios', href: '/relatorios', icon: FileBarChart },
+      { label: 'Gestão de Relatórios', href: '/relatorios/gestao', icon: History },
     ],
   },
   {
