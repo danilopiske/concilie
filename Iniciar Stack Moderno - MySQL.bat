@@ -9,8 +9,8 @@ echo ============================================
 echo.
 
 echo [!] Preparando ambiente Windows (Senior Performance Mode)...
-powershell -ExecutionPolicy Bypass -File "scripts\TurboRamCleaner.ps1"
-powershell -ExecutionPolicy Bypass -File "scripts\OptimizeOS.ps1"
+powershell -ExecutionPolicy Bypass -File "%~dp0scripts\TurboRamCleaner.ps1"
+powershell -ExecutionPolicy Bypass -File "%~dp0scripts\OptimizeOS.ps1"
 
 set "API_PATH=apps\api"
 
@@ -31,17 +31,10 @@ if errorlevel 1 (
 )
 
 echo [1/3] Verificando MySQL...
-echo.
-
-REM Verificar se MySQL está rodando
-sc query MySQL80 | find "RUNNING" >nul
+sc query concilie_bd | find "RUNNING" >nul
 if errorlevel 1 (
-    echo [ERRO] MySQL nao esta rodando!
-    echo.
-    echo Inicie o servico MySQL:
-    echo   net start MySQL80
-    echo.
-    echo Ou inicie manualmente pelo MySQL Workbench
+    echo [ERRO] Servico MySQL (concilie_bd) nao encontrado ou parado!
+    echo Use: net start concilie_bd
     pause
     exit /b 1
 )
@@ -49,27 +42,22 @@ echo [OK] MySQL rodando
 
 echo.
 echo [2/3] Verificando dependencias...
-echo.
 
-REM Verificar Poetry
-poetry --version >nul 2>&1
+REM Verificar Poetry via where
+where poetry >nul 2>&1
 if errorlevel 1 (
-    echo [ERRO] Poetry nao encontrado!
-    echo Instale com: pip install poetry
-    pause
-    exit /b 1
+    echo [ERRO] Poetry nao encontrado no PATH!
+) else (
+    echo [OK] Poetry encontrado
 )
-echo [OK] Poetry encontrado
 
-REM Verificar pnpm
-pnpm --version >nul 2>&1
+REM Verificar pnpm via where
+where pnpm >nul 2>&1
 if errorlevel 1 (
-    echo [ERRO] pnpm nao encontrado!
-    echo Instale com: npm install -g pnpm
-    pause
-    exit /b 1
+    echo [ERRO] pnpm nao encontrado no PATH!
+) else (
+    echo [OK] pnpm encontrado
 )
-echo [OK] pnpm encontrado
 
 echo.
 echo ========================================
@@ -96,18 +84,15 @@ taskkill /f /im python.exe /t >nul 2>&1
 taskkill /f /im node.exe /t >nul 2>&1
 timeout /t 2 /nobreak >nul
 
-pause >nul
-
-REM Abrir terminal para backend
+echo.
 echo [>] Iniciando Backend...
-start "Financial - Backend (MySQL)" cmd /k "cd /d %CD%\apps\api && set PYTHONOPTIMIZE=1 && poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --reload-dir app --reload-exclude 'node_modules/*,.next/*,dist/*'"
+start "Financial - Backend (MySQL)" cmd /k "cd /d \"%~dp0apps\api\" && set PYTHONOPTIMIZE=1 && poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --reload-dir app"
 
-REM Aguardar 5 segundos para o banco estabilizar
-timeout /t 5 /nobreak >nul
+echo [>] Aguardando 3 segundos...
+timeout /t 3 /nobreak >nul
 
-REM Abrir terminal para frontend
 echo [>] Iniciando Frontend...
-start "Financial - Frontend" cmd /k "cd /d %CD%\apps\web && pnpm dev --turbo"
+start "Financial - Frontend" cmd /k "cd /d \"%~dp0apps\web\" && pnpm dev --turbo"
 
 echo.
 echo ========================================

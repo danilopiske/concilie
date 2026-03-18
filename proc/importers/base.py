@@ -106,15 +106,16 @@ class BaseImporter:
                     if "ec_id" not in df.columns or df["ec_id"].isna().all():
                         df["ec_id"] = str(self.ec_id)
 
-            # 1. Deduplication in memory
-            if progress_callback: progress_callback(95, "Removendo duplicadas em memória...")
+            # 1. Deduplication in memory (Polars)
+            if progress_callback: progress_callback(95, "Removendo duplicadas em memória (Polars)...")
+            import polars as pl
             cols_ignorar = {"id", "data_processamento", "usuario_processamento", "arquivo_origem", "processamentoid"}
             for df_key in ["df_proc", "df_filt"]:
                 _df = getattr(self, df_key)
                 if _df is not None and not _df.empty:
                     cols_dedup = [c for c in _df.columns if c not in cols_ignorar]
                     len_antes = len(_df)
-                    _df = _df.drop_duplicates(subset=cols_dedup).copy()
+                    _df = pl.from_pandas(_df).unique(subset=cols_dedup).to_pandas()
                     setattr(self, df_key, _df)
                     if len_antes > len(_df):
                         self.log(f"Removidas {len_antes - len(_df)} duplicadas em memória ({df_key}).")

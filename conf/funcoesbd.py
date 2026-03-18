@@ -2607,22 +2607,10 @@ def atualizar_forma_pagamento_processamento(
 ) -> Tuple[bool, str, int]:
     """
     Atualiza todas as linhas de uma forma de pagamento específica em um processamento.
-
-    Args:
-        engine: Engine do SQLAlchemy
-        processamentoid: ID do processamento a corrigir
-        forma_pagamento_antiga: Forma de pagamento atual que será substituída
-        forma_pagamento_nova: Nova forma de pagamento
-        usuario: Usuário que está fazendo a correção
-
-    Returns:
-        Tupla (sucesso, mensagem, linhas_afetadas)
     """
     try:
         print(f"[DEBUG atualizar_forma_pagamento] Processamento: {processamentoid}")
-        print(
-            f"[DEBUG atualizar_forma_pagamento] De: '{forma_pagamento_antiga}' Para: '{forma_pagamento_nova}'"
-        )
+        print(f"[DEBUG atualizar_forma_pagamento] De: '{forma_pagamento_antiga}' Para: '{forma_pagamento_nova}'")
 
         # Contar quantas linhas serão afetadas
         sql_count = """
@@ -2630,19 +2618,11 @@ def atualizar_forma_pagamento_processamento(
             FROM vendas_processadas
             WHERE processamentoid = :pid AND Forma_de_pagamento = :forma_antiga
         """
-        result = fetch_one(
-            engine,
-            sql_count,
-            {"pid": processamentoid, "forma_antiga": forma_pagamento_antiga},
-        )
+        result = fetch_one(engine, sql_count, {"pid": processamentoid, "forma_antiga": forma_pagamento_antiga})
         linhas_afetadas = result.get("total", 0) if result else 0
 
         if linhas_afetadas == 0:
-            return (
-                False,
-                f"Nenhuma linha encontrada com forma de pagamento '{forma_pagamento_antiga}'",
-                0,
-            )
+            return False, f"Nenhuma linha encontrada com forma de pagamento '{forma_pagamento_antiga}'", 0
 
         # Realizar atualização
         sql_update = """
@@ -2650,47 +2630,31 @@ def atualizar_forma_pagamento_processamento(
             SET Forma_de_pagamento = :forma_nova
             WHERE processamentoid = :pid AND Forma_de_pagamento = :forma_antiga
         """
+        exec_sql(engine, sql_update, {
+            "pid": processamentoid,
+            "forma_antiga": forma_pagamento_antiga,
+            "forma_nova": forma_pagamento_nova
+        })
 
-        exec_sql(
-            engine,
-            sql_update,
-            {
-                "pid": processamentoid,
-                "forma_antiga": forma_pagamento_antiga,
-                "forma_nova": forma_pagamento_nova,
-            },
-        )
-
-        # Registrar log de auditoria
+        # Registrar log
         sql_log = f"""
             INSERT INTO log_correcoes_importacao 
             (processamentoid, tipo_correcao, valor_antigo, valor_novo, linhas_afetadas, usuario, data_correcao)
-            VALUES (:pid, 'forma_pagamento', :val_antigo, :val_novo, :linhas, :usuario, {_current_timestamp_sql(engine)})
+            VALUES (:pid, 'forma_pagamento', :antigo, :novo, :linhas, :usuario, {_current_timestamp_sql(engine)})
         """
-
         try:
-            exec_sql(
-                engine,
-                sql_log,
-                {
-                    "pid": processamentoid,
-                    "val_antigo": forma_pagamento_antiga,
-                    "val_novo": forma_pagamento_nova,
-                    "linhas": linhas_afetadas,
-                    "usuario": usuario,
-                },
-            )
-        except Exception as e_log:
-            print(f"[WARNING] Erro ao registrar log (tabela pode não existir): {e_log}")
+            exec_sql(engine, sql_log, {
+                "pid": processamentoid,
+                "antigo": forma_pagamento_antiga,
+                "novo": forma_pagamento_nova,
+                "linhas": linhas_afetadas,
+                "usuario": usuario
+            })
+        except Exception: pass
 
-        msg = f"Atualização concluída: {linhas_afetadas} linhas alteradas de '{forma_pagamento_antiga}' para '{forma_pagamento_nova}'"
-        print(f"[SUCCESS atualizar_forma_pagamento] {msg}")
-        return True, msg, linhas_afetadas
-
+        return True, f"Sucesso! {linhas_afetadas} linhas atualizadas.", linhas_afetadas
     except Exception as e:
-        msg = f"Erro ao atualizar forma de pagamento: {str(e)}"
-        print(f"[ERROR atualizar_forma_pagamento] {msg}")
-        return False, msg, 0
+        return False, str(e), 0
 
 
 def atualizar_bandeira_processamento(
@@ -2702,22 +2666,10 @@ def atualizar_bandeira_processamento(
 ) -> Tuple[bool, str, int]:
     """
     Atualiza todas as linhas de uma bandeira específica em um processamento.
-
-    Args:
-        engine: Engine do SQLAlchemy
-        processamentoid: ID do processamento a corrigir
-        bandeira_antiga: Bandeira atual que será substituída
-        bandeira_nova: Nova bandeira
-        usuario: Usuário que está fazendo a correção
-
-    Returns:
-        Tupla (sucesso, mensagem, linhas_afetadas)
     """
     try:
         print(f"[DEBUG atualizar_bandeira] Processamento: {processamentoid}")
-        print(
-            f"[DEBUG atualizar_bandeira] De: '{bandeira_antiga}' Para: '{bandeira_nova}'"
-        )
+        print(f"[DEBUG atualizar_bandeira] De: '{bandeira_antiga}' Para: '{bandeira_nova}'")
 
         # Contar quantas linhas serão afetadas
         sql_count = """
@@ -2725,19 +2677,11 @@ def atualizar_bandeira_processamento(
             FROM vendas_processadas
             WHERE processamentoid = :pid AND Bandeira = :bandeira_antiga
         """
-        result = fetch_one(
-            engine,
-            sql_count,
-            {"pid": processamentoid, "bandeira_antiga": bandeira_antiga},
-        )
+        result = fetch_one(engine, sql_count, {"pid": processamentoid, "bandeira_antiga": bandeira_antiga})
         linhas_afetadas = result.get("total", 0) if result else 0
 
         if linhas_afetadas == 0:
-            return (
-                False,
-                f"Nenhuma linha encontrada com bandeira '{bandeira_antiga}'",
-                0,
-            )
+            return False, f"Nenhuma linha encontrada com bandeira '{bandeira_antiga}'", 0
 
         # Realizar atualização
         sql_update = """
@@ -2745,48 +2689,106 @@ def atualizar_bandeira_processamento(
             SET Bandeira = :bandeira_nova
             WHERE processamentoid = :pid AND Bandeira = :bandeira_antiga
         """
+        exec_sql(engine, sql_update, {
+            "pid": processamentoid,
+            "bandeira_antiga": bandeira_antiga,
+            "bandeira_nova": bandeira_nova
+        })
 
-        exec_sql(
-            engine,
-            sql_update,
-            {
-                "pid": processamentoid,
-                "bandeira_antiga": bandeira_antiga,
-                "bandeira_nova": bandeira_nova,
-            },
-        )
-
-        # Registrar log de auditoria
+        # Registrar log
         sql_log = f"""
             INSERT INTO log_correcoes_importacao 
             (processamentoid, tipo_correcao, valor_antigo, valor_novo, linhas_afetadas, usuario, data_correcao)
-            VALUES (:pid, 'bandeira', :val_antigo, :val_novo, :linhas, :usuario, {_current_timestamp_sql(engine)})
+            VALUES (:pid, 'bandeira', :antigo, :novo, :linhas, :usuario, {_current_timestamp_sql(engine)})
         """
-
         try:
-            exec_sql(
-                engine,
-                sql_log,
-                {
-                    "pid": processamentoid,
-                    "val_antigo": bandeira_antiga,
-                    "val_novo": bandeira_nova,
-                    "linhas": linhas_afetadas,
-                    "usuario": usuario,
-                },
-            )
-        except Exception as e_log:
-            print(f"[WARNING] Erro ao registrar log (tabela pode não existir): {e_log}")
+            exec_sql(engine, sql_log, {
+                "pid": processamentoid,
+                "antigo": bandeira_antiga,
+                "novo": bandeira_nova,
+                "linhas": linhas_afetadas,
+                "usuario": usuario
+            })
+        except Exception: pass
 
-        msg = f"Atualização concluída: {linhas_afetadas} linhas alteradas de '{bandeira_antiga}' para '{bandeira_nova}'"
-        print(f"[SUCCESS atualizar_bandeira] {msg}")
-        return True, msg, linhas_afetadas
-
+        return True, f"Sucesso! {linhas_afetadas} linhas atualizadas.", linhas_afetadas
     except Exception as e:
-        msg = f"Erro ao atualizar bandeira: {str(e)}"
-        print(f"[ERROR atualizar_bandeira] {msg}")
-        return False, msg, 0
+        return False, str(e), 0
 
+
+def atualizar_bandeira(engine, pid, b_antiga, b_nova, usr="sistema"):
+    return atualizar_bandeira_processamento(engine, pid, b_antiga, b_nova, usr)
+
+
+def listar_valores_unicos_vendas_calculos(engine: Engine, calc_id: str) -> Dict[str, list]:
+    """Retorna valores únicos de forma de pagamento e bandeira para um calc_id."""
+    sql_formas = """
+        SELECT DISTINCT Forma_de_pagamento
+        FROM vendas_calculos
+        WHERE calc_id = :id
+    """
+    sql_bandeiras = """
+        SELECT DISTINCT Bandeira
+        FROM vendas_calculos
+        WHERE calc_id = :id
+    """
+    
+    formas = fetch_all(engine, sql_formas, {"id": calc_id})
+    bandeiras = fetch_all(engine, sql_bandeiras, {"id": calc_id})
+    
+    return {
+        "formas": [r["Forma_de_pagamento"] for r in formas if r.get("Forma_de_pagamento")],
+        "bandeiras": [r["Bandeira"] for r in bandeiras if r.get("Bandeira")]
+    }
+
+
+def atualizar_taxa_bc_vendas_calculos(
+    engine: Engine,
+    calc_id: str,
+    forma_pagamento: str,
+    bandeira: str,
+    data_ini: Optional[str],
+    data_fim: Optional[str],
+    nova_taxa: float,
+    usuario: str = "sistema",
+) -> Tuple[bool, str, int]:
+    """Aplica uma nova taxa BC (tx_calc) e recalcula desc_calc, vl_liq_calc e perda."""
+    try:
+        filters = ["calc_id = :calc_id"]
+        params = {"calc_id": calc_id, "nova_taxa": nova_taxa}
+        
+        if forma_pagamento and forma_pagamento != "TODOS":
+            filters.append("Forma_de_pagamento = :forma")
+            params["forma"] = forma_pagamento
+        if bandeira and bandeira != "TODOS":
+            filters.append("Bandeira = :bandeira")
+            params["bandeira"] = bandeira
+        if data_ini:
+            filters.append("Data_venda >= :d_ini")
+            params["d_ini"] = data_ini
+        if data_fim:
+            filters.append("Data_venda <= :d_fim")
+            params["d_fim"] = data_fim
+            
+        where = " AND ".join(filters)
+        
+        sql_update = f"""
+            UPDATE vendas_calculos 
+            SET tx_calc = :nova_taxa,
+                desc_calc = vl_venda * :nova_taxa / 100,
+                vl_liq_calc = vl_venda - (vl_venda * :nova_taxa / 100),
+                perda = vl_liq_venda - (vl_venda - (vl_venda * :nova_taxa / 100))
+            WHERE {where}
+        """
+        exec_sql(engine, sql_update, params)
+        
+        sql_count = f"SELECT COUNT(*) as total FROM vendas_calculos WHERE {where}"
+        res = fetch_one(engine, sql_count, params)
+        rows = res.get("total", 0) if res else 0
+        
+        return True, f"Sucesso! {rows} linhas atualizadas.", rows
+    except Exception as e:
+        return False, str(e), 0
 
 def remover_linhas_forma_pagamento(
     engine: Engine, processamentoid: str, forma_pagamento: str, usuario: str = "sistema"

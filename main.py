@@ -24,19 +24,7 @@ import argparse
 
 # Gerenciador de banco de dados (MySQL)
 from conf.db_manager import get_engine
-
-from modules.ui_importacao import make_importacao_view
-from modules.ui_gestao import make_gestao_view  # <-- IMPORTAÇÃO DA NOVA VIEW
-from modules.reports import criar_interface_relatorio  # <-- IMPORTAÇÃO PARA RELATÓRIOS
-from modules.ui_calculos import (
-    make_calculos_view,
-)  # <-- IMPORTAÇÃO DA INTERFACE DE CÁLCULOS
-from modules.ui_analista import make_analista_view  # <-- IMPORTAÇÃO DO ANALISTA
-from modules.ui_correcao import (
-    criar_ui_correcao,
-)  # <-- IMPORTAÇÃO DA CORREÇÃO DE IMPORTAÇÕES
 from proc.proc_usuarios import get_user_by_credentials
-from modules.ui_theme import apply_template_patch
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -169,23 +157,18 @@ def render_view(route: str | None = None):
 
     engine = _get_engine()  # Obtém engine do db_manager
 
-    if route == "Importar":
-        return make_importacao_view(engine, usuario_logado=user.get("usuario"))
+    # O Dashboard Panel foi descontinuado. Todas as funcionalidades foram migradas para o Next.js.
+    return pn.Column(
+        pn.pane.Markdown("### 🚀 Sistema Migrado"),
+        pn.pane.Markdown(
+            "O Dashboard Concilie foi totalmente migrado para uma plataforma moderna (Next.js).\n\n"
+            "Acesse agora a nova interface para todas as suas operações:\n"
+            "👉 [Acesse o Concilie Next.js](http://localhost:3000)"
+        ),
+        sizing_mode="stretch_width",
+        align="center"
+    )
 
-    if route == "Gestão":
-        return make_gestao_view(engine, usuario_logado=user.get("usuario"))
-
-    if route == "Cálculos":
-        return make_calculos_view(engine)
-
-    if route == "Relatórios":
-        return criar_interface_relatorio(engine)
-
-    if route == "Analista":
-        return make_analista_view(engine, usuario_logado=user.get("usuario"))
-
-    if route == "Correção":
-        return criar_ui_correcao(engine, usuario_atual=user.get("usuario"))
 
     # Fallback
     return pn.Column(
@@ -266,15 +249,10 @@ def do_login(_=None):
     )
 
     menu_select.options = [
-        "Gestão",
-        "Importar",
-        "Correção",
-        "Analista",
-        "Cálculos",
-        "Relatórios",
+        "Dashboard (Novo Sistema)",
     ]
-    menu_select.value = "Gestão"
-    _go_to("Gestão")
+    menu_select.value = "Dashboard (Novo Sistema)"
+    _go_to("Dashboard (Novo Sistema)")
     _notify_success(f"Bem-vindo, {user.get('nome') or user['usuario']}.")
 
 
@@ -343,7 +321,7 @@ template = pn.template.FastListTemplate(
     sidebar_width=280,
     collapsed_sidebar=False,
 )
-apply_template_patch(template)
+    # apply_template_patch(template) # Descontinuado após migração Next.js
 
 # ⚠️ Script de reconexão automática + heartbeat (evita "página não responde")
 reconnect_script = """

@@ -43,193 +43,194 @@ def classificar_e_gravar_recebiveis(
     """
     Processa, filtra e grava recebíveis nas tabelas corretas, com metadados e deduplicação.
     """
-    # Termo filtrável removido - deve ser configurado manualmente se necessário
-
-    was_fresh = processamentoid is None
-
-    if not df.empty:
-
-        # Deduplicação preventiva em memória (Python) antes de gravar
-        # Identificar colunas base para unicidade (todas exceto metadados de processamento)
-        cols_ignorar = {"id", "data_processamento", "usuario_processamento", "arquivo_origem", "processamentoid"}
-        cols_dedup = [c for c in df.columns if c not in cols_ignorar]
-        
-        if cols_dedup:
-            len_antes = len(df)
-            df = df.drop_duplicates(subset=cols_dedup).copy()
-            len_depois = len(df)
-            if len_antes > len_depois:
-                print(f"[DEBUG][DEDUP] Removidas {len_antes - len_depois} duplicadas em memória antes da gravação.")
-
-        # Se já tem coluna 'Filtrado', refaz a filtragem com os termos atuais do banco
-        if "Filtrado" in df.columns:
-            # Refaz a filtragem: sobrescreve a coluna 'Filtrado' com base nos termos atuais
-            # Detecta coluna de lançamento (PRIORIZA 'lancamento' sobre 'descricao')
-            lancamento_col = None
-
-            # Primeira passada: buscar especificamente por 'lancamento'
-            for c in df.columns:
-                if str(c).strip().lower() in [
-                    "lancamento",
-                    "lançamento",
-                    "tipo de lancamento",
-                    "tipo de lançamento",
-                ]:
-                    lancamento_col = c
-                    break
-
-            # Segunda passada: se não encontrou 'lancamento', buscar por 'descricao'
-            if not lancamento_col:
+    with PerformanceTimer("RECORD", "Gravação Recebíveis (Bulk Insert)", {"rows": len(df), "contexto": contexto}):
+        # Termo filtrável removido - deve ser configurado manualmente se necessário
+    
+        was_fresh = processamentoid is None
+    
+        if not df.empty:
+    
+            # Deduplicação preventiva em memória (Python) antes de gravar
+            # Identificar colunas base para unicidade (todas exceto metadados de processamento)
+            cols_ignorar = {"id", "data_processamento", "usuario_processamento", "arquivo_origem", "processamentoid"}
+            cols_dedup = [c for c in df.columns if c not in cols_ignorar]
+            
+            if cols_dedup:
+                len_antes = len(df)
+                df = df.drop_duplicates(subset=cols_dedup).copy()
+                len_depois = len(df)
+                if len_antes > len_depois:
+                    print(f"[DEBUG][DEDUP] Removidas {len_antes - len_depois} duplicadas em memória antes da gravação.")
+    
+            # Se já tem coluna 'Filtrado', refaz a filtragem com os termos atuais do banco
+            if "Filtrado" in df.columns:
+                # Refaz a filtragem: sobrescreve a coluna 'Filtrado' com base nos termos atuais
+                # Detecta coluna de lançamento (PRIORIZA 'lancamento' sobre 'descricao')
+                lancamento_col = None
+    
+                # Primeira passada: buscar especificamente por 'lancamento'
                 for c in df.columns:
-                    if str(c).strip().lower() in ["descricao", "descrição"]:
+                    if str(c).strip().lower() in [
+                        "lancamento",
+                        "lançamento",
+                        "tipo de lancamento",
+                        "tipo de lançamento",
+                    ]:
                         lancamento_col = c
                         break
-
-            if not lancamento_col:
-                lancamento_col = df.columns[0] if len(df.columns) > 0 else None
-
-            def norm(s):
-                import unicodedata
-
-                return (
-                    unicodedata.normalize("NFKD", str(s or ""))
-                    .encode("ASCII", "ignore")
-                    .decode("ASCII")
-                    .upper()
-                    .strip()
+    
+                # Segunda passada: se não encontrou 'lancamento', buscar por 'descricao'
+                if not lancamento_col:
+                    for c in df.columns:
+                        if str(c).strip().lower() in ["descricao", "descrição"]:
+                            lancamento_col = c
+                            break
+    
+                if not lancamento_col:
+                    lancamento_col = df.columns[0] if len(df.columns) > 0 else None
+    
+                def norm(s):
+                    import unicodedata
+    
+                    return (
+                        unicodedata.normalize("NFKD", str(s or ""))
+                        .encode("ASCII", "ignore")
+                        .decode("ASCII")
+                        .upper()
+                        .strip()
+                    )
+    
+                termos_raw = termos_listar(engine, str(ec_id), contexto, tipo="r")
+                termos = [
+                    norm(t["termo"]) if isinstance(t, dict) and "termo" in t else norm(t)
+                    for t in termos_raw
+                ]
+    
+                if termos:
+                    padrao_termos = re.compile(
+                        "|".join(map(re.escape, termos)), flags=re.IGNORECASE
+                    )
+                else:
+                    padrao_termos = None
+    
+                mask_vazio = df[lancamento_col].isnull() | (
+                    df[lancamento_col].astype(str).str.strip() == ""
                 )
-
-            termos_raw = termos_listar(engine, str(ec_id), contexto, tipo="r")
-            termos = [
-                norm(t["termo"]) if isinstance(t, dict) and "termo" in t else norm(t)
-                for t in termos_raw
-            ]
-
-            if termos:
-                padrao_termos = re.compile(
-                    "|".join(map(re.escape, termos)), flags=re.IGNORECASE
-                )
-            else:
-                padrao_termos = None
-
-            mask_vazio = df[lancamento_col].isnull() | (
-                df[lancamento_col].astype(str).str.strip() == ""
+    
+                if padrao_termos:
+                    def check_match(x):
+                        x_norm = norm(x)
+                        match = padrao_termos.search(x_norm)
+                        return bool(match)
+    
+                    mask_termo = df[lancamento_col].astype(str).apply(check_match)
+                else:
+                    mask_termo = pd.Series([False] * len(df), index=df.index)
+    
+                # Linhas processadas: não vazias e não termo filtrável
+                mask_proc = (~mask_vazio) & (~mask_termo)
+                # Linhas filtradas: termo filtrável
+                mask_filt = (~mask_vazio) & mask_termo
+    
+                df.loc[mask_proc, "Filtrado"] = 0
+                df.loc[mask_filt, "Filtrado"] = 1
+    
+        now = datetime.now()
+    
+        if processamentoid is None:
+            # Gera novo processamentoid
+            from conf.funcoesbd import processamento_gerar_novo_id, processamento_salvar
+    
+            processamentoid, data_proc = processamento_gerar_novo_id(engine, ec_id, now)
+            processamento_salvar(
+                engine,
+                ec_id=ec_id,
+                cliente_id=cliente_id,
+                id_processamento=processamentoid,
+                descricao=arquivo_origem or "Importação Recebíveis",
+                data_processamento=data_proc,
             )
-
-            if padrao_termos:
-                def check_match(x):
-                    x_norm = norm(x)
-                    match = padrao_termos.search(x_norm)
-                    return bool(match)
-
-                mask_termo = df[lancamento_col].astype(str).apply(check_match)
-            else:
-                mask_termo = pd.Series([False] * len(df), index=df.index)
-
-            # Linhas processadas: não vazias e não termo filtrável
-            mask_proc = (~mask_vazio) & (~mask_termo)
-            # Linhas filtradas: termo filtrável
-            mask_filt = (~mask_vazio) & mask_termo
-
-            df.loc[mask_proc, "Filtrado"] = 0
-            df.loc[mask_filt, "Filtrado"] = 1
-
-    now = datetime.now()
-
-    if processamentoid is None:
-        # Gera novo processamentoid
-        from conf.funcoesbd import processamento_gerar_novo_id, processamento_salvar
-
-        processamentoid, data_proc = processamento_gerar_novo_id(engine, ec_id, now)
-        processamento_salvar(
-            engine,
-            ec_id=ec_id,
-            cliente_id=cliente_id,
-            id_processamento=processamentoid,
-            descricao=arquivo_origem or "Importação Recebíveis",
-            data_processamento=data_proc,
+    
+        # Normaliza e filtra
+        df = normalizar_dataframe_recebiveis(
+            df, engine, ec_id, contexto, usuario
         )
-
-    # Normaliza e filtra
-    df = normalizar_dataframe_recebiveis(
-        df, engine, ec_id, contexto, usuario
-    )
-
-    # NOTA: As datas já foram convertidas corretamente em normalizar_dataframe_recebiveis
-    # com dayfirst=True, então não precisamos converter novamente aqui
-
-    # Adiciona metadados ao DataFrame completo
-    df["arquivo_origem"] = arquivo_origem or ""
-    df["processamentoid"] = processamentoid
-    df["cliente_id"] = cliente_id
-
-    # ⚠️ CRÍTICO: Apenas preencher ec_id se não veio do de-para (coluna vazia/ausente)
-    # Se ec_id já existe no DataFrame (via de-para), NÃO sobrescrever!
-    if "ec_id" not in df.columns or df["ec_id"].isna().all():
-        df["ec_id"] = ec_id
-
-    # As datas já estão convertidas corretamente em normalizar_dataframe_recebiveis
-
-    # Separa entre processados e filtrados baseado na coluna 'Filtrado'
-    if "Filtrado" in df.columns:
-        df_proc = df[df["Filtrado"] == 0].copy()
-        df_filt = df[df["Filtrado"] == 1].copy()
-    else:
-        # Se não tem coluna Filtrado, todos vão para processados
-        df_proc = df.copy()
-        df_filt = pd.DataFrame(columns=df.columns)
-
-    # Remove colunas auxiliares (igual às vendas)
-    columns_to_remove = ["Filtrado", "planilha_origem"]
-    df_proc_db = df_proc.drop(columns=columns_to_remove, errors="ignore")
-    df_filt_db = df_filt.drop(columns=columns_to_remove, errors="ignore")
-
-    # ✅ CORREÇÃO: Converter valores monetários para float ANTES do insert
-    for col in ["valor_recebivel", "valor_liquido"]:
-        if col in df_proc_db.columns:
-            # ⚠️ CRÍTICO: Converter E arredondar para 2 casas decimais
-            df_proc_db[col] = pd.to_numeric(df_proc_db[col], errors="coerce").round(2)
-
-        if col in df_filt_db.columns:
-            # ⚠️ CRÍTICO: Converter E arredondar para 2 casas decimais
-            df_filt_db[col] = pd.to_numeric(df_filt_db[col], errors="coerce").round(2)
-
-    n_proc, n_filt = len(df_proc_db), len(df_filt_db)
-
-    # Inserir dados nas respectivas tabelas (igual às vendas)
-    if n_proc:
-        if progress_callback: progress_callback(70, "Gravando recebíveis processados...")
-        recebiveis_processados_bulk_insert(engine, df_proc_db, progress_callback=progress_callback)
-    if n_filt:
-        if progress_callback: progress_callback(85, "Gravando recebíveis filtrados...")
-        recebiveis_filtrados_bulk_insert(engine, df_filt_db, progress_callback=progress_callback)
-
-    # Remover duplicadas (igual às vendas)
-    # OTIMIZAÇÃO: Se for uma importação nova (was_fresh=True), a deduplicação em memória feita acima
-    # já é suficiente e muito mais rápida que o self-join no banco de dados.
-    if n_proc and not was_fresh:
-        if progress_callback: progress_callback(90, "Removendo duplicadas (processados)...")
-        recebiveis_remover_duplicadas(
-            engine,
-            "recebiveis_processados",
-            processamentoid,
-            df_proc_db.columns.tolist(),
-        )
-    elif n_proc and was_fresh:
-        print(f"[DEBUG][DEDUP] Pulando remoção SQL de duplicadas para fresh import (processamentoid: {processamentoid})")
-        if progress_callback: progress_callback(95, "Deduplicação em memória concluída.")
-
-    if n_filt and not was_fresh:
-        recebiveis_remover_duplicadas(
-            engine, "recebiveis_filtrados", processamentoid, df_filt_db.columns.tolist()
-        )
-
-    return {
-        "processadas": len(df_proc_db),
-        "filtradas": len(df_filt_db),
-        "total": len(df_proc_db) + len(df_filt_db),
-        "processamentoid": processamentoid,
-    }
+    
+        # NOTA: As datas já foram convertidas corretamente em normalizar_dataframe_recebiveis
+        # com dayfirst=True, então não precisamos converter novamente aqui
+    
+        # Adiciona metadados ao DataFrame completo
+        df["arquivo_origem"] = arquivo_origem or ""
+        df["processamentoid"] = processamentoid
+        df["cliente_id"] = cliente_id
+    
+        # ⚠️ CRÍTICO: Apenas preencher ec_id se não veio do de-para (coluna vazia/ausente)
+        # Se ec_id já existe no DataFrame (via de-para), NÃO sobrescrever!
+        if "ec_id" not in df.columns or df["ec_id"].isna().all():
+            df["ec_id"] = ec_id
+    
+        # As datas já estão convertidas corretamente em normalizar_dataframe_recebiveis
+    
+        # Separa entre processados e filtrados baseado na coluna 'Filtrado'
+        if "Filtrado" in df.columns:
+            df_proc = df[df["Filtrado"] == 0].copy()
+            df_filt = df[df["Filtrado"] == 1].copy()
+        else:
+            # Se não tem coluna Filtrado, todos vão para processados
+            df_proc = df.copy()
+            df_filt = pd.DataFrame(columns=df.columns)
+    
+        # Remove colunas auxiliares (igual às vendas)
+        columns_to_remove = ["Filtrado", "planilha_origem"]
+        df_proc_db = df_proc.drop(columns=columns_to_remove, errors="ignore")
+        df_filt_db = df_filt.drop(columns=columns_to_remove, errors="ignore")
+    
+        # ✅ CORREÇÃO: Converter valores monetários para float ANTES do insert
+        for col in ["valor_recebivel", "valor_liquido"]:
+            if col in df_proc_db.columns:
+                # ⚠️ CRÍTICO: Converter E arredondar para 2 casas decimais
+                df_proc_db[col] = pd.to_numeric(df_proc_db[col], errors="coerce").round(2)
+    
+            if col in df_filt_db.columns:
+                # ⚠️ CRÍTICO: Converter E arredondar para 2 casas decimais
+                df_filt_db[col] = pd.to_numeric(df_filt_db[col], errors="coerce").round(2)
+    
+        n_proc, n_filt = len(df_proc_db), len(df_filt_db)
+    
+        # Inserir dados nas respectivas tabelas (igual às vendas)
+        if n_proc:
+            if progress_callback: progress_callback(70, "Gravando recebíveis processados...")
+            recebiveis_processados_bulk_insert(engine, df_proc_db, progress_callback=progress_callback)
+        if n_filt:
+            if progress_callback: progress_callback(85, "Gravando recebíveis filtrados...")
+            recebiveis_filtrados_bulk_insert(engine, df_filt_db, progress_callback=progress_callback)
+    
+        # Remover duplicadas (igual às vendas)
+        # OTIMIZAÇÃO: Se for uma importação nova (was_fresh=True), a deduplicação em memória feita acima
+        # já é suficiente e muito mais rápida que o self-join no banco de dados.
+        if n_proc and not was_fresh:
+            if progress_callback: progress_callback(90, "Removendo duplicadas (processados)...")
+            recebiveis_remover_duplicadas(
+                engine,
+                "recebiveis_processados",
+                processamentoid,
+                df_proc_db.columns.tolist(),
+            )
+        elif n_proc and was_fresh:
+            print(f"[DEBUG][DEDUP] Pulando remoção SQL de duplicadas para fresh import (processamentoid: {processamentoid})")
+            if progress_callback: progress_callback(95, "Deduplicação em memória concluída.")
+    
+        if n_filt and not was_fresh:
+            recebiveis_remover_duplicadas(
+                engine, "recebiveis_filtrados", processamentoid, df_filt_db.columns.tolist()
+            )
+    
+        return {
+            "processadas": len(df_proc_db),
+            "filtradas": len(df_filt_db),
+            "total": len(df_proc_db) + len(df_filt_db),
+            "processamentoid": processamentoid,
+        }
 
 
 def normalizar_dataframe_recebiveis(
@@ -246,160 +247,161 @@ def normalizar_dataframe_recebiveis(
     - Aplica filtragem e adiciona coluna 'Filtrado'
     - Separação será feita posteriormente na função classificar_e_gravar_recebiveis
     """
-    df = df.copy()
+    with PerformanceTimer("POLARS", "Normalização Recebíveis (Pandas Pipeline)", {"rows": len(df), "contexto": contexto}):
+        df = df.copy()
 
-    # Conversão explícita APENAS de colunas de data (não valor_recebivel, recebivel_id, etc.)
-    # Lista explícita para evitar conversão incorreta de colunas numéricas/texto
-    colunas_data_candidatas = [
-        "data_pagamento",
-        "data_recebivel",
-        "data_processamento",
-        "data_ajuste",
-        "data_lancamento",
-        "data_vencimento",
-        "data_da_venda",
-        "data_da_autorização_da_venda",
-    ]
-    colunas_data = [c for c in colunas_data_candidatas if c in df.columns]
+        # Conversão explícita APENAS de colunas de data (não valor_recebivel, recebivel_id, etc.)
+        # Lista explícita para evitar conversão incorreta de colunas numéricas/texto
+        colunas_data_candidatas = [
+            "data_pagamento",
+            "data_recebivel",
+            "data_processamento",
+            "data_ajuste",
+            "data_lancamento",
+            "data_vencimento",
+            "data_da_venda",
+            "data_da_autorização_da_venda",
+        ]
+        colunas_data = [c for c in colunas_data_candidatas if c in df.columns]
 
-    for col in colunas_data:
-        # ⚠️ CORREÇÃO CRÍTICA: Detectar formato ISO 8601 (YYYY-MM-DD) vs brasileiro (DD/MM/YYYY)
-        # - Se string contém '-' → formato ISO (não usar dayfirst)
-        # - Se string contém '/' → formato brasileiro (usar dayfirst=True)
-        sample_value = (
-            str(df[col].dropna().iloc[0]) if len(df[col].dropna()) > 0 else ""
-        )
-        use_dayfirst = "/" in sample_value  # Apenas para formato DD/MM/YYYY
-        
-        df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=use_dayfirst)
-
-    # Conversão explícita de colunas numéricas/monetárias
-    colunas_numericas_candidatas = [
-        "valor_recebivel",
-        "valor_liquido",
-        "valor_bruto",
-        "valor_taxa",
-        "valor_comissao",
-        "valor_desconto",
-    ]
-    colunas_numericas = [c for c in colunas_numericas_candidatas if c in df.columns]
-
-    for col in colunas_numericas:
-        # ⚠️ CRÍTICO: Converter para numeric E arredondar para 2 casas decimais
-        # Evita imprecisão de ponto flutuante (0.30 → 0.3097)
-        df[col] = pd.to_numeric(df[col], errors="coerce").round(2)
-
-    # Adiciona metadados básicos
-    df["data_processamento"] = datetime.now()
-    df["usuario_processamento"] = usuario or "desconhecido"
-
-    # --- NOVO: Preencher coluna 'Adquirente' baseada no contexto selecionado (igual às vendas) ---
-    if contexto and contexto.lower() not in ["", "padrao"]:
-        adquirente_valor = contexto.upper()
-        if "Adquirente" not in df.columns:
-            df["Adquirente"] = adquirente_valor
-        else:
-            # Preencher apenas onde está vazio/nulo
-            mask_vazio = df["Adquirente"].isnull() | (
-                df["Adquirente"].astype(str).str.strip() == ""
+        for col in colunas_data:
+            # ⚠️ CORREÇÃO CRÍTICA: Detectar formato ISO 8601 (YYYY-MM-DD) vs brasileiro (DD/MM/YYYY)
+            # - Se string contém '-' → formato ISO (não usar dayfirst)
+            # - Se string contém '/' → formato brasileiro (usar dayfirst=True)
+            sample_value = (
+                str(df[col].dropna().iloc[0]) if len(df[col].dropna()) > 0 else ""
             )
-            df.loc[mask_vazio, "Adquirente"] = adquirente_valor
+            use_dayfirst = "/" in sample_value  # Apenas para formato DD/MM/YYYY
+            
+            df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=use_dayfirst)
 
-    # APLICAR FILTRAGEM BASEADA EM TERMOS
-    # Identificar coluna de lançamento/descrição (prioridade para 'lancamento')
-    lancamento_col = None
+        # Conversão explícita de colunas numéricas/monetárias
+        colunas_numericas_candidatas = [
+            "valor_recebivel",
+            "valor_liquido",
+            "valor_bruto",
+            "valor_taxa",
+            "valor_comissao",
+            "valor_desconto",
+        ]
+        colunas_numericas = [c for c in colunas_numericas_candidatas if c in df.columns]
 
-    # Primeira passada: buscar por 'lancamento'
-    for c in df.columns:
-        if str(c).strip().lower() in [
-            "lancamento",
-            "lançamento",
-            "tipo de lancamento",
-            "tipo de lançamento",
-        ]:
-            lancamento_col = c
-            break
+        for col in colunas_numericas:
+            # ⚠️ CRÍTICO: Converter para numeric E arredondar para 2 casas decimais
+            # Evita imprecisão de ponto flutuante (0.30 → 0.3097)
+            df[col] = pd.to_numeric(df[col], errors="coerce").round(2)
 
-    # Segunda passada: se não encontrou 'lancamento', buscar por 'descricao'
-    if not lancamento_col:
+        # Adiciona metadados básicos
+        df["data_processamento"] = datetime.now()
+        df["usuario_processamento"] = usuario or "desconhecido"
+
+        # --- NOVO: Preencher coluna 'Adquirente' baseada no contexto selecionado (igual às vendas) ---
+        if contexto and contexto.lower() not in ["", "padrao"]:
+            adquirente_valor = contexto.upper()
+            if "Adquirente" not in df.columns:
+                df["Adquirente"] = adquirente_valor
+            else:
+                # Preencher apenas onde está vazio/nulo
+                mask_vazio = df["Adquirente"].isnull() | (
+                    df["Adquirente"].astype(str).str.strip() == ""
+                )
+                df.loc[mask_vazio, "Adquirente"] = adquirente_valor
+
+        # APLICAR FILTRAGEM BASEADA EM TERMOS
+        # Identificar coluna de lançamento/descrição (prioridade para 'lancamento')
+        lancamento_col = None
+
+        # Primeira passada: buscar por 'lancamento'
         for c in df.columns:
-            if str(c).strip().lower() in ["descricao", "descrição"]:
+            if str(c).strip().lower() in [
+                "lancamento",
+                "lançamento",
+                "tipo de lancamento",
+                "tipo de lançamento",
+            ]:
                 lancamento_col = c
                 break
 
-    if not lancamento_col:
-        lancamento_col = df.columns[0] if len(df.columns) > 0 else None
+        # Segunda passada: se não encontrou 'lancamento', buscar por 'descricao'
+        if not lancamento_col:
+            for c in df.columns:
+                if str(c).strip().lower() in ["descricao", "descrição"]:
+                    lancamento_col = c
+                    break
 
-    if not lancamento_col:
-        df["Filtrado"] = 0
-        return df
+        if not lancamento_col:
+            lancamento_col = df.columns[0] if len(df.columns) > 0 else None
 
-    # Função de normalização de texto
-    def norm(s):
-        return (
-            unicodedata.normalize("NFKD", str(s or ""))
-            .encode("ASCII", "ignore")
-            .decode("ASCII")
-            .upper()
-            .strip()
-        )
+        if not lancamento_col:
+            df["Filtrado"] = 0
+            return df
 
-    # Carregar termos de filtro
-    termos_raw = termos_listar(engine, str(ec_id), contexto, tipo="r")
-
-    termos = [
-        norm(t["termo"]) if isinstance(t, dict) and "termo" in t else norm(t)
-        for t in termos_raw
-    ]
-
-    # 🔥 INICIALIZAR coluna Filtrado SEMPRE
-    df["Filtrado"] = 0  # Default: não filtrado
-
-    # 🔥 VALIDAÇÃO ESPECIAL CIELO: lançamento não pode estar vazio
-    # IMPORTANTE: Após o De-Para, "motivo_ajuste" foi renomeado para "lancamento"
-    # Esta validação acontece ANTES da filtragem por termos
-    if contexto and contexto.upper() == "CIELO":
-        # Procurar coluna lancamento (que é o destino do De-Para de motivo_ajuste)
-        lancamento_col_validacao = None
-        for col in df.columns:
-            col_lower = col.lower()
-            # Procurar por "lancamento" que é como motivo_ajuste foi renomeado
-            if col_lower == "lancamento":
-                lancamento_col_validacao = col
-                break
-
-        if lancamento_col_validacao:
-            # Identificar linhas com lancamento vazio/nulo
-            mask_vazio = (
-                df[lancamento_col_validacao].isnull()
-                | (df[lancamento_col_validacao].astype(str).str.strip() == "")
-                | (df[lancamento_col_validacao].astype(str).str.lower() == "nan")
-                | (df[lancamento_col_validacao].astype(str).str.lower() == "none")
+        # Função de normalização de texto
+        def norm(s):
+            return (
+                unicodedata.normalize("NFKD", str(s or ""))
+                .encode("ASCII", "ignore")
+                .decode("ASCII")
+                .upper()
+                .strip()
             )
 
-            linhas_vazias = mask_vazio.sum()
+        # Carregar termos de filtro
+        termos_raw = termos_listar(engine, str(ec_id), contexto, tipo="r")
 
-            if linhas_vazias > 0:
-                # Marcar como filtrado
-                df.loc[mask_vazio, "Filtrado"] = 1
+        termos = [
+            norm(t["termo"]) if isinstance(t, dict) and "termo" in t else norm(t)
+            for t in termos_raw
+        ]
 
-    # Aplicar filtragem por TERMOS (adiciona mais filtros aos já existentes)
-    if termos and lancamento_col in df.columns:
-        # Criar padrão regex
-        padrao_termos = re.compile(
-            "|".join(map(re.escape, termos)), flags=re.IGNORECASE
-        )
+        # 🔥 INICIALIZAR coluna Filtrado SEMPRE
+        df["Filtrado"] = 0  # Default: não filtrado
 
-        # Aplicar filtro
-        for idx, row in df.iterrows():
-            valor_celula = str(row.get(lancamento_col, "")).strip()
-            valor_normalizado = norm(valor_celula)
+        # 🔥 VALIDAÇÃO ESPECIAL CIELO: lançamento não pode estar vazio
+        # IMPORTANTE: Após o De-Para, "motivo_ajuste" foi renomeado para "lancamento"
+        # Esta validação acontece ANTES da filtragem por termos
+        if contexto and contexto.upper() == "CIELO":
+            # Procurar coluna lancamento (que é o destino do De-Para de motivo_ajuste)
+            lancamento_col_validacao = None
+            for col in df.columns:
+                col_lower = col.lower()
+                # Procurar por "lancamento" que é como motivo_ajuste foi renomeado
+                if col_lower == "lancamento":
+                    lancamento_col_validacao = col
+                    break
 
-            match = padrao_termos.search(valor_normalizado)
-            if match:
-                df.loc[idx, "Filtrado"] = 1
+            if lancamento_col_validacao:
+                # Identificar linhas com lancamento vazio/nulo
+                mask_vazio = (
+                    df[lancamento_col_validacao].isnull()
+                    | (df[lancamento_col_validacao].astype(str).str.strip() == "")
+                    | (df[lancamento_col_validacao].astype(str).str.lower() == "nan")
+                    | (df[lancamento_col_validacao].astype(str).str.lower() == "none")
+                )
 
-    return df
+                linhas_vazias = mask_vazio.sum()
+
+                if linhas_vazias > 0:
+                    # Marcar como filtrado
+                    df.loc[mask_vazio, "Filtrado"] = 1
+
+        # Aplicar filtragem por TERMOS (adiciona mais filtros aos já existentes)
+        if termos and lancamento_col in df.columns:
+            # Criar padrão regex
+            padrao_termos = re.compile(
+                "|".join(map(re.escape, termos)), flags=re.IGNORECASE
+            )
+
+            # Aplicar filtro
+            for idx, row in df.iterrows():
+                valor_celula = str(row.get(lancamento_col, "")).strip()
+                valor_normalizado = norm(valor_celula)
+
+                match = padrao_termos.search(valor_normalizado)
+                if match:
+                    df.loc[idx, "Filtrado"] = 1
+
+        return df
 
 
 # proc/proc_importacao.py
@@ -2534,674 +2536,676 @@ def preparar_dataframe_de_arquivo(
     log_callback: função(msg:str) para atualizar logs na UI
     """
 
-    # Inicializar variáveis que podem ser usadas no return
-    meta = {"source": "Unknown", "header_row": 0, "columns_raw": []}
-    df_final = pd.DataFrame()
-    transformacoes = {}
-
-    def update_progress(val):
-        if progress_callback:
-            progress_callback(val)
-
-    def log(msg):
-        now = datetime.now().strftime("%H:%M:%S")
-        if log_callback:
-            log_callback(f"[{now}] {msg}")
-
-    update_progress(5)
-    log(f"Processando arquivo (1/10): Iniciando leitura robusta do arquivo...")
-    print(f"[DEBUG][PROCESSAR] 🚀 INICIANDO preparar_dataframe_de_arquivo")
-    print(f"[DEBUG][PROCESSAR] - Arquivo: {path}")
-    print(f"[DEBUG][PROCESSAR] - Contexto: '{contexto}'")
-    print(f"[DEBUG][PROCESSAR] - Tipo origem: '{tipo_origem}'")
-
-    try:
-        # Verificar se é arquivo multi-planilhas (independente de contexto)
-        print(f"[DEBUG][PROCESSAR] 🔍 Verificando se é multi-sheet...")
-        print(
-            f"[DEBUG][PROCESSAR] - Contexto: '{contexto}' (upper: '{contexto.upper()}')"
-        )
-        is_multisheet = is_multisheet_rede_file(path)
-        
-        # --- TENTATIVA MODULAR (Strategy Pattern) ---
-        if not is_multisheet:
-            importer = ImporterFactory.get_importer(engine, path, 0, cliente_id, contexto, usuario, tipo_origem)
-            if importer:
-                log(f"Executando motor de importação modular: {importer.__class__.__name__}")
-                importer.read(path, nrows=nrows)
-                importer.parse()
-                importer.normalize()
-                
-                # Enriquecimento de metadados antes de retornar
-                if importer.df_proc is not None and not importer.df_proc.empty:
-                    importer.df_proc["arquivo_origem"] = os.path.basename(path)
-                    if "ec_id" not in importer.df_proc.columns or importer.df_proc["ec_id"].isna().all():
-                        importer.df_proc["ec_id"] = str(ec_id)
-                
-                update_progress(100)
-                # Formato esperado: (df_final, transformacoes, header_row)
-                return importer.df_proc, getattr(importer, 'transformacoes', {}), importer.header_idx
-            else:
-                raise ValueError("Nenhum motor de importação compatível encontrado para este arquivo.")
-
-        if is_multisheet:
-            log(
-                f"Processando arquivo (2/10): Detectado arquivo multi-planilhas, processando todas as abas..."
-            )
-            print("[DEBUG][PROCESSAR] Arquivo multi-planilhas detectado")
-
-            multisheet_data = safe_read_multisheet_file(
-                path, tipo_origem, engine, contexto, nrows=nrows
-            )
-
-            if not multisheet_data:
-                raise ValueError(
-                    "Nenhuma planilha válida encontrada no arquivo multi-planilhas"
-                )
-
-            # Combinar todas as planilhas em um único DataFrame
-            combined_dfs = []
-            all_transformacoes = {}
-
-            print(f"[DEBUG][MULTISHEET] 📊 COMBINANDO PLANILHAS")
+    with PerformanceTimer("IO_ORCHESTRATOR", "Preparar DataFrame de Arquivo", {"file": os.path.basename(path), "contexto": contexto}):
+        # Inicializar variáveis que podem ser usadas no return
+        meta = {"source": "Unknown", "header_row": 0, "columns_raw": []}
+        df_final = pd.DataFrame()
+        transformacoes = {}
+    
+        def update_progress(val):
+            if progress_callback:
+                progress_callback(val)
+    
+        def log(msg):
+            now = datetime.now().strftime("%H:%M:%S")
+            if log_callback:
+                log_callback(f"[{now}] {msg}")
+    
+        update_progress(5)
+        log(f"Processando arquivo (1/10): Iniciando leitura robusta do arquivo...")
+        print(f"[DEBUG][PROCESSAR] 🚀 INICIANDO preparar_dataframe_de_arquivo")
+        print(f"[DEBUG][PROCESSAR] - Arquivo: {path}")
+        print(f"[DEBUG][PROCESSAR] - Contexto: '{contexto}'")
+        print(f"[DEBUG][PROCESSAR] - Tipo origem: '{tipo_origem}'")
+    
+        try:
+            # Verificar se é arquivo multi-planilhas (independente de contexto)
+            print(f"[DEBUG][PROCESSAR] 🔍 Verificando se é multi-sheet...")
             print(
-                f"[DEBUG][MULTISHEET] - Total de planilhas para processar: {len(multisheet_data)}"
+                f"[DEBUG][PROCESSAR] - Contexto: '{contexto}' (upper: '{contexto.upper()}')"
             )
-            print(
-                f"[DEBUG][MULTISHEET] - Planilhas encontradas: {list(multisheet_data.keys())}"
-            )
-
-            for sheet_name, sheet_info in multisheet_data.items():
-                df_sheet = sheet_info["df"]
-                headers_sheet = sheet_info["headers"]
-
+            is_multisheet = is_multisheet_rede_file(path)
+            
+            # --- TENTATIVA MODULAR (Strategy Pattern) ---
+            if not is_multisheet:
+                importer = ImporterFactory.get_importer(engine, path, 0, cliente_id, contexto, usuario, tipo_origem)
+                if importer:
+                    log(f"Executando motor de importação modular: {importer.__class__.__name__}")
+                    importer.read(path, nrows=nrows)
+                    importer.parse()
+                    importer.normalize()
+                    
+                    # Enriquecimento de metadados antes de retornar
+                    if importer.df_proc is not None and not importer.df_proc.empty:
+                        importer.df_proc["arquivo_origem"] = os.path.basename(path)
+                        if "ec_id" not in importer.df_proc.columns or importer.df_proc["ec_id"].isna().all():
+                            importer.df_proc["ec_id"] = str(ec_id)
+                    
+                    update_progress(100)
+                    # Formato esperado: (df_final, transformacoes, header_row)
+                    return importer.df_proc, getattr(importer, 'transformacoes', {}), importer.header_idx
+                else:
+                    raise ValueError("Nenhum motor de importação compatível encontrado para este arquivo.")
+    
+            if is_multisheet:
+                log(
+                    f"Processando arquivo (2/10): Detectado arquivo multi-planilhas, processando todas as abas..."
+                )
+                print("[DEBUG][PROCESSAR] Arquivo multi-planilhas detectado")
+    
+                multisheet_data = safe_read_multisheet_file(
+                    path, tipo_origem, engine, contexto, nrows=nrows
+                )
+    
+                if not multisheet_data:
+                    raise ValueError(
+                        "Nenhuma planilha válida encontrada no arquivo multi-planilhas"
+                    )
+    
+                # Combinar todas as planilhas em um único DataFrame
+                combined_dfs = []
+                all_transformacoes = {}
+    
+                print(f"[DEBUG][MULTISHEET] 📊 COMBINANDO PLANILHAS")
                 print(
-                    f"[DEBUG][MULTISHEET] Processando planilha {sheet_name}: {len(df_sheet)} linhas"
-                )
-
-                # Aplicar regras de de/para para esta planilha
-                print(
-                    f"[DEBUG][MULTISHEET] {sheet_name} - Carregando regras de de/para..."
+                    f"[DEBUG][MULTISHEET] - Total de planilhas para processar: {len(multisheet_data)}"
                 )
                 print(
-                    f"[DEBUG][MULTISHEET] {sheet_name} - Parâmetros: contexto='{contexto}', tipo_origem='{tipo_origem}'"
+                    f"[DEBUG][MULTISHEET] - Planilhas encontradas: {list(multisheet_data.keys())}"
                 )
-                regras = depara_carregar_mapa_completo(
-                    engine, contexto=(contexto or ""), tipo_origem=tipo_origem
-                )
-                print(
-                    f"[DEBUG][MULTISHEET] {sheet_name} - Total de regras carregadas: {len(regras)}"
-                )
-
-                if df_sheet is not None and not df_sheet.empty:
+    
+                for sheet_name, sheet_info in multisheet_data.items():
+                    df_sheet = sheet_info["df"]
+                    headers_sheet = sheet_info["headers"]
+    
                     print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - DataFrame antes do de/para:"
+                        f"[DEBUG][MULTISHEET] Processando planilha {sheet_name}: {len(df_sheet)} linhas"
                     )
-                    print(f"[DEBUG][MULTISHEET] {sheet_name} - Linhas: {len(df_sheet)}")
+    
+                    # Aplicar regras de de/para para esta planilha
                     print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - Colunas: {list(df_sheet.columns)}"
+                        f"[DEBUG][MULTISHEET] {sheet_name} - Carregando regras de de/para..."
                     )
                     print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - Regras carregadas: {len(regras)}"
+                        f"[DEBUG][MULTISHEET] {sheet_name} - Parâmetros: contexto='{contexto}', tipo_origem='{tipo_origem}'"
+                    )
+                    regras = depara_carregar_mapa_completo(
+                        engine, contexto=(contexto or ""), tipo_origem=tipo_origem
                     )
                     print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - Primeiras 3 linhas do DataFrame:"
+                        f"[DEBUG][MULTISHEET] {sheet_name} - Total de regras carregadas: {len(regras)}"
                     )
-                    print(df_sheet.head(3))
-
-                    df_sheet_final, transformacoes_sheet = aplicar_regras_depara(
-                        df_sheet, regras
-                    )
-
-                    print(f"[DEBUG][MULTISHEET] {sheet_name} - DataFrame após de/para:")
-                    print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - Linhas resultantes: {len(df_sheet_final) if df_sheet_final is not None else 0}"
-                    )
-                    print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - Colunas resultantes: {list(df_sheet_final.columns) if df_sheet_final is not None else []}"
-                    )
-                    print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - Transformações: {transformacoes_sheet}"
-                    )
-
-                    if not df_sheet_final.empty:
-                        # Adicionar coluna identificadora da planilha
-                        df_sheet_final["planilha_origem"] = sheet_name
-                        combined_dfs.append(df_sheet_final)
-                        all_transformacoes.update(transformacoes_sheet)
-
+    
+                    if df_sheet is not None and not df_sheet.empty:
                         print(
-                            f"[DEBUG][MULTISHEET] {sheet_name} processada: {len(df_sheet_final)} linhas"
+                            f"[DEBUG][MULTISHEET] {sheet_name} - DataFrame antes do de/para:"
                         )
+                        print(f"[DEBUG][MULTISHEET] {sheet_name} - Linhas: {len(df_sheet)}")
+                        print(
+                            f"[DEBUG][MULTISHEET] {sheet_name} - Colunas: {list(df_sheet.columns)}"
+                        )
+                        print(
+                            f"[DEBUG][MULTISHEET] {sheet_name} - Regras carregadas: {len(regras)}"
+                        )
+                        print(
+                            f"[DEBUG][MULTISHEET] {sheet_name} - Primeiras 3 linhas do DataFrame:"
+                        )
+                        print(df_sheet.head(3))
+    
+                        df_sheet_final, transformacoes_sheet = aplicar_regras_depara(
+                            df_sheet, regras
+                        )
+    
+                        print(f"[DEBUG][MULTISHEET] {sheet_name} - DataFrame após de/para:")
+                        print(
+                            f"[DEBUG][MULTISHEET] {sheet_name} - Linhas resultantes: {len(df_sheet_final) if df_sheet_final is not None else 0}"
+                        )
+                        print(
+                            f"[DEBUG][MULTISHEET] {sheet_name} - Colunas resultantes: {list(df_sheet_final.columns) if df_sheet_final is not None else []}"
+                        )
+                        print(
+                            f"[DEBUG][MULTISHEET] {sheet_name} - Transformações: {transformacoes_sheet}"
+                        )
+    
+                        if not df_sheet_final.empty:
+                            # Adicionar coluna identificadora da planilha
+                            df_sheet_final["planilha_origem"] = sheet_name
+                            combined_dfs.append(df_sheet_final)
+                            all_transformacoes.update(transformacoes_sheet)
+    
+                            print(
+                                f"[DEBUG][MULTISHEET] {sheet_name} processada: {len(df_sheet_final)} linhas"
+                            )
+                        else:
+                            print(
+                                f"[DEBUG][MULTISHEET] {sheet_name} - DataFrame final está vazio após de/para!"
+                            )
                     else:
                         print(
-                            f"[DEBUG][MULTISHEET] {sheet_name} - DataFrame final está vazio após de/para!"
+                            f"[DEBUG][MULTISHEET] {sheet_name} - DataFrame original está vazio ou é None"
                         )
+    
+                if not combined_dfs:
+                    raise ValueError(
+                        "Nenhuma planilha teve dados válidos após processamento"
+                    )
+    
+                # Combinar todos os DataFrames
+                print(f"[DEBUG][MULTISHEET] 🔄 COMBINANDO DATAFRAMES FINAIS")
+                print(
+                    f"[DEBUG][MULTISHEET] - DataFrames para combinar: {len(combined_dfs)}"
+                )
+    
+                for i, df in enumerate(combined_dfs):
+                    print(
+                        f"[DEBUG][MULTISHEET] - DataFrame {i}: {len(df)} linhas, {len(df.columns)} colunas"
+                    )
+                    if len(df) > 0:
+                        print(f"[DEBUG][MULTISHEET]   Colunas: {list(df.columns)}")
+    
+                if combined_dfs:
+                    # Antes de combinar, limpar campos que cada aba não deve preencher
+                    print(f"[DEBUG][MULTISHEET] 🧹 Limpando campos específicos por aba...")
+    
+                    for i, df in enumerate(combined_dfs):
+                        if "planilha_origem" in df.columns:
+                            planilha_origem = (
+                                df["planilha_origem"].iloc[0] if len(df) > 0 else "unknown"
+                            )
+    
+                            if planilha_origem == "pagamentos":
+                                # Aba PAGAMENTOS: manter apenas banco, agencia, conta
+                                # Limpar data_pagamento, data_recebivel, lancamento, valor_liquido, valor_recebivel, descricao
+                                campos_para_limpar = [
+                                    "data_pagamento",
+                                    "data_recebivel",
+                                    "lancamento",
+                                    "valor_liquido",
+                                    "valor_recebivel",
+                                    "descricao",
+                                ]
+                                for campo in campos_para_limpar:
+                                    if campo in df.columns:
+                                        df[campo] = None
+                                        print(
+                                            f"[DEBUG][MULTISHEET] - Pagamentos: limpando campo '{campo}'"
+                                        )
+    
+                            elif planilha_origem == "ajustes":
+                                # Aba AJUSTES: pode preencher todos os campos principais
+                                print(
+                                    f"[DEBUG][MULTISHEET] - Ajustes: mantendo todos os campos preenchidos"
+                                )
+    
+                            elif planilha_origem == "cancelamentos e contestações":
+                                # Aba CANCELAMENTOS: manter os campos que já tem mapeados
+                                print(
+                                    f"[DEBUG][MULTISHEET] - Cancelamentos: mantendo campos mapeados"
+                                )
+    
+                    df_final = pd.concat(combined_dfs, ignore_index=True, sort=False)
+                    transformacoes = all_transformacoes
+    
+                    # Aplicar distinct final para registros de planilhas "pagamentos" baseado em banco/agencia/conta
+                    linhas_antes_final = len(df_final)
+                    if "planilha_origem" in df_final.columns:
+                        mask_pagamentos = df_final["planilha_origem"].str.contains(
+                            "pagamentos", case=False, na=False
+                        )
+                        if mask_pagamentos.any():
+                            df_pagamentos = df_final[mask_pagamentos]
+                            df_outros = df_final[~mask_pagamentos]
+    
+                            # Distinct apenas nos registros de pagamentos por banco/agencia/conta
+                            colunas_distinct = [
+                                col
+                                for col in ["banco", "agencia", "conta"]
+                                if col in df_pagamentos.columns
+                            ]
+                            if colunas_distinct:
+                                linhas_antes_pag = len(df_pagamentos)
+                                df_pagamentos_distinct = df_pagamentos.drop_duplicates(
+                                    subset=colunas_distinct
+                                )
+                                linhas_depois_pag = len(df_pagamentos_distinct)
+    
+                                print(f"[DEBUG][MULTISHEET] 🎯 DISTINCT FINAL APLICADO:")
+                                print(
+                                    f"[DEBUG][MULTISHEET] - Registros pagamentos antes: {linhas_antes_pag}"
+                                )
+                                print(
+                                    f"[DEBUG][MULTISHEET] - Registros pagamentos depois: {linhas_depois_pag}"
+                                )
+                                print(
+                                    f"[DEBUG][MULTISHEET] - Duplicatas pagamentos removidas: {linhas_antes_pag - linhas_depois_pag}"
+                                )
+                                print(
+                                    f"[DEBUG][MULTISHEET] - Colunas usadas: {colunas_distinct}"
+                                )
+    
+                                # Recombinar
+                                df_final = pd.concat(
+                                    [df_pagamentos_distinct, df_outros],
+                                    ignore_index=True,
+                                    sort=False,
+                                )
+    
+                    print(f"[DEBUG][MULTISHEET] ✅ COMBINAÇÃO CONCLUÍDA")
+                    print(
+                        f"[DEBUG][MULTISHEET] - DataFrame final: {len(df_final)} linhas, {len(df_final.columns)} colunas"
+                    )
+                    print(f"[DEBUG][MULTISHEET] - Colunas finais: {list(df_final.columns)}")
+                    linhas_depois_final = len(df_final)
+                    print(
+                        f"[DEBUG][MULTISHEET] - Total de duplicatas removidas no processo final: {linhas_antes_final - linhas_depois_final}"
+                    )
+    
+                    # Mostrar primeiras linhas do resultado final
+                    if len(df_final) > 0:
+                        print(
+                            f"[DEBUG][MULTISHEET] - Primeiras 3 linhas do resultado final (após limpeza por aba):"
+                        )
+                        for idx, row in df_final.head(3).iterrows():
+                            print(f"[DEBUG][MULTISHEET]   Linha {idx}: {dict(row)}")
                 else:
                     print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - DataFrame original está vazio ou é None"
+                        f"[DEBUG][MULTISHEET] ❌ ERRO: Nenhum DataFrame válido para combinar!"
                     )
-
-            if not combined_dfs:
-                raise ValueError(
-                    "Nenhuma planilha teve dados válidos após processamento"
+                    df_final = pd.DataFrame()
+                    transformacoes = {}
+    
+                # Definir meta para multi-sheet
+                meta = {
+                    "source": "MultiSheet",
+                    "header_row": 1,  # Multi-sheets geralmente têm header na linha 1
+                    "columns_raw": list(df_final.columns),
+                    "sheets_processed": len(multisheet_data),
+                }
+    
+                print(f"[DEBUG][MULTISHEET] 📋 RESUMO FINAL:")
+                print(
+                    f"[DEBUG][MULTISHEET] - Resultado final: {len(df_final)} linhas de {len(multisheet_data)} planilhas"
                 )
-
-            # Combinar todos os DataFrames
-            print(f"[DEBUG][MULTISHEET] 🔄 COMBINANDO DATAFRAMES FINAIS")
-            print(
-                f"[DEBUG][MULTISHEET] - DataFrames para combinar: {len(combined_dfs)}"
+                print(
+                    f"[DEBUG][MULTISHEET] - Transformações: {len(transformacoes)} aplicadas"
+                )
+    
+        except Exception as e:
+            log(f"Erro na leitura do arquivo: {e}")
+            print(f"[DEBUG][PROCESSAR][ERRO] {e}")
+            raise Exception(f"Falha na leitura do arquivo: {e}")
+    
+        # --- Lógica comum para ambos os casos (multi-sheet e single-sheet) ---
+    
+        # --- REGRA ESPECÍFICA DA REDE: CONCATENAR MODALIDADE + TIPO = FORMA_DE_PAGAMENTO ---
+        print("[DEBUG][REDE] Verificando necessidade de concatenar modalidade + tipo...")
+    
+        # Verificar se é arquivo da REDE e tem as colunas necessárias
+        tem_modalidade = any("modalidade" in str(col).lower() for col in df_final.columns)
+        tem_tipo = any("tipo" in str(col).lower() for col in df_final.columns)
+        try:
+            tem_rede = any("rede" in str(col).lower() for col in df_final.columns) or any(
+                df_final[col].astype(str).str.upper().str.contains("REDE", na=False).any()
+                for col in df_final.columns
+                if pd.api.types.is_object_dtype(df_final[col])
             )
-
-            for i, df in enumerate(combined_dfs):
-                print(
-                    f"[DEBUG][MULTISHEET] - DataFrame {i}: {len(df)} linhas, {len(df.columns)} colunas"
+        except Exception as e:
+            print(f"[DEBUG][REDE] Erro ao verificar REDE: {e}")
+            tem_rede = False
+    
+        # Verificar se já existe coluna Forma_de_pagamento (criada pelo mapeamento)
+        tem_forma_pagamento = "Forma_de_pagamento" in df_final.columns
+    
+        if tem_rede and tem_modalidade and tem_tipo and not tem_forma_pagamento:
+            print(
+                "[DEBUG][REDE] Detectado arquivo REDE com colunas modalidade e tipo - criando Forma_de_pagamento"
+            )
+    
+            # Encontrar as colunas exatas
+            col_modalidade = None
+            col_tipo = None
+    
+            for col in df_final.columns:
+                if "modalidade" in str(col).lower():
+                    col_modalidade = col
+                    print(f"[DEBUG][REDE] Coluna modalidade encontrada: {col}")
+                elif "tipo" in str(col).lower():
+                    col_tipo = col
+                    print(f"[DEBUG][REDE] Coluna tipo encontrada: {col}")
+    
+            if col_modalidade and col_tipo:
+                # Concatenar modalidade + " " + tipo
+                df_final["Forma_de_pagamento"] = (
+                    df_final[col_modalidade].astype(str).str.upper().str.strip()
+                    + " "
+                    + df_final[col_tipo].astype(str).str.upper().str.strip()
                 )
-                if len(df) > 0:
-                    print(f"[DEBUG][MULTISHEET]   Colunas: {list(df.columns)}")
-
-            if combined_dfs:
-                # Antes de combinar, limpar campos que cada aba não deve preencher
-                print(f"[DEBUG][MULTISHEET] 🧹 Limpando campos específicos por aba...")
-
-                for i, df in enumerate(combined_dfs):
-                    if "planilha_origem" in df.columns:
-                        planilha_origem = (
-                            df["planilha_origem"].iloc[0] if len(df) > 0 else "unknown"
-                        )
-
-                        if planilha_origem == "pagamentos":
-                            # Aba PAGAMENTOS: manter apenas banco, agencia, conta
-                            # Limpar data_pagamento, data_recebivel, lancamento, valor_liquido, valor_recebivel, descricao
-                            campos_para_limpar = [
-                                "data_pagamento",
-                                "data_recebivel",
-                                "lancamento",
-                                "valor_liquido",
-                                "valor_recebivel",
-                                "descricao",
-                            ]
-                            for campo in campos_para_limpar:
-                                if campo in df.columns:
-                                    df[campo] = None
-                                    print(
-                                        f"[DEBUG][MULTISHEET] - Pagamentos: limpando campo '{campo}'"
-                                    )
-
-                        elif planilha_origem == "ajustes":
-                            # Aba AJUSTES: pode preencher todos os campos principais
-                            print(
-                                f"[DEBUG][MULTISHEET] - Ajustes: mantendo todos os campos preenchidos"
-                            )
-
-                        elif planilha_origem == "cancelamentos e contestações":
-                            # Aba CANCELAMENTOS: manter os campos que já tem mapeados
-                            print(
-                                f"[DEBUG][MULTISHEET] - Cancelamentos: mantendo campos mapeados"
-                            )
-
-                df_final = pd.concat(combined_dfs, ignore_index=True, sort=False)
-                transformacoes = all_transformacoes
-
-                # Aplicar distinct final para registros de planilhas "pagamentos" baseado em banco/agencia/conta
-                linhas_antes_final = len(df_final)
-                if "planilha_origem" in df_final.columns:
-                    mask_pagamentos = df_final["planilha_origem"].str.contains(
-                        "pagamentos", case=False, na=False
-                    )
-                    if mask_pagamentos.any():
-                        df_pagamentos = df_final[mask_pagamentos]
-                        df_outros = df_final[~mask_pagamentos]
-
-                        # Distinct apenas nos registros de pagamentos por banco/agencia/conta
-                        colunas_distinct = [
-                            col
-                            for col in ["banco", "agencia", "conta"]
-                            if col in df_pagamentos.columns
-                        ]
-                        if colunas_distinct:
-                            linhas_antes_pag = len(df_pagamentos)
-                            df_pagamentos_distinct = df_pagamentos.drop_duplicates(
-                                subset=colunas_distinct
-                            )
-                            linhas_depois_pag = len(df_pagamentos_distinct)
-
-                            print(f"[DEBUG][MULTISHEET] 🎯 DISTINCT FINAL APLICADO:")
-                            print(
-                                f"[DEBUG][MULTISHEET] - Registros pagamentos antes: {linhas_antes_pag}"
-                            )
-                            print(
-                                f"[DEBUG][MULTISHEET] - Registros pagamentos depois: {linhas_depois_pag}"
-                            )
-                            print(
-                                f"[DEBUG][MULTISHEET] - Duplicatas pagamentos removidas: {linhas_antes_pag - linhas_depois_pag}"
-                            )
-                            print(
-                                f"[DEBUG][MULTISHEET] - Colunas usadas: {colunas_distinct}"
-                            )
-
-                            # Recombinar
-                            df_final = pd.concat(
-                                [df_pagamentos_distinct, df_outros],
-                                ignore_index=True,
-                                sort=False,
-                            )
-
-                print(f"[DEBUG][MULTISHEET] ✅ COMBINAÇÃO CONCLUÍDA")
-                print(
-                    f"[DEBUG][MULTISHEET] - DataFrame final: {len(df_final)} linhas, {len(df_final.columns)} colunas"
+    
+                # Normalizar acentos e limpar espaços
+                df_final["Forma_de_pagamento"] = (
+                    df_final["Forma_de_pagamento"]
+                    .str.replace("À", "A", regex=False)
+                    .str.replace("Á", "A", regex=False)
+                    .str.replace("Ã", "A", regex=False)
+                    .str.replace("É", "E", regex=False)
+                    .str.replace("Ê", "E", regex=False)
+                    .str.replace("Í", "I", regex=False)
+                    .str.replace("Ó", "O", regex=False)
+                    .str.replace("Ô", "O", regex=False)
+                    .str.replace("Ú", "U", regex=False)
+                    .str.replace("Ç", "C", regex=False)
+                    .str.replace("  ", " ", regex=False)  # Remove espaços duplos
                 )
-                print(f"[DEBUG][MULTISHEET] - Colunas finais: {list(df_final.columns)}")
-                linhas_depois_final = len(df_final)
-                print(
-                    f"[DEBUG][MULTISHEET] - Total de duplicatas removidas no processo final: {linhas_antes_final - linhas_depois_final}"
+        elif tem_rede and tem_modalidade and tem_tipo and tem_forma_pagamento:
+            print(
+                "[DEBUG][REDE] Arquivo REDE já possui coluna Forma_de_pagamento - concatenando modalidade+tipo na coluna existente"
+            )
+    
+            # Encontrar as colunas exatas
+            col_modalidade = None
+            col_tipo = None
+    
+            for col in df_final.columns:
+                if "modalidade" in str(col).lower() and col != "Forma_de_pagamento":
+                    col_modalidade = col
+                    print(f"[DEBUG][REDE] Coluna modalidade encontrada: {col}")
+                elif "tipo" in str(col).lower() and col != "Forma_de_pagamento":
+                    col_tipo = col
+                    print(f"[DEBUG][REDE] Coluna tipo encontrada: {col}")
+    
+            if col_modalidade and col_tipo:
+                # Sobrescrever a coluna Forma_de_pagamento existente com modalidade + " " + tipo
+                df_final["Forma_de_pagamento"] = (
+                    df_final[col_modalidade].astype(str).str.upper().str.strip()
+                    + " "
+                    + df_final[col_tipo].astype(str).str.upper().str.strip()
                 )
-
-                # Mostrar primeiras linhas do resultado final
-                if len(df_final) > 0:
+    
+                # Normalizar acentos e limpar espaços
+                df_final["Forma_de_pagamento"] = (
+                    df_final["Forma_de_pagamento"]
+                    .str.replace("À", "A", regex=False)
+                    .str.replace("Á", "A", regex=False)
+                    .str.replace("Ã", "A", regex=False)
+                    .str.replace("É", "E", regex=False)
+                    .str.replace("Ê", "E", regex=False)
+                    .str.replace("Í", "I", regex=False)
+                    .str.replace("Ó", "O", regex=False)
+                    .str.replace("Ô", "O", regex=False)
+                    .str.replace("Ú", "U", regex=False)
+                    .str.replace("Ç", "C", regex=False)
+                    .str.replace("  ", " ", regex=False)  # Remove espaços duplos
+                )
+    
+                # Remover as colunas originais modalidade e tipo para evitar duplicatas
+                if col_modalidade in df_final.columns:
+                    df_final = df_final.drop(columns=[col_modalidade])
                     print(
-                        f"[DEBUG][MULTISHEET] - Primeiras 3 linhas do resultado final (após limpeza por aba):"
+                        f"[DEBUG][REDE] Removida coluna {col_modalidade} após concatenação"
                     )
-                    for idx, row in df_final.head(3).iterrows():
-                        print(f"[DEBUG][MULTISHEET]   Linha {idx}: {dict(row)}")
-            else:
-                print(
-                    f"[DEBUG][MULTISHEET] ❌ ERRO: Nenhum DataFrame válido para combinar!"
-                )
-                df_final = pd.DataFrame()
-                transformacoes = {}
-
-            # Definir meta para multi-sheet
-            meta = {
-                "source": "MultiSheet",
-                "header_row": 1,  # Multi-sheets geralmente têm header na linha 1
-                "columns_raw": list(df_final.columns),
-                "sheets_processed": len(multisheet_data),
-            }
-
-            print(f"[DEBUG][MULTISHEET] 📋 RESUMO FINAL:")
+                if col_tipo in df_final.columns:
+                    df_final = df_final.drop(columns=[col_tipo])
+                    print(f"[DEBUG][REDE] Removida coluna {col_tipo} após concatenação")
+        print(
+            f"[DEBUG][PROCESSAR] DataFrame final: {df_final.shape[0]} linhas, {df_final.shape[1]} colunas"
+        )
+        print(f"[DEBUG][PROCESSAR] Colunas finais: {list(df_final.columns)}")
+        print(f"[DEBUG][PROCESSAR] Primeiras 3 linhas finais:\n{df_final.head(3)}")
+        print(f"[DEBUG][PROCESSAR] Transformações aplicadas: {transformacoes}")
+    
+        # --- NORMALIZAÇÃO FINAL DE FORMA_DE_PAGAMENTO ---
+        if "Forma_de_pagamento" in df_final.columns:
             print(
-                f"[DEBUG][MULTISHEET] - Resultado final: {len(df_final)} linhas de {len(multisheet_data)} planilhas"
+                "[DEBUG][PROCESSAR] Aplicando normalização final em Forma_de_pagamento (pré-pago → à vista)"
             )
-            print(
-                f"[DEBUG][MULTISHEET] - Transformações: {len(transformacoes)} aplicadas"
-            )
-
-    except Exception as e:
-        log(f"Erro na leitura do arquivo: {e}")
-        print(f"[DEBUG][PROCESSAR][ERRO] {e}")
-        raise Exception(f"Falha na leitura do arquivo: {e}")
-
-    # --- Lógica comum para ambos os casos (multi-sheet e single-sheet) ---
-
-    # --- REGRA ESPECÍFICA DA REDE: CONCATENAR MODALIDADE + TIPO = FORMA_DE_PAGAMENTO ---
-    print("[DEBUG][REDE] Verificando necessidade de concatenar modalidade + tipo...")
-
-    # Verificar se é arquivo da REDE e tem as colunas necessárias
-    tem_modalidade = any("modalidade" in str(col).lower() for col in df_final.columns)
-    tem_tipo = any("tipo" in str(col).lower() for col in df_final.columns)
-    try:
-        tem_rede = any("rede" in str(col).lower() for col in df_final.columns) or any(
-            df_final[col].astype(str).str.upper().str.contains("REDE", na=False).any()
-            for col in df_final.columns
-            if pd.api.types.is_object_dtype(df_final[col])
-        )
-    except Exception as e:
-        print(f"[DEBUG][REDE] Erro ao verificar REDE: {e}")
-        tem_rede = False
-
-    # Verificar se já existe coluna Forma_de_pagamento (criada pelo mapeamento)
-    tem_forma_pagamento = "Forma_de_pagamento" in df_final.columns
-
-    if tem_rede and tem_modalidade and tem_tipo and not tem_forma_pagamento:
-        print(
-            "[DEBUG][REDE] Detectado arquivo REDE com colunas modalidade e tipo - criando Forma_de_pagamento"
-        )
-
-        # Encontrar as colunas exatas
-        col_modalidade = None
-        col_tipo = None
-
-        for col in df_final.columns:
-            if "modalidade" in str(col).lower():
-                col_modalidade = col
-                print(f"[DEBUG][REDE] Coluna modalidade encontrada: {col}")
-            elif "tipo" in str(col).lower():
-                col_tipo = col
-                print(f"[DEBUG][REDE] Coluna tipo encontrada: {col}")
-
-        if col_modalidade and col_tipo:
-            # Concatenar modalidade + " " + tipo
-            df_final["Forma_de_pagamento"] = (
-                df_final[col_modalidade].astype(str).str.upper().str.strip()
-                + " "
-                + df_final[col_tipo].astype(str).str.upper().str.strip()
-            )
-
-            # Normalizar acentos e limpar espaços
-            df_final["Forma_de_pagamento"] = (
-                df_final["Forma_de_pagamento"]
-                .str.replace("À", "A", regex=False)
-                .str.replace("Á", "A", regex=False)
-                .str.replace("Ã", "A", regex=False)
-                .str.replace("É", "E", regex=False)
-                .str.replace("Ê", "E", regex=False)
-                .str.replace("Í", "I", regex=False)
-                .str.replace("Ó", "O", regex=False)
-                .str.replace("Ô", "O", regex=False)
-                .str.replace("Ú", "U", regex=False)
-                .str.replace("Ç", "C", regex=False)
-                .str.replace("  ", " ", regex=False)  # Remove espaços duplos
-            )
-    elif tem_rede and tem_modalidade and tem_tipo and tem_forma_pagamento:
-        print(
-            "[DEBUG][REDE] Arquivo REDE já possui coluna Forma_de_pagamento - concatenando modalidade+tipo na coluna existente"
-        )
-
-        # Encontrar as colunas exatas
-        col_modalidade = None
-        col_tipo = None
-
-        for col in df_final.columns:
-            if "modalidade" in str(col).lower() and col != "Forma_de_pagamento":
-                col_modalidade = col
-                print(f"[DEBUG][REDE] Coluna modalidade encontrada: {col}")
-            elif "tipo" in str(col).lower() and col != "Forma_de_pagamento":
-                col_tipo = col
-                print(f"[DEBUG][REDE] Coluna tipo encontrada: {col}")
-
-        if col_modalidade and col_tipo:
-            # Sobrescrever a coluna Forma_de_pagamento existente com modalidade + " " + tipo
-            df_final["Forma_de_pagamento"] = (
-                df_final[col_modalidade].astype(str).str.upper().str.strip()
-                + " "
-                + df_final[col_tipo].astype(str).str.upper().str.strip()
-            )
-
-            # Normalizar acentos e limpar espaços
-            df_final["Forma_de_pagamento"] = (
-                df_final["Forma_de_pagamento"]
-                .str.replace("À", "A", regex=False)
-                .str.replace("Á", "A", regex=False)
-                .str.replace("Ã", "A", regex=False)
-                .str.replace("É", "E", regex=False)
-                .str.replace("Ê", "E", regex=False)
-                .str.replace("Í", "I", regex=False)
-                .str.replace("Ó", "O", regex=False)
-                .str.replace("Ô", "O", regex=False)
-                .str.replace("Ú", "U", regex=False)
-                .str.replace("Ç", "C", regex=False)
-                .str.replace("  ", " ", regex=False)  # Remove espaços duplos
-            )
-
-            # Remover as colunas originais modalidade e tipo para evitar duplicatas
-            if col_modalidade in df_final.columns:
-                df_final = df_final.drop(columns=[col_modalidade])
-                print(
-                    f"[DEBUG][REDE] Removida coluna {col_modalidade} após concatenação"
+    
+            def normalizar_forma_pagamento_final(valor):
+                if pd.isna(valor):
+                    return valor
+                v = str(valor).upper().strip()
+                # Normalizar acentos
+                v = (
+                    v.replace("À", "A")
+                    .replace("Á", "A")
+                    .replace("Ã", "A")
+                    .replace("É", "E")
+                    .replace("Ê", "E")
+                    .replace("Í", "I")
+                    .replace("Ó", "O")
+                    .replace("Ô", "O")
+                    .replace("Ú", "U")
+                    .replace("Ç", "C")
                 )
-            if col_tipo in df_final.columns:
-                df_final = df_final.drop(columns=[col_tipo])
-                print(f"[DEBUG][REDE] Removida coluna {col_tipo} após concatenação")
-    print(
-        f"[DEBUG][PROCESSAR] DataFrame final: {df_final.shape[0]} linhas, {df_final.shape[1]} colunas"
-    )
-    print(f"[DEBUG][PROCESSAR] Colunas finais: {list(df_final.columns)}")
-    print(f"[DEBUG][PROCESSAR] Primeiras 3 linhas finais:\n{df_final.head(3)}")
-    print(f"[DEBUG][PROCESSAR] Transformações aplicadas: {transformacoes}")
-
-    # --- NORMALIZAÇÃO FINAL DE FORMA_DE_PAGAMENTO ---
-    if "Forma_de_pagamento" in df_final.columns:
-        print(
-            "[DEBUG][PROCESSAR] Aplicando normalização final em Forma_de_pagamento (pré-pago → à vista)"
-        )
-
-        def normalizar_forma_pagamento_final(valor):
-            if pd.isna(valor):
+                # Normalizar pré-pago para à vista
+                if (
+                    "PRE PAGO" in v or "PREPAGO" in v or "PRE-PAGO" in v or "PRE PAGO" in v
+                ) and "CREDITO" in v:
+                    return "CREDITO A VISTA"
+                if (
+                    "PRE PAGO" in v or "PREPAGO" in v or "PRE-PAGO" in v or "PRE PAGO" in v
+                ) and "DEBITO" in v:
+                    return "DEBITO A VISTA"
                 return valor
-            v = str(valor).upper().strip()
-            # Normalizar acentos
-            v = (
-                v.replace("À", "A")
-                .replace("Á", "A")
-                .replace("Ã", "A")
-                .replace("É", "E")
-                .replace("Ê", "E")
-                .replace("Í", "I")
-                .replace("Ó", "O")
-                .replace("Ô", "O")
-                .replace("Ú", "U")
-                .replace("Ç", "C")
+    
+            valores_antes = df_final["Forma_de_pagamento"].unique()
+            df_final["Forma_de_pagamento"] = df_final["Forma_de_pagamento"].apply(
+                normalizar_forma_pagamento_final
             )
-            # Normalizar pré-pago para à vista
-            if (
-                "PRE PAGO" in v or "PREPAGO" in v or "PRE-PAGO" in v or "PRE PAGO" in v
-            ) and "CREDITO" in v:
-                return "CREDITO A VISTA"
-            if (
-                "PRE PAGO" in v or "PREPAGO" in v or "PRE-PAGO" in v or "PRE PAGO" in v
-            ) and "DEBITO" in v:
-                return "DEBITO A VISTA"
-            return valor
-
-        valores_antes = df_final["Forma_de_pagamento"].unique()
-        df_final["Forma_de_pagamento"] = df_final["Forma_de_pagamento"].apply(
-            normalizar_forma_pagamento_final
-        )
-        valores_depois = df_final["Forma_de_pagamento"].unique()
-
-        print(f"[DEBUG][PROCESSAR] Valores antes: {valores_antes}")
-        print(f"[DEBUG][PROCESSAR] Valores depois: {valores_depois}")
-
-    update_progress(80)
-    # Pequena pausa para garantir atualização visual
-    import time
-
-    time.sleep(0.1)
-    update_progress(100)
-    return df_final, transformacoes, meta.get("header_row", 0)
+            valores_depois = df_final["Forma_de_pagamento"].unique()
+    
+            print(f"[DEBUG][PROCESSAR] Valores antes: {valores_antes}")
+            print(f"[DEBUG][PROCESSAR] Valores depois: {valores_depois}")
+    
+        update_progress(80)
+        # Pequena pausa para garantir atualização visual
+        import time
+    
+        time.sleep(0.1)
+        update_progress(100)
+        return df_final, transformacoes, meta.get("header_row", 0)
 
 
 def aplicar_regras_depara(
     df_origem: pd.DataFrame, regras: List[Dict[str, Any]]
 ) -> Tuple[pd.DataFrame, Dict[str, str]]:
-    print(
-        "[DEBUG][aplicar_regras_depara] Início do processamento com lógica de agrupamento."
-    )
-    print(
-        f"[DEBUG][aplicar_regras_depara] Regras recebidas: {len(regras) if regras else 0}"
-    )
-    print(
-        f"[DEBUG][aplicar_regras_depara] Colunas do DataFrame origem: {list(df_origem.columns)}"
-    )
+    with PerformanceTimer("TRANSFORM", "Aplicação de Regras De-Para", {"rows": len(df_origem), "regras": len(regras) if regras else 0}):
+        print(
+            "[DEBUG][aplicar_regras_depara] Início do processamento com lógica de agrupamento."
+        )
+        print(
+            f"[DEBUG][aplicar_regras_depara] Regras recebidas: {len(regras) if regras else 0}"
+        )
+        print(
+            f"[DEBUG][aplicar_regras_depara] Colunas do DataFrame origem: {list(df_origem.columns)}"
+        )
 
-    if not isinstance(regras, list) or (regras and not isinstance(regras[0], dict)):
-        raise TypeError("O argumento 'regras' deve ser uma lista de dicts.")
+        if not isinstance(regras, list) or (regras and not isinstance(regras[0], dict)):
+            raise TypeError("O argumento 'regras' deve ser uma lista de dicts.")
 
-    # Criar mapeamento a partir das regras
-    # IMPORTANTE: Agora mapeamento é dict de LISTAS para suportar 1:N
-    mapeamento = {}  # {origem: [destino1, destino2, ...]}
-    transformacoes = {}
+        # Criar mapeamento a partir das regras
+        # IMPORTANTE: Agora mapeamento é dict de LISTAS para suportar 1:N
+        mapeamento = {}  # {origem: [destino1, destino2, ...]}
+        transformacoes = {}
 
-    if regras:
-        print(f"[DEBUG][aplicar_regras_depara] Primeiras 3 regras: {regras[:3]}")
-        for i, regra in enumerate(regras):
-            origem_nome = regra.get("origem_nome")
-            destino_nome = regra.get("destino_nome")
+        if regras:
+            print(f"[DEBUG][aplicar_regras_depara] Primeiras 3 regras: {regras[:3]}")
+            for i, regra in enumerate(regras):
+                origem_nome = regra.get("origem_nome")
+                destino_nome = regra.get("destino_nome")
 
-            if i < 3:  # Debug das primeiras 3 regras
-                print(
-                    f"[DEBUG][aplicar_regras_depara] Regra {i}: origem='{origem_nome}', destino='{destino_nome}'"
-                )
-
-            # Regras já vêm filtradas por ativo=1 do banco
-            if origem_nome and destino_nome:
-                # Converter para string se não for
-                origem = (
-                    str(origem_nome).strip()
-                    if not isinstance(origem_nome, str)
-                    else origem_nome.strip()
-                )
-                destino = (
-                    str(destino_nome).strip()
-                    if not isinstance(destino_nome, str)
-                    else destino_nome.strip()
-                )
-
-                # Acumular múltiplos destinos para a mesma origem
-                if origem not in mapeamento:
-                    mapeamento[origem] = []
-                mapeamento[origem].append(destino)
-
-                transformacoes[origem] = destino  # Manter compatibilidade
-
-        print(f"[DEBUG][aplicar_regras_depara] Mapeamento básico criado: {mapeamento}")
-
-        # CORREÇÃO TEMPORÁRIA: Adicionar regras faltantes para todas as abas
-        # Detectar tipo de aba pelas colunas presentes
-        colunas_pagamentos = [
-            col
-            for col in df_origem.columns
-            if isinstance(col, str) and col.startswith("pagamentos_")
-        ]
-        colunas_ajustes = [
-            col
-            for col in df_origem.columns
-            if isinstance(col, str) and col.startswith("ajustes_")
-        ]
-        colunas_cancelamentos = [
-            col
-            for col in df_origem.columns
-            if isinstance(col, str) and col.startswith("cancelamentos e contestações_")
-        ]
-
-        # Regras para PAGAMENTOS - APENAS banco, agencia, conta
-        if colunas_pagamentos:
-            print(
-                f"[DEBUG][aplicar_regras_depara] Detectada aba PAGAMENTOS com {len(colunas_pagamentos)} colunas"
-            )
-            print(
-                f"[DEBUG][aplicar_regras_depara] PAGAMENTOS: Mapeando APENAS banco/agencia/conta (outros campos ficam vazios)"
-            )
-            # Aba pagamentos só deve preencher banco, agencia, conta
-            # Outros campos como data_pagamento, data_recebivel devem vir apenas da aba AJUSTES
-            # NÃO mapear data_pagamento, data_recebivel, valor_liquido, etc. da aba pagamentos
-
-        # Regras para AJUSTES
-        if colunas_ajustes:
-            print(
-                f"[DEBUG][aplicar_regras_depara] Detectada aba AJUSTES com {len(colunas_ajustes)} colunas"
-            )
-            regras_faltantes = {
-                "ajustes_data_do_ajuste": "data_pagamento",
-                "ajustes_data_do_lançamento": "data_recebivel",
-                "ajustes_valor_total_original_do_ajuste": "valor_liquido",
-                "ajustes_motivo": "lancamento",
-                "ajustes_forma_de_compensação": "descricao",
-            }
-            for origem, destino in regras_faltantes.items():
-                if origem in df_origem.columns and origem not in mapeamento:
+                if i < 3:  # Debug das primeiras 3 regras
                     print(
-                        f"[DEBUG][aplicar_regras_depara] AJUSTES: {origem} -> {destino}"
+                        f"[DEBUG][aplicar_regras_depara] Regra {i}: origem='{origem_nome}', destino='{destino_nome}'"
                     )
-                    mapeamento[origem] = [destino]  # LISTA
-                    transformacoes[origem] = destino
 
-        # Regras para CANCELAMENTOS
-        if colunas_cancelamentos:
-            print(
-                f"[DEBUG][aplicar_regras_depara] Detectada aba CANCELAMENTOS com {len(colunas_cancelamentos)} colunas"
-            )
-            regras_faltantes = {
-                "cancelamentos e contestações_data_do_débito": "data_pagamento",
-                "cancelamentos e contestações_data_original_da_venda": "data_recebivel",
-                "cancelamentos e contestações_valor_original_da_venda": "valor_recebivel",  # Nota: valor_recebivel, não valor_liquido!
-                "cancelamentos e contestações_cancelamento_chargeback": "descricao",
-            }
-            for origem, destino in regras_faltantes.items():
-                if origem in df_origem.columns and origem not in mapeamento:
+                # Regras já vêm filtradas por ativo=1 do banco
+                if origem_nome and destino_nome:
+                    # Converter para string se não for
+                    origem = (
+                        str(origem_nome).strip()
+                        if not isinstance(origem_nome, str)
+                        else origem_nome.strip()
+                    )
+                    destino = (
+                        str(destino_nome).strip()
+                        if not isinstance(destino_nome, str)
+                        else destino_nome.strip()
+                    )
+
+                    # Acumular múltiplos destinos para a mesma origem
+                    if origem not in mapeamento:
+                        mapeamento[origem] = []
+                    mapeamento[origem].append(destino)
+
+                    transformacoes[origem] = destino  # Manter compatibilidade
+
+            print(f"[DEBUG][aplicar_regras_depara] Mapeamento básico criado: {mapeamento}")
+
+            # CORREÇÃO TEMPORÁRIA: Adicionar regras faltantes para todas as abas
+            # Detectar tipo de aba pelas colunas presentes
+            colunas_pagamentos = [
+                col
+                for col in df_origem.columns
+                if isinstance(col, str) and col.startswith("pagamentos_")
+            ]
+            colunas_ajustes = [
+                col
+                for col in df_origem.columns
+                if isinstance(col, str) and col.startswith("ajustes_")
+            ]
+            colunas_cancelamentos = [
+                col
+                for col in df_origem.columns
+                if isinstance(col, str) and col.startswith("cancelamentos e contestações_")
+            ]
+
+            # Regras para PAGAMENTOS - APENAS banco, agencia, conta
+            if colunas_pagamentos:
+                print(
+                    f"[DEBUG][aplicar_regras_depara] Detectada aba PAGAMENTOS com {len(colunas_pagamentos)} colunas"
+                )
+                print(
+                    f"[DEBUG][aplicar_regras_depara] PAGAMENTOS: Mapeando APENAS banco/agencia/conta (outros campos ficam vazios)"
+                )
+                # Aba pagamentos só deve preencher banco, agencia, conta
+                # Outros campos como data_pagamento, data_recebivel devem vir apenas da aba AJUSTES
+                # NÃO mapear data_pagamento, data_recebivel, valor_liquido, etc. da aba pagamentos
+
+            # Regras para AJUSTES
+            if colunas_ajustes:
+                print(
+                    f"[DEBUG][aplicar_regras_depara] Detectada aba AJUSTES com {len(colunas_ajustes)} colunas"
+                )
+                regras_faltantes = {
+                    "ajustes_data_do_ajuste": "data_pagamento",
+                    "ajustes_data_do_lançamento": "data_recebivel",
+                    "ajustes_valor_total_original_do_ajuste": "valor_liquido",
+                    "ajustes_motivo": "lancamento",
+                    "ajustes_forma_de_compensação": "descricao",
+                }
+                for origem, destino in regras_faltantes.items():
+                    if origem in df_origem.columns and origem not in mapeamento:
+                        print(
+                            f"[DEBUG][aplicar_regras_depara] AJUSTES: {origem} -> {destino}"
+                        )
+                        mapeamento[origem] = [destino]  # LISTA
+                        transformacoes[origem] = destino
+
+            # Regras para CANCELAMENTOS
+            if colunas_cancelamentos:
+                print(
+                    f"[DEBUG][aplicar_regras_depara] Detectada aba CANCELAMENTOS com {len(colunas_cancelamentos)} colunas"
+                )
+                regras_faltantes = {
+                    "cancelamentos e contestações_data_do_débito": "data_pagamento",
+                    "cancelamentos e contestações_data_original_da_venda": "data_recebivel",
+                    "cancelamentos e contestações_valor_original_da_venda": "valor_recebivel",  # Nota: valor_recebivel, not valor_liquido!
+                    "cancelamentos e contestações_cancelamento_chargeback": "descricao",
+                }
+                for origem, destino in regras_faltantes.items():
+                    if origem in df_origem.columns and origem not in mapeamento:
+                        print(
+                            f"[DEBUG][aplicar_regras_depara] CANCELAMENTOS: {origem} -> {destino}"
+                        )
+                        mapeamento[origem] = [destino]  # LISTA
+                        transformacoes[origem] = destino
+
+            # Correção específica para valores de cancelamentos
+            # cancelamentos devem mapear valor_original_da_venda para valor_recebivel, não valor_liquido
+            for origem, destinos in list(mapeamento.items()):
+                if (
+                    "cancelamentos e contestações_valor_original_da_venda" in origem
+                    and "valor_liquido" in destinos
+                ):
                     print(
-                        f"[DEBUG][aplicar_regras_depara] CANCELAMENTOS: {origem} -> {destino}"
+                        f"[DEBUG][aplicar_regras_depara] Corrigindo mapeamento: {origem} -> valor_recebivel (era valor_liquido)"
                     )
-                    mapeamento[origem] = [destino]  # LISTA
-                    transformacoes[origem] = destino
+                    mapeamento[origem] = ["valor_recebivel"]  # LISTA
+                    transformacoes[origem] = "valor_recebivel"
 
-        # Correção específica para valores de cancelamentos
-        # cancelamentos devem mapear valor_original_da_venda para valor_recebivel, não valor_liquido
-        for origem, destinos in list(mapeamento.items()):
-            if (
-                "cancelamentos e contestações_valor_original_da_venda" in origem
-                and "valor_liquido" in destinos
-            ):
-                print(
-                    f"[DEBUG][aplicar_regras_depara] Corrigindo mapeamento: {origem} -> valor_recebivel (era valor_liquido)"
-                )
-                mapeamento[origem] = ["valor_recebivel"]  # LISTA
-                transformacoes[origem] = "valor_recebivel"
-
-        # Correção específica para modalidade+tipo em vendas REDE
-        # Evitar colunas duplicadas no DataFrame final
-        tem_modalidade_vendas = "modalidade" in df_origem.columns
-        tem_tipo_vendas = "tipo" in df_origem.columns
-        ambos_mapeiam_forma_pagamento = (
-            tem_modalidade_vendas
-            and tem_tipo_vendas
-            and mapeamento.get("modalidade") == ["Forma_de_pagamento"]  # LISTA
-            and mapeamento.get("tipo") == ["Forma_de_pagamento"]  # LISTA
-        )
-
-        if ambos_mapeiam_forma_pagamento:
-            print(
-                "[DEBUG][aplicar_regras_depara] Detectado mapeamento duplicado modalidade+tipo -> Forma_de_pagamento"
-            )
-            print(
-                "[DEBUG][aplicar_regras_depara] Concatenando modalidade+tipo ANTES do mapeamento para evitar duplicatas"
+            # Correção específica para modalidade+tipo em vendas REDE
+            # Evitar colunas duplicadas no DataFrame final
+            tem_modalidade_vendas = "modalidade" in df_origem.columns
+            tem_tipo_vendas = "tipo" in df_origem.columns
+            ambos_mapeiam_forma_pagamento = (
+                tem_modalidade_vendas
+                and tem_tipo_vendas
+                and mapeamento.get("modalidade") == ["Forma_de_pagamento"]  # LISTA
+                and mapeamento.get("tipo") == ["Forma_de_pagamento"]  # LISTA
             )
 
-            # Concatenar modalidade + " " + tipo na própria coluna modalidade
-            df_origem["modalidade"] = (
-                df_origem["modalidade"].astype(str).str.upper().str.strip()
-                + " "
-                + df_origem["tipo"].astype(str).str.upper().str.strip()
-            ).str.replace(
-                "  ", " ", regex=False
-            )  # Remover espaços duplos
-
-            # Remover o mapeamento da coluna tipo para evitar duplicata
-            if "tipo" in mapeamento:
-                del mapeamento["tipo"]
-                del transformacoes["tipo"]
+            if ambos_mapeiam_forma_pagamento:
                 print(
-                    "[DEBUG][aplicar_regras_depara] Removido mapeamento de 'tipo' - dados concatenados em 'modalidade'"
+                    "[DEBUG][aplicar_regras_depara] Detectado mapeamento duplicado modalidade+tipo -> Forma_de_pagamento"
+                )
+                print(
+                    "[DEBUG][aplicar_regras_depara] Concatenando modalidade+tipo ANTES do mapeamento para evitar duplicatas"
                 )
 
-        print(f"[DEBUG][aplicar_regras_depara] Mapeamento final: {mapeamento}")
+                # Concatenar modalidade + " " + tipo na própria coluna modalidade
+                df_origem["modalidade"] = (
+                    df_origem["modalidade"].astype(str).str.upper().str.strip()
+                    + " "
+                    + df_origem["tipo"].astype(str).str.upper().str.strip()
+                ).str.replace(
+                    "  ", " ", regex=False
+                )  # Remover espaços duplos
 
-    # Remover colunas auxiliares
-    columns_to_remove = ["Filtrado", "planilha_origem"]
-    df_limpo = df_origem.drop(columns=columns_to_remove, errors="ignore")
+                # Remover o mapeamento da coluna tipo para evitar duplicata
+                if "tipo" in mapeamento:
+                    del mapeamento["tipo"]
+                    del transformacoes["tipo"]
+                    print(
+                        "[DEBUG][aplicar_regras_depara] Removido mapeamento de 'tipo' - dados concatenados em 'modalidade'"
+                    )
 
-    if not mapeamento:
-        print(
-            "[DEBUG][aplicar_regras_depara] AVISO: Nenhum mapeamento ativo encontrado!"
-        )
-        print(
-            "[DEBUG][aplicar_regras_depara] SEM regras ativas, retornando DataFrame vazio para evitar importação incorreta..."
-        )
+            print(f"[DEBUG][aplicar_regras_depara] Mapeamento final: {mapeamento}")
 
-        # Retornar DataFrame vazio se não há regras ativas
-        # Isso evita importar dados incorretamente mapeados
-        from conf.colunas_recebiveis import listar_colunas_recebiveis_processados
-        from conf.conf_bd import get_engine
+        # Remover colunas auxiliares
+        columns_to_remove = ["Filtrado", "planilha_origem"]
+        df_limpo = df_origem.drop(columns=columns_to_remove, errors="ignore")
 
-        engine = get_engine()
-        colunas_validas = listar_colunas_recebiveis_processados(engine)
-        df_vazio = pd.DataFrame(columns=colunas_validas)
+        if not mapeamento:
+            print(
+                "[DEBUG][aplicar_regras_depara] AVISO: Nenhum mapeamento ativo encontrado!"
+            )
+            print(
+                "[DEBUG][aplicar_regras_depara] SEM regras ativas, retornando DataFrame vazio para evitar importação incorreta..."
+            )
 
-        print(
-            "[DEBUG][aplicar_regras_depara] Retornando DataFrame vazio - configure regras depara ativas primeiro!"
-        )
-        return df_vazio, {}
+            # Retornar DataFrame vazio se não há regras ativas
+            # Isso evita importar dados incorretamente mapeados
+            from conf.colunas_recebiveis import listar_colunas_recebiveis_processados
+            from conf.conf_bd import get_engine
+
+            engine_vazio = get_engine()
+            colunas_validas = listar_colunas_recebiveis_processados(engine_vazio)
+            df_vazio = pd.DataFrame(columns=colunas_validas)
+
+            print(
+                "[DEBUG][aplicar_regras_depara] Retornando DataFrame vazio - configure regras depara ativas primeiro!"
+            )
+            return df_vazio, {}
 
     # Filtrar apenas colunas que têm mapeamento (Case-Insensitive)
     # Criar um mapa de nomes de colunas originais para suas versões em minúsculo
@@ -3600,459 +3604,460 @@ def normalizar_dataframe_vendas(
     usuario: str = "desconhecido",
     tipo_arquivo: str = "venda",
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    df = df.copy()
-
-    # --- INÍCIO DO CÓDIGO DE NORMALIZAÇÃO ---
-    # Limpeza de valores infinitos e fora do range permitido em todo o DataFrame
-    print(f"[DEBUG] Limpando valores infinitos do DataFrame...")
-    for col in df.columns:
-        if pd.api.types.is_numeric_dtype(df[col]):
-            inf_count = (
-                df[col].replace([np.inf, -np.inf], np.nan).isna().sum()
-                - df[col].isna().sum()
-            )
-            if inf_count > 0:
-                print(f"[DEBUG] Coluna {col}: removidos {inf_count} valores infinitos")
-                df[col] = df[col].replace([np.inf, -np.inf], np.nan)
-
-    # Conversão de tipos de dados (datas e valores monetários)
-
-    # --- NOVO: Preencher coluna 'Adquirente' baseada no contexto selecionado ---
-    if contexto and contexto.lower() not in ["", "padrao"]:
-        adquirente_valor = contexto.upper()
-        if "Adquirente" not in df.columns:
-            df["Adquirente"] = adquirente_valor
-        else:
-            # Preencher apenas onde está vazio/nulo
-            mask_vazio = df["Adquirente"].isnull() | (
-                df["Adquirente"].astype(str).str.strip() == ""
-            )
-            df.loc[mask_vazio, "Adquirente"] = adquirente_valor
-    for c in [
-        "Data_da_venda",
-        "Data_da_autorização_da_venda",
-        "Previsão_de_pagamento",
-        "Data da Transação",
-        "Data Crédito Ec",
-    ]:
-        if c in df.columns:
-            df[c] = _to_datetime_pt(df[c])
-
-    # ⚠️ CRÍTICO: Converter valores monetários para float SEM arredondar ainda
-    # O arredondamento será feito DEPOIS do ajuste das taxas da REDE
-    colunas_valores = [
-        "Valor_da_venda",
-        "Valor_descontado",
-        "Valor_RR",
-        "Valor_líquido_da_venda",
-        "Valor da Transação",
-        "Comissão_Mínima",
-        "Valor_da_entrada",
-        "Valor_do_saque",
-        "Valor Comissão Bruta",
-        "Valor Líquido",
-        "Taxa_de_embarque",
-    ]
-
-    for c in colunas_valores:
-        if c in df.columns:
-            # Converter para float sem arredondar (arredondar depois do ajuste REDE)
-            df[c] = _to_float_br(df[c])
-
-    # ⚠️ IMPORTANTE: Taxas percentuais - converter mas NÃO arredondar ainda
-    # Arredondamento será feito APÓS multiplicação por 100 da REDE (se aplicável)
-    colunas_taxa = ["Taxas_Perc", "Taxas_RR"]
-    for c in colunas_taxa:
-        if c in df.columns:
-            df[c] = _to_float_br(df[c])
-
-    if "Quantidade_de_parcelas" in df.columns:
-        df["Quantidade_de_parcelas"] = (
-            pd.to_numeric(df["Quantidade_de_parcelas"], errors="coerce")
-            .replace([np.inf, -np.inf], np.nan)
-            .fillna(1)
-            .astype(int)
-        )
-
-    # --- AJUSTE ESPECÍFICO: MULTIPLICAR TAXAS DA REDE POR 100 SE NECESSÁRIO ---
-    print("[DEBUG][REDE] Verificando necessidade de ajustar taxas da REDE...")
-
-    # Identificar registros da REDE pela coluna Adquirente
-    mask_rede_adquirente = pd.Series([False] * len(df), index=df.index)
-
-    if "Adquirente" in df.columns:
-        mask_rede_adquirente = (
-            df["Adquirente"].astype(str).str.upper().str.contains("REDE", na=False)
-        )
-
-    # Aplicar multiplicação por 100 nas taxas percentuais APENAS se valores < 1
-    # (Proteção contra multiplicação dupla: 0.0235 → 2.35, mas não 2.35 → 235)
-    for coluna_taxa in colunas_taxa:
-        if coluna_taxa in df.columns and mask_rede_adquirente.any():
-            # Máscara combinada: registros REDE com taxa < 1 (formato decimal)
-            mask_ajuste = (
-                mask_rede_adquirente & (df[coluna_taxa] < 1) & df[coluna_taxa].notnull()
-            )
-
-            if mask_ajuste.any():
-                registros_afetados = mask_ajuste.sum()
-                df.loc[mask_ajuste, coluna_taxa] = (
-                    df.loc[mask_ajuste, coluna_taxa] * 100
+    with PerformanceTimer("POLARS", "Normalização Vendas (Pandas Pipeline)", {"rows": len(df), "contexto": contexto}):
+        df = df.copy()
+    
+        # --- INÍCIO DO CÓDIGO DE NORMALIZAÇÃO ---
+        # Limpeza de valores infinitos e fora do range permitido em todo o DataFrame
+        print(f"[DEBUG] Limpando valores infinitos do DataFrame...")
+        for col in df.columns:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                inf_count = (
+                    df[col].replace([np.inf, -np.inf], np.nan).isna().sum()
+                    - df[col].isna().sum()
                 )
-                print(
-                    f"[DEBUG][REDE] {coluna_taxa} multiplicada por 100 para {registros_afetados} registros da REDE (valores < 1)"
-                )
+                if inf_count > 0:
+                    print(f"[DEBUG] Coluna {col}: removidos {inf_count} valores infinitos")
+                    df[col] = df[col].replace([np.inf, -np.inf], np.nan)
+    
+        # Conversão de tipos de dados (datas e valores monetários)
+    
+        # --- NOVO: Preencher coluna 'Adquirente' baseada no contexto selecionado ---
+        if contexto and contexto.lower() not in ["", "padrao"]:
+            adquirente_valor = contexto.upper()
+            if "Adquirente" not in df.columns:
+                df["Adquirente"] = adquirente_valor
             else:
-                print(
-                    f"[DEBUG][REDE] {coluna_taxa} já está no formato correto (valores >= 1)"
+                # Preencher apenas onde está vazio/nulo
+                mask_vazio = df["Adquirente"].isnull() | (
+                    df["Adquirente"].astype(str).str.strip() == ""
                 )
-
-    # ⚠️ AGORA SIM: Arredondar todos os valores monetários e taxas para 2 casas decimais
-    print(
-        "[DEBUG] Aplicando arredondamento final (round(2)) em valores monetários e taxas..."
-    )
-    for c in colunas_valores + colunas_taxa:
-        if c in df.columns:
-            df[c] = df[c].round(2)
-
-    # --- CÁLCULO DE VALOR_RR BASEADO EM TAXAS_RR ---
-    print("[DEBUG] Calculando Valor_RR baseado em Taxas_RR...")
-
-    if "Taxas_RR" in df.columns and "Valor_da_venda" in df.columns:
-        # Identificar registros que têm Taxas_RR válidas e valor da venda
-        mask_calc_rr = (
-            df["Taxas_RR"].notnull()
-            & (df["Taxas_RR"] != 0)
-            & df["Valor_da_venda"].notnull()
-            & (df["Valor_da_venda"] != 0)
-        )
-
-        if mask_calc_rr.any():
-            # Se Valor_RR não existe, criar coluna
-            if "Valor_RR" not in df.columns:
-                df["Valor_RR"] = 0.0
-
-            # Calcular Valor_RR = (Valor_da_venda * Taxas_RR) / 100
-            # ⚠️ CRÍTICO: Arredondar para 2 casas decimais (evitar imprecisão de ponto flutuante)
-            df.loc[mask_calc_rr, "Valor_RR"] = (
-                (
-                    df.loc[mask_calc_rr, "Valor_da_venda"]
-                    * df.loc[mask_calc_rr, "Taxas_RR"]
-                )
-                / 100
-            ).round(2)
-
-            registros_calculados = mask_calc_rr.sum()
-            print(
-                f"[DEBUG] Valor_RR calculado para {registros_calculados} registros com Taxas_RR válidas"
-            )
-
-            # Log de exemplo
-            if registros_calculados > 0:
-                exemplo_idx = df[mask_calc_rr].index[0]
-                valor_venda = df.loc[exemplo_idx, "Valor_da_venda"]
-                taxa_rr = df.loc[exemplo_idx, "Taxas_RR"]
-                valor_rr = df.loc[exemplo_idx, "Valor_RR"]
-                print(
-                    f"[DEBUG] Exemplo cálculo: R$ {valor_venda:.2f} × {taxa_rr:.2f}% = R$ {valor_rr:.2f}"
-                )
-    else:
-        print("[DEBUG] Colunas Taxas_RR ou Valor_da_venda não encontradas para cálculo")
-
-    # --- FIM DO CÓDIGO DE NORMALIZAÇÃO ---
-
-    # --- REGRA ESPECÍFICA DA REDE: PREVISÃO DE PAGAMENTO = DATA_DA_VENDA + 31 DIAS ---
-    print(
-        "[DEBUG][REDE] Verificando se existem dados da REDE para aplicar regra de previsão..."
-    )
-
-    # Identificar se há registros da REDE
-    tem_rede = False
-    colunas_adquirente = [
-        "Adquirente",
-        "adquirente",
-        "ADQUIRENTE",
-        "Bandeira",
-        "bandeira",
-    ]
-
-    for col in colunas_adquirente:
-        if col in df.columns:
-            rede_count = (
-                df[col].astype(str).str.upper().str.contains("REDE", na=False).sum()
-            )
-            if rede_count > 0:
-                tem_rede = True
-                print(
-                    f"[DEBUG][REDE] Detectado {rede_count} registros da REDE na coluna {col}"
-                )
-                break
-
-    if tem_rede:
-        # Buscar coluna de data da venda
-        colunas_data_venda = [
+                df.loc[mask_vazio, "Adquirente"] = adquirente_valor
+        for c in [
             "Data_da_venda",
-            "data_da_venda",
+            "Data_da_autorização_da_venda",
+            "Previsão_de_pagamento",
             "Data da Transação",
-            "data_transacao",
+            "Data Crédito Ec",
+        ]:
+            if c in df.columns:
+                df[c] = _to_datetime_pt(df[c])
+    
+        # ⚠️ CRÍTICO: Converter valores monetários para float SEM arredondar ainda
+        # O arredondamento será feito DEPOIS do ajuste das taxas da REDE
+        colunas_valores = [
+            "Valor_da_venda",
+            "Valor_descontado",
+            "Valor_RR",
+            "Valor_líquido_da_venda",
+            "Valor da Transação",
+            "Comissão_Mínima",
+            "Valor_da_entrada",
+            "Valor_do_saque",
+            "Valor Comissão Bruta",
+            "Valor Líquido",
+            "Taxa_de_embarque",
         ]
-        coluna_data_encontrada = None
-
-        for col in colunas_data_venda:
-            if col in df.columns:
-                coluna_data_encontrada = col
-                break
-
-        if coluna_data_encontrada:
-            # Garantir que existe a coluna de previsão de pagamento
-            if "Previsão_de_pagamento" not in df.columns:
-                df["Previsão_de_pagamento"] = pd.NaT
-
-            # Criar máscara para registros da REDE
-            mask_rede = pd.Series([False] * len(df), index=df.index)
-            for col in colunas_adquirente:
-                if col in df.columns:
-                    mask_col = (
-                        df[col].astype(str).str.upper().str.contains("REDE", na=False)
-                    )
-                    mask_rede = mask_rede | mask_col
-
-            # Aplicar regra: Data_da_venda + 31 dias para registros da REDE
-            if mask_rede.any():
-                try:
-                    # Garantir que a data está em formato datetime
-                    df[coluna_data_encontrada] = pd.to_datetime(
-                        df[coluna_data_encontrada], errors="coerce"
-                    )
-
-                    # Aplicar regra apenas para registros da REDE com data válida
-                    mask_data_valida = df[coluna_data_encontrada].notnull()
-                    mask_aplicar = mask_rede & mask_data_valida
-
-                    if mask_aplicar.any():
-                        df.loc[mask_aplicar, "Previsão_de_pagamento"] = df.loc[
-                            mask_aplicar, coluna_data_encontrada
-                        ] + pd.Timedelta(days=31)
-
-                        registros_atualizados = mask_aplicar.sum()
-                        print(
-                            f"[DEBUG][REDE] Previsão de pagamento calculada para {registros_atualizados} registros da REDE (Data_da_venda + 31 dias)"
-                        )
-
-                        # Log de exemplo
-                        if registros_atualizados > 0:
-                            exemplo_idx = df[mask_aplicar].index[0]
-                            data_venda = df.loc[exemplo_idx, coluna_data_encontrada]
-                            previsao = df.loc[exemplo_idx, "Previsão_de_pagamento"]
-                            print(
-                                f"[DEBUG][REDE] Exemplo: Venda {data_venda.strftime('%d/%m/%Y')} → Previsão {previsao.strftime('%d/%m/%Y')}"
-                            )
-
-                except Exception as e:
-                    print(f"[DEBUG][REDE] Erro ao aplicar regra de previsão: {e}")
-        else:
-            print(f"[DEBUG][REDE] Nenhuma coluna de data da venda encontrada")
-    else:
-        print(f"[DEBUG][REDE] Nenhum registro da REDE detectado")
-
-    # --- Lógica de vendas_diversas removida conforme solicitado ---
-
-    # --- INÍCIO DA LÓGICA DE FILTRAGEM ---
-    lancamento_col = None
-    for c in df.columns:
-        if str(c).strip().lower() in [
-            "lancamento",
-            "lançamento",
-            "descricao",
-            "descrição",
-        ]:
-            lancamento_col = c
-            break
-    if not lancamento_col:
-        lancamento_col = df.columns[0] if len(df.columns) > 0 else None
-
-    def norm(s):
-        return (
-            unicodedata.normalize("NFKD", str(s or ""))
-            .encode("ASCII", "ignore")
-            .decode("ASCII")
-            .upper()
-            .strip()
-        )
-
-    termos_raw = termos_listar(engine, str(ec_id), contexto, tipo="v")
-
-    print("[DEBUG][VENDAS] Colunas do DataFrame:", list(df.columns))
-    print("[DEBUG][VENDAS] Coluna de lançamento detectada:", lancamento_col)
-    print("[DEBUG][VENDAS] termos_raw:", termos_raw)
-
-    termos = [
-        norm(t["termo"]) if isinstance(t, dict) and "termo" in t else norm(t)
-        for t in termos_raw
-    ]
-    print("[DEBUG][VENDAS] termos normalizados:", termos)
-
-    padrao_termos = (
-        re.compile("|".join(map(re.escape, termos)), flags=re.IGNORECASE)
-        if termos
-        else None
-    )
-
-    # --- NOVA LÓGICA: Verificar status da venda usando termos filtráveis ---
-    mask_status_filtravel = pd.Series([False] * len(df), index=df.index)
-
-    # Procurar por coluna de status da venda
-    status_col = None
-    for col in df.columns:
-        if str(col).strip().lower() in [
-            "status_da_venda",
-            "status da venda",
-            "status_venda",
-            "status",
-            "situacao",
-            "situação",
-        ]:
-            status_col = col
-            break
-
-    if status_col is not None:
-        print(f"[DEBUG][STATUS] Coluna de status encontrada: {status_col}")
-        print(f"[DEBUG][STATUS] Valores únicos de status: {df[status_col].unique()}")
-        print(f"[DEBUG][STATUS] EC: {ec_id}, Contexto: {contexto}")
-
-        # Buscar termos filtráveis para status da tabela termos_filtraveis
-        # Usar os termos existentes do tipo 'v' para filtrar por status
-        try:
-            # Buscar todos os termos do tipo 'v' para este EC e contexto
-            termos_status_raw = termos_listar(engine, str(ec_id), contexto, tipo="v")
-            termos_status = [t["termo"] for t in termos_status_raw if t.get("termo")]
-
-            print(
-                f"[DEBUG][STATUS] Termos filtráveis encontrados na tabela (tipo v): {termos_status}"
+    
+        for c in colunas_valores:
+            if c in df.columns:
+                # Converter para float sem arredondar (arredondar depois do ajuste REDE)
+                df[c] = _to_float_br(df[c])
+    
+        # ⚠️ IMPORTANTE: Taxas percentuais - converter mas NÃO arredondar ainda
+        # Arredondamento será feito APÓS multiplicação por 100 da REDE (se aplicável)
+        colunas_taxa = ["Taxas_Perc", "Taxas_RR"]
+        for c in colunas_taxa:
+            if c in df.columns:
+                df[c] = _to_float_br(df[c])
+    
+        if "Quantidade_de_parcelas" in df.columns:
+            df["Quantidade_de_parcelas"] = (
+                pd.to_numeric(df["Quantidade_de_parcelas"], errors="coerce")
+                .replace([np.inf, -np.inf], np.nan)
+                .fillna(1)
+                .astype(int)
             )
-
-            if termos_status:
-                # Criar padrão regex com os termos da tabela
-                padrao_status = re.compile(
-                    "|".join(map(re.escape, termos_status)), flags=re.IGNORECASE
+    
+        # --- AJUSTE ESPECÍFICO: MULTIPLICAR TAXAS DA REDE POR 100 SE NECESSÁRIO ---
+        print("[DEBUG][REDE] Verificando necessidade de ajustar taxas da REDE...")
+    
+        # Identificar registros da REDE pela coluna Adquirente
+        mask_rede_adquirente = pd.Series([False] * len(df), index=df.index)
+    
+        if "Adquirente" in df.columns:
+            mask_rede_adquirente = (
+                df["Adquirente"].astype(str).str.upper().str.contains("REDE", na=False)
+            )
+    
+        # Aplicar multiplicação por 100 nas taxas percentuais APENAS se valores < 1
+        # (Proteção contra multiplicação dupla: 0.0235 → 2.35, mas não 2.35 → 235)
+        for coluna_taxa in colunas_taxa:
+            if coluna_taxa in df.columns and mask_rede_adquirente.any():
+                # Máscara combinada: registros REDE com taxa < 1 (formato decimal)
+                mask_ajuste = (
+                    mask_rede_adquirente & (df[coluna_taxa] < 1) & df[coluna_taxa].notnull()
                 )
-
-                print(f"[DEBUG][STATUS] Padrão regex criado: {padrao_status.pattern}")
-                print(f"[DEBUG][STATUS] Testando alguns valores normalizados:")
-
-                # Debug de algumas comparações
-                for val in df[status_col].unique()[:5]:
-                    val_norm = norm(val)
-                    match = padrao_status.search(val_norm)
+    
+                if mask_ajuste.any():
+                    registros_afetados = mask_ajuste.sum()
+                    df.loc[mask_ajuste, coluna_taxa] = (
+                        df.loc[mask_ajuste, coluna_taxa] * 100
+                    )
                     print(
-                        f"[DEBUG][STATUS]   '{val}' -> norm: '{val_norm}' -> match: {bool(match)}"
+                        f"[DEBUG][REDE] {coluna_taxa} multiplicada por 100 para {registros_afetados} registros da REDE (valores < 1)"
                     )
-
-                # Aplicar filtro usando termos da tabela na coluna de status
-                mask_status_filtravel = (
-                    df[status_col]
-                    .astype(str)
-                    .apply(lambda x: bool(padrao_status.search(norm(x))))
-                )
-
-                print(
-                    f"[DEBUG][STATUS] Total filtradas por termos da tabela: {mask_status_filtravel.sum()}"
-                )
-                print(
-                    f"[DEBUG][STATUS] Exemplos de valores que batem: {df[mask_status_filtravel][status_col].unique()[:5] if mask_status_filtravel.any() else 'Nenhum'}"
-                )
-            else:
-                print(
-                    "[DEBUG][STATUS] Nenhum termo encontrado na tabela termos_filtraveis"
-                )
-
-        except Exception as e:
-            print(f"[DEBUG][STATUS] Erro ao buscar termos de status: {e}")
-    else:
-        print("[DEBUG][STATUS] Nenhuma coluna de status encontrada")
-
-    mask_vazio = df[lancamento_col].isnull() | (
-        df[lancamento_col].astype(str).str.strip() == ""
-    )
-
-    # 🔥 FILTRAR POR LANÇAMENTO (termos na coluna de lançamento)
-    if padrao_termos:
-        mask_termo_lancamento = (
-            df[lancamento_col]
-            .astype(str)
-            .apply(lambda x: bool(padrao_termos.search(norm(x))))
-        )
-    else:
-        mask_termo_lancamento = pd.Series([False] * len(df), index=df.index)
-
-    # 🔥 FILTRAR POR FORMA DE PAGAMENTO (termos na coluna Forma_de_pagamento)
-    mask_termo_forma_pagamento = pd.Series([False] * len(df), index=df.index)
-
-    # Procurar coluna Forma_de_pagamento
-    forma_pagamento_col = None
-    for col in df.columns:
-        if str(col).strip().lower() in [
-            "forma_de_pagamento",
-            "forma de pagamento",
-            "formadepagamento",
-            "forma_pagamento",
-        ]:
-            forma_pagamento_col = col
-            break
-
-    if forma_pagamento_col and padrao_termos:
-        print(f"[DEBUG][FORMA_PAGAMENTO] Coluna encontrada: {forma_pagamento_col}")
+                else:
+                    print(
+                        f"[DEBUG][REDE] {coluna_taxa} já está no formato correto (valores >= 1)"
+                    )
+    
+        # ⚠️ AGORA SIM: Arredondar todos os valores monetários e taxas para 2 casas decimais
         print(
-            f"[DEBUG][FORMA_PAGAMENTO] Valores únicos: {df[forma_pagamento_col].unique()}"
+            "[DEBUG] Aplicando arredondamento final (round(2)) em valores monetários e taxas..."
         )
-
-        mask_termo_forma_pagamento = (
-            df[forma_pagamento_col]
-            .astype(str)
-            .apply(lambda x: bool(padrao_termos.search(norm(x))))
+        for c in colunas_valores + colunas_taxa:
+            if c in df.columns:
+                df[c] = df[c].round(2)
+    
+        # --- CÁLCULO DE VALOR_RR BASEADO EM TAXAS_RR ---
+        print("[DEBUG] Calculando Valor_RR baseado em Taxas_RR...")
+    
+        if "Taxas_RR" in df.columns and "Valor_da_venda" in df.columns:
+            # Identificar registros que têm Taxas_RR válidas e valor da venda
+            mask_calc_rr = (
+                df["Taxas_RR"].notnull()
+                & (df["Taxas_RR"] != 0)
+                & df["Valor_da_venda"].notnull()
+                & (df["Valor_da_venda"] != 0)
+            )
+    
+            if mask_calc_rr.any():
+                # Se Valor_RR não existe, criar coluna
+                if "Valor_RR" not in df.columns:
+                    df["Valor_RR"] = 0.0
+    
+                # Calcular Valor_RR = (Valor_da_venda * Taxas_RR) / 100
+                # ⚠️ CRÍTICO: Arredondar para 2 casas decimais (evitar imprecisão de ponto flutuante)
+                df.loc[mask_calc_rr, "Valor_RR"] = (
+                    (
+                        df.loc[mask_calc_rr, "Valor_da_venda"]
+                        * df.loc[mask_calc_rr, "Taxas_RR"]
+                    )
+                    / 100
+                ).round(2)
+    
+                registros_calculados = mask_calc_rr.sum()
+                print(
+                    f"[DEBUG] Valor_RR calculado para {registros_calculados} registros com Taxas_RR válidas"
+                )
+    
+                # Log de exemplo
+                if registros_calculados > 0:
+                    exemplo_idx = df[mask_calc_rr].index[0]
+                    valor_venda = df.loc[exemplo_idx, "Valor_da_venda"]
+                    taxa_rr = df.loc[exemplo_idx, "Taxas_RR"]
+                    valor_rr = df.loc[exemplo_idx, "Valor_RR"]
+                    print(
+                        f"[DEBUG] Exemplo cálculo: R$ {valor_venda:.2f} × {taxa_rr:.2f}% = R$ {valor_rr:.2f}"
+                    )
+        else:
+            print("[DEBUG] Colunas Taxas_RR ou Valor_da_venda não encontradas para cálculo")
+    
+        # --- FIM DO CÓDIGO DE NORMALIZAÇÃO ---
+    
+        # --- REGRA ESPECÍFICA DA REDE: PREVISÃO DE PAGAMENTO = DATA_DA_VENDA + 31 DIAS ---
+        print(
+            "[DEBUG][REDE] Verificando se existem dados da REDE para aplicar regra de previsão..."
         )
-
-        if mask_termo_forma_pagamento.any():
-            print(
-                f"[DEBUG][FORMA_PAGAMENTO] ⚠️ {mask_termo_forma_pagamento.sum()} registros filtrados por forma de pagamento"
+    
+        # Identificar se há registros da REDE
+        tem_rede = False
+        colunas_adquirente = [
+            "Adquirente",
+            "adquirente",
+            "ADQUIRENTE",
+            "Bandeira",
+            "bandeira",
+        ]
+    
+        for col in colunas_adquirente:
+            if col in df.columns:
+                rede_count = (
+                    df[col].astype(str).str.upper().str.contains("REDE", na=False).sum()
+                )
+                if rede_count > 0:
+                    tem_rede = True
+                    print(
+                        f"[DEBUG][REDE] Detectado {rede_count} registros da REDE na coluna {col}"
+                    )
+                    break
+    
+        if tem_rede:
+            # Buscar coluna de data da venda
+            colunas_data_venda = [
+                "Data_da_venda",
+                "data_da_venda",
+                "Data da Transação",
+                "data_transacao",
+            ]
+            coluna_data_encontrada = None
+    
+            for col in colunas_data_venda:
+                if col in df.columns:
+                    coluna_data_encontrada = col
+                    break
+    
+            if coluna_data_encontrada:
+                # Garantir que existe a coluna de previsão de pagamento
+                if "Previsão_de_pagamento" not in df.columns:
+                    df["Previsão_de_pagamento"] = pd.NaT
+    
+                # Criar máscara para registros da REDE
+                mask_rede = pd.Series([False] * len(df), index=df.index)
+                for col in colunas_adquirente:
+                    if col in df.columns:
+                        mask_col = (
+                            df[col].astype(str).str.upper().str.contains("REDE", na=False)
+                        )
+                        mask_rede = mask_rede | mask_col
+    
+                # Aplicar regra: Data_da_venda + 31 dias para registros da REDE
+                if mask_rede.any():
+                    try:
+                        # Garantir que a data está em formato datetime
+                        df[coluna_data_encontrada] = pd.to_datetime(
+                            df[coluna_data_encontrada], errors="coerce"
+                        )
+    
+                        # Aplicar regra apenas para registros da REDE com data válida
+                        mask_data_valida = df[coluna_data_encontrada].notnull()
+                        mask_aplicar = mask_rede & mask_data_valida
+    
+                        if mask_aplicar.any():
+                            df.loc[mask_aplicar, "Previsão_de_pagamento"] = df.loc[
+                                mask_aplicar, coluna_data_encontrada
+                            ] + pd.Timedelta(days=31)
+    
+                            registros_atualizados = mask_aplicar.sum()
+                            print(
+                                f"[DEBUG][REDE] Previsão de pagamento calculada para {registros_atualizados} registros da REDE (Data_da_venda + 31 dias)"
+                            )
+    
+                            # Log de exemplo
+                            if registros_atualizados > 0:
+                                exemplo_idx = df[mask_aplicar].index[0]
+                                data_venda = df.loc[exemplo_idx, coluna_data_encontrada]
+                                previsao = df.loc[exemplo_idx, "Previsão_de_pagamento"]
+                                print(
+                                    f"[DEBUG][REDE] Exemplo: Venda {data_venda.strftime('%d/%m/%Y')} → Previsão {previsao.strftime('%d/%m/%Y')}"
+                                )
+    
+                    except Exception as e:
+                        print(f"[DEBUG][REDE] Erro ao aplicar regra de previsão: {e}")
+            else:
+                print(f"[DEBUG][REDE] Nenhuma coluna de data da venda encontrada")
+        else:
+            print(f"[DEBUG][REDE] Nenhum registro da REDE detectado")
+    
+        # --- Lógica de vendas_diversas removida conforme solicitado ---
+    
+        # --- INÍCIO DA LÓGICA DE FILTRAGEM ---
+        lancamento_col = None
+        for c in df.columns:
+            if str(c).strip().lower() in [
+                "lancamento",
+                "lançamento",
+                "descricao",
+                "descrição",
+            ]:
+                lancamento_col = c
+                break
+        if not lancamento_col:
+            lancamento_col = df.columns[0] if len(df.columns) > 0 else None
+    
+        def norm(s):
+            return (
+                unicodedata.normalize("NFKD", str(s or ""))
+                .encode("ASCII", "ignore")
+                .decode("ASCII")
+                .upper()
+                .strip()
             )
-            print(
-                f"[DEBUG][FORMA_PAGAMENTO] Exemplos: {df[mask_termo_forma_pagamento][forma_pagamento_col].unique()[:5]}"
+    
+        termos_raw = termos_listar(engine, str(ec_id), contexto, tipo="v")
+    
+        print("[DEBUG][VENDAS] Colunas do DataFrame:", list(df.columns))
+        print("[DEBUG][VENDAS] Coluna de lançamento detectada:", lancamento_col)
+        print("[DEBUG][VENDAS] termos_raw:", termos_raw)
+    
+        termos = [
+            norm(t["termo"]) if isinstance(t, dict) and "termo" in t else norm(t)
+            for t in termos_raw
+        ]
+        print("[DEBUG][VENDAS] termos normalizados:", termos)
+    
+        padrao_termos = (
+            re.compile("|".join(map(re.escape, termos)), flags=re.IGNORECASE)
+            if termos
+            else None
+        )
+    
+        # --- NOVA LÓGICA: Verificar status da venda usando termos filtráveis ---
+        mask_status_filtravel = pd.Series([False] * len(df), index=df.index)
+    
+        # Procurar por coluna de status da venda
+        status_col = None
+        for col in df.columns:
+            if str(col).strip().lower() in [
+                "status_da_venda",
+                "status da venda",
+                "status_venda",
+                "status",
+                "situacao",
+                "situação",
+            ]:
+                status_col = col
+                break
+    
+        if status_col is not None:
+            print(f"[DEBUG][STATUS] Coluna de status encontrada: {status_col}")
+            print(f"[DEBUG][STATUS] Valores únicos de status: {df[status_col].unique()}")
+            print(f"[DEBUG][STATUS] EC: {ec_id}, Contexto: {contexto}")
+    
+            # Buscar termos filtráveis para status da tabela termos_filtraveis
+            # Usar os termos existentes do tipo 'v' para filtrar por status
+            try:
+                # Buscar todos os termos do tipo 'v' para este EC e contexto
+                termos_status_raw = termos_listar(engine, str(ec_id), contexto, tipo="v")
+                termos_status = [t["termo"] for t in termos_status_raw if t.get("termo")]
+    
+                print(
+                    f"[DEBUG][STATUS] Termos filtráveis encontrados na tabela (tipo v): {termos_status}"
+                )
+    
+                if termos_status:
+                    # Criar padrão regex com os termos da tabela
+                    padrao_status = re.compile(
+                        "|".join(map(re.escape, termos_status)), flags=re.IGNORECASE
+                    )
+    
+                    print(f"[DEBUG][STATUS] Padrão regex criado: {padrao_status.pattern}")
+                    print(f"[DEBUG][STATUS] Testando alguns valores normalizados:")
+    
+                    # Debug de algumas comparações
+                    for val in df[status_col].unique()[:5]:
+                        val_norm = norm(val)
+                        match = padrao_status.search(val_norm)
+                        print(
+                            f"[DEBUG][STATUS]   '{val}' -> norm: '{val_norm}' -> match: {bool(match)}"
+                        )
+    
+                    # Aplicar filtro usando termos da tabela na coluna de status
+                    mask_status_filtravel = (
+                        df[status_col]
+                        .astype(str)
+                        .apply(lambda x: bool(padrao_status.search(norm(x))))
+                    )
+    
+                    print(
+                        f"[DEBUG][STATUS] Total filtradas por termos da tabela: {mask_status_filtravel.sum()}"
+                    )
+                    print(
+                        f"[DEBUG][STATUS] Exemplos de valores que batem: {df[mask_status_filtravel][status_col].unique()[:5] if mask_status_filtravel.any() else 'Nenhum'}"
+                    )
+                else:
+                    print(
+                        "[DEBUG][STATUS] Nenhum termo encontrado na tabela termos_filtraveis"
+                    )
+    
+            except Exception as e:
+                print(f"[DEBUG][STATUS] Erro ao buscar termos de status: {e}")
+        else:
+            print("[DEBUG][STATUS] Nenhuma coluna de status encontrada")
+    
+        mask_vazio = df[lancamento_col].isnull() | (
+            df[lancamento_col].astype(str).str.strip() == ""
+        )
+    
+        # 🔥 FILTRAR POR LANÇAMENTO (termos na coluna de lançamento)
+        if padrao_termos:
+            mask_termo_lancamento = (
+                df[lancamento_col]
+                .astype(str)
+                .apply(lambda x: bool(padrao_termos.search(norm(x))))
             )
-
-    # Combinar todas as máscaras de termos
-    mask_termo = mask_termo_lancamento | mask_termo_forma_pagamento
-
-    # Combinar máscaras: filtradas = (termos OU status filtrável) E não vazio
-    mask_filt = (~mask_vazio) & (mask_termo | mask_status_filtravel)
-    mask_proc = (~mask_vazio) & (~mask_termo) & (~mask_status_filtravel)
-
-    df_proc = df.loc[mask_proc].copy()
-    df_filt = df.loc[mask_filt].copy()
-
-    # Debug da separação
-    print(f"[DEBUG][SEPARAÇÃO] Total original: {len(df)}")
-    print(f"[DEBUG][SEPARAÇÃO] Processadas (aprovadas): {len(df_proc)}")
-    print(f"[DEBUG][SEPARAÇÃO] Filtradas (termos + status): {len(df_filt)}")
-    print(
-        f"[DEBUG][SEPARAÇÃO] Filtradas por termos no lançamento: {mask_termo_lancamento.sum()}"
-    )
-    print(
-        f"[DEBUG][SEPARAÇÃO] Filtradas por termos na forma_de_pagamento: {mask_termo_forma_pagamento.sum()}"
-    )
-    print(f"[DEBUG][SEPARAÇÃO] Filtradas por termos (total): {mask_termo.sum()}")
-    print(
-        f"[DEBUG][SEPARAÇÃO] Filtradas por status (tabela termos): {mask_status_filtravel.sum()}"
-    )
-    print(f"[DEBUG][SEPARAÇÃO] Vazias ignoradas: {mask_vazio.sum()}")
-
-    # Adicionar metadados para todos os DataFrames
-    for _df in (df_proc, df_filt):
-        _df["data_processamento"] = datetime.now()
-        _df["usuario_processamento"] = usuario or "desconhecido"
-        _df["Filtrado"] = 0 if _df is df_proc else 1
-
-    return df_proc, df_filt
+        else:
+            mask_termo_lancamento = pd.Series([False] * len(df), index=df.index)
+    
+        # 🔥 FILTRAR POR FORMA DE PAGAMENTO (termos na coluna Forma_de_pagamento)
+        mask_termo_forma_pagamento = pd.Series([False] * len(df), index=df.index)
+    
+        # Procurar coluna Forma_de_pagamento
+        forma_pagamento_col = None
+        for col in df.columns:
+            if str(col).strip().lower() in [
+                "forma_de_pagamento",
+                "forma de pagamento",
+                "formadepagamento",
+                "forma_pagamento",
+            ]:
+                forma_pagamento_col = col
+                break
+    
+        if forma_pagamento_col and padrao_termos:
+            print(f"[DEBUG][FORMA_PAGAMENTO] Coluna encontrada: {forma_pagamento_col}")
+            print(
+                f"[DEBUG][FORMA_PAGAMENTO] Valores únicos: {df[forma_pagamento_col].unique()}"
+            )
+    
+            mask_termo_forma_pagamento = (
+                df[forma_pagamento_col]
+                .astype(str)
+                .apply(lambda x: bool(padrao_termos.search(norm(x))))
+            )
+    
+            if mask_termo_forma_pagamento.any():
+                print(
+                    f"[DEBUG][FORMA_PAGAMENTO] ⚠️ {mask_termo_forma_pagamento.sum()} registros filtrados por forma de pagamento"
+                )
+                print(
+                    f"[DEBUG][FORMA_PAGAMENTO] Exemplos: {df[mask_termo_forma_pagamento][forma_pagamento_col].unique()[:5]}"
+                )
+    
+        # Combinar todas as máscaras de termos
+        mask_termo = mask_termo_lancamento | mask_termo_forma_pagamento
+    
+        # Combinar máscaras: filtradas = (termos OU status filtrável) E não vazio
+        mask_filt = (~mask_vazio) & (mask_termo | mask_status_filtravel)
+        mask_proc = (~mask_vazio) & (~mask_termo) & (~mask_status_filtravel)
+    
+        df_proc = df.loc[mask_proc].copy()
+        df_filt = df.loc[mask_filt].copy()
+    
+        # Debug da separação
+        print(f"[DEBUG][SEPARAÇÃO] Total original: {len(df)}")
+        print(f"[DEBUG][SEPARAÇÃO] Processadas (aprovadas): {len(df_proc)}")
+        print(f"[DEBUG][SEPARAÇÃO] Filtradas (termos + status): {len(df_filt)}")
+        print(
+            f"[DEBUG][SEPARAÇÃO] Filtradas por termos no lançamento: {mask_termo_lancamento.sum()}"
+        )
+        print(
+            f"[DEBUG][SEPARAÇÃO] Filtradas por termos na forma_de_pagamento: {mask_termo_forma_pagamento.sum()}"
+        )
+        print(f"[DEBUG][SEPARAÇÃO] Filtradas por termos (total): {mask_termo.sum()}")
+        print(
+            f"[DEBUG][SEPARAÇÃO] Filtradas por status (tabela termos): {mask_status_filtravel.sum()}"
+        )
+        print(f"[DEBUG][SEPARAÇÃO] Vazias ignoradas: {mask_vazio.sum()}")
+    
+        # Adicionar metadados para todos os DataFrames
+        for _df in (df_proc, df_filt):
+            _df["data_processamento"] = datetime.now()
+            _df["usuario_processamento"] = usuario or "desconhecido"
+            _df["Filtrado"] = 0 if _df is df_proc else 1
+    
+        return df_proc, df_filt
 
 
 def classificar_por_bandeira_e_termos(
@@ -4160,101 +4165,102 @@ def classificar_e_gravar_vendas(
     processamentoid: int = None,
     progress_callback = None
 ) -> Dict[str, Any]:
-    now = datetime.now()
+    with PerformanceTimer("RECORD", "Gravação Vendas (Bulk Insert)", {"rows": len(df), "contexto": contexto}):
+        now = datetime.now()
 
-    was_fresh = processamentoid is None
+        was_fresh = processamentoid is None
 
-    if processamentoid is None:
-        processamentoid, _ = processamento_gerar_novo_id(engine, ec_id, now)
-        processamento_salvar(
-            engine,
-            ec_id=ec_id,
-            cliente_id=cliente_id,
-            id_processamento=processamentoid,
-            descricao=f"Importação {contexto or '-'} ({arquivo_origem or 'arquivo'})",
-            data_processamento=now,
-        )
-    else:
-        # Usar processamentoid existente
-        print(f"Usando processamentoid existente: {processamentoid}")
+        if processamentoid is None:
+            processamentoid, _ = processamento_gerar_novo_id(engine, ec_id, now)
+            processamento_salvar(
+                engine,
+                ec_id=ec_id,
+                cliente_id=cliente_id,
+                id_processamento=processamentoid,
+                descricao=f"Importação {contexto or '-'} ({arquivo_origem or 'arquivo'})",
+                data_processamento=now,
+            )
+        else:
+            # Usar processamentoid existente
+            print(f"Usando processamentoid existente: {processamentoid}")
 
-    # O DataFrame já foi normalizado pela interface, apenas separa processadas e filtradas se necessário
-    # Se df já tem a coluna 'Filtrado', significa que já foi processado pela interface
-    if "Filtrado" in df.columns:
-        df_proc = df[df["Filtrado"] == 0].copy()  # Processadas
-        df_filt = df[df["Filtrado"] == 1].copy()  # Filtradas
-    else:
-        # Se não tem a coluna Filtrado, ainda precisa normalizar
-        df_proc, df_filt = normalizar_dataframe_vendas(
-            df, engine=engine, ec_id=ec_id, contexto=contexto, usuario=usuario
-        )
+        # O DataFrame já foi normalizado pela interface, apenas separa processadas e filtradas se necessário
+        # Se df já tem a coluna 'Filtrado', significa que já foi processado pela interface
+        if "Filtrado" in df.columns:
+            df_proc = df[df["Filtrado"] == 0].copy()  # Processadas
+            df_filt = df[df["Filtrado"] == 1].copy()  # Filtradas
+        else:
+            # Se não tem a coluna Filtrado, ainda precisa normalizar
+            df_proc, df_filt = normalizar_dataframe_vendas(
+                df, engine=engine, ec_id=ec_id, contexto=contexto, usuario=usuario
+            )
 
-    for _df in (df_proc, df_filt):
-        _df["arquivo_origem"] = arquivo_origem or ""
-        _df["processamentoid"] = processamentoid
-        _df["cliente_id"] = int(cliente_id)
+        for _df in (df_proc, df_filt):
+            _df["arquivo_origem"] = arquivo_origem or ""
+            _df["processamentoid"] = processamentoid
+            _df["cliente_id"] = int(cliente_id)
 
-        # ⚠️ CRÍTICO: Apenas preencher ec_id se não veio do de-para (coluna vazia/ausente)
-        # Se ec_id já existe no DataFrame (via de-para), NÃO sobrescrever!
-        if "ec_id" not in _df.columns or _df["ec_id"].isna().all():
-            _df["ec_id"] = str(ec_id)  # ec_id agora é VARCHAR, não INT
+            # ⚠️ CRÍTICO: Apenas preencher ec_id se não veio do de-para (coluna vazia/ausente)
+            # Se ec_id já existe no DataFrame (via de-para), NÃO sobrescrever!
+            if "ec_id" not in _df.columns or _df["ec_id"].isna().all():
+                _df["ec_id"] = str(ec_id)  # ec_id agora é VARCHAR, não INT
 
-    # Removido: lógica de limpeza de valores zerados - mantém todas as vendas
-    # Removido: lógica de vendas_diversas conforme solicitado
+        # Removido: lógica de limpeza de valores zerados - mantém todas as vendas
+        # Removido: lógica de vendas_diversas conforme solicitado
 
-    # --- DEDUPLICAÇÃO EM MEMÓRIA (PYTHON) ---
-    # Identificar colunas para unicidade (ignorar metadados de inserção)
-    cols_ignorar = {"id", "data_processamento", "usuario_processamento", "arquivo_origem", "processamentoid"}
-    
-    n_proc, n_filt = len(df_proc), len(df_filt)
+        # --- DEDUPLICAÇÃO EM MEMÓRIA (PYTHON) ---
+        # Identificar colunas para unicidade (ignorar metadados de inserção)
+        cols_ignorar = {"id", "data_processamento", "usuario_processamento", "arquivo_origem", "processamentoid"}
+        
+        n_proc, n_filt = len(df_proc), len(df_filt)
 
-    if n_proc:
-        cols_dedup_proc = [c for c in df_proc.columns if c not in cols_ignorar]
-        len_antes = len(df_proc)
-        df_proc = df_proc.drop_duplicates(subset=cols_dedup_proc).copy()
-        n_proc = len(df_proc)
-        if len_antes > n_proc:
-            print(f"[DEBUG][DEDUP] Removidas {len_antes - n_proc} duplicadas (Vendas Processadas) em memória.")
+        if n_proc:
+            cols_dedup_proc = [c for c in df_proc.columns if c not in cols_ignorar]
+            len_antes = len(df_proc)
+            df_proc = df_proc.drop_duplicates(subset=cols_dedup_proc).copy()
+            n_proc = len(df_proc)
+            if len_antes > n_proc:
+                print(f"[DEBUG][DEDUP] Removidas {len_antes - n_proc} duplicadas (Vendas Processadas) em memória.")
 
-    if n_filt:
-        cols_dedup_filt = [c for c in df_filt.columns if c not in cols_ignorar]
-        len_antes = len(df_filt)
-        df_filt = df_filt.drop_duplicates(subset=cols_dedup_filt).copy()
-        n_filt = len(df_filt)
-        if len_antes > n_filt:
-            print(f"[DEBUG][DEDUP] Removidas {len_antes - n_filt} duplicadas (Vendas Filtradas) em memória.")
+        if n_filt:
+            cols_dedup_filt = [c for c in df_filt.columns if c not in cols_ignorar]
+            len_antes = len(df_filt)
+            df_filt = df_filt.drop_duplicates(subset=cols_dedup_filt).copy()
+            n_filt = len(df_filt)
+            if len_antes > n_filt:
+                print(f"[DEBUG][DEDUP] Removidas {len_antes - n_filt} duplicadas (Vendas Filtradas) em memória.")
 
-    # Inserir dados nas respectivas tabelas
-    if n_proc:
-        if progress_callback: progress_callback(70, "Gravando vendas processadas...")
-        vendas_processadas_bulk_insert(engine, df_proc, progress_callback=progress_callback)
-    if n_filt:
-        if progress_callback: progress_callback(85, "Gravando vendas filtradas...")
-        vendas_filtradas_bulk_insert(engine, df_filt, progress_callback=progress_callback)
+        # Inserir dados nas respectivas tabelas
+        if n_proc:
+            if progress_callback: progress_callback(70, "Gravando vendas processadas...")
+            vendas_processadas_bulk_insert(engine, df_proc, progress_callback=progress_callback)
+        if n_filt:
+            if progress_callback: progress_callback(85, "Gravando vendas filtradas...")
+            vendas_filtradas_bulk_insert(engine, df_filt, progress_callback=progress_callback)
 
-    # Remover duplicadas
-    # OTIMIZAÇÃO: Se for uma importação nova (was_fresh=True), a deduplicação em memória feita acima
-    # já é suficiente e muito mais rápida que o self-join no banco de dados.
-    if n_proc and not was_fresh:
-        if progress_callback: progress_callback(90, "Removendo duplicadas (vendas)...")
-        vendas_remover_duplicadas(
-            engine, "vendas_processadas", processamentoid, df_proc.columns.tolist()
-        )
-    elif n_proc and was_fresh:
-        print(f"[DEBUG][DEDUP] Pulando remoção SQL de duplicadas para fresh import (processamentoid: {processamentoid})")
-        if progress_callback: progress_callback(95, "Deduplicação em memória concluída.")
+        # Remover duplicadas
+        # OTIMIZAÇÃO: Se for uma importação nova (was_fresh=True), a deduplicação em memória feita acima
+        # já é suficiente e muito mais rápida que o self-join no banco de dados.
+        if n_proc and not was_fresh:
+            if progress_callback: progress_callback(90, "Removendo duplicadas (vendas)...")
+            vendas_remover_duplicadas(
+                engine, "vendas_processadas", processamentoid, df_proc.columns.tolist()
+            )
+        elif n_proc and was_fresh:
+            print(f"[DEBUG][DEDUP] Pulando remoção SQL de duplicadas para fresh import (processamentoid: {processamentoid})")
+            if progress_callback: progress_callback(95, "Deduplicação em memória concluída.")
 
-    if n_filt and not was_fresh:
-        vendas_remover_duplicadas(
-            engine, "vendas_filtradas", processamentoid, df_filt.columns.tolist()
-        )
+        if n_filt and not was_fresh:
+            vendas_remover_duplicadas(
+                engine, "vendas_filtradas", processamentoid, df_filt.columns.tolist()
+            )
 
-    print(f"[DEBUG][VENDAS] Processadas: {n_proc}, Filtradas: {n_filt}")
+        print(f"[DEBUG][VENDAS] Processadas: {n_proc}, Filtradas: {n_filt}")
 
-    return {
-        "processadas": n_proc,
-        "filtradas": n_filt,
-        "diversas": 0,  # Mantido para compatibilidade com interface
-        "total": n_proc + n_filt,
-        "processamentoid": processamentoid,
-    }
+        return {
+            "processadas": n_proc,
+            "filtradas": n_filt,
+            "diversas": 0,  # Mantido para compatibilidade com interface
+            "total": n_proc + n_filt,
+            "processamentoid": processamentoid,
+        }

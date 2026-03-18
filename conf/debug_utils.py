@@ -119,22 +119,47 @@ def debug_print(level: str, message: str, category: Optional[str] = None):
 
 def debug_timer(func_name: str, start_time: float):
     """
-    Imprime tempo de execução de uma função.
-
-    Args:
-        func_name: Nome da função
-        start_time: Timestamp de início (time.time())
-
-    Exemplo:
-        import time
-        start = time.time()
-        # ... código ...
-        debug_timer("minha_funcao", start)
+    Imprime tempo de execução de uma função (nível VERBOSE).
     """
     import time
-
     elapsed = time.time() - start_time
     debug_print("VERBOSE", f"{func_name}: {elapsed:.3f}s", "TIMER")
+
+
+def perf_log(category: str, task: str, duration: float, metadata: dict = None):
+    """
+    Log de performance de alta precisão (nível INFO).
+    Sempre exibido para permitir avaliação de desempenho.
+    """
+    meta_str = f" | {metadata}" if metadata else ""
+    debug_print("INFO", f"🚀 {task}: {duration:.4f}s{meta_str}", category.upper())
+
+
+class PerformanceTimer:
+    """
+    Gerenciador de contexto para medição de performance de alta precisão.
+    
+    Exemplo:
+        with PerformanceTimer("IMPORT", "Normalização de Vendas") as timer:
+            # ... código ...
+    """
+    def __init__(self, category: str, task: str, metadata: dict = None):
+        import time
+        self.category = category
+        self.task = task
+        self.metadata = metadata
+        self.start_time = None
+
+    def __enter__(self):
+        import time
+        self.start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        import time
+        if self.start_time is not None:
+            duration = time.perf_counter() - self.start_time
+            perf_log(self.category, self.task, duration, self.metadata)
 
 
 def debug_sql(sql: str, params: dict = None):

@@ -63,7 +63,7 @@ echo   Configurando para MySQL...
 echo ========================================
 
 REM Verificar se MySQL está rodando
-sc query MySQL80 | find "RUNNING" >nul
+sc query concilie_bd | find "RUNNING" >nul
 if errorlevel 1 (
     echo.
     echo [AVISO] MySQL nao detectado como servico
