@@ -5,10 +5,11 @@ from app.models.vendas_calculos import VendasCalculos
 import time
 from datetime import datetime
 
+
 class CalculoRepository:
     def __init__(self, db: Session):
         self.db = db
-        self.dialect = self.db.bind.dialect.name
+        self.dialect = db.get_bind().dialect.name
 
     def _get_period_formula(self, alias="vp", col_name="Data_da_venda"):
         """Returns DBMS-specific formula for 'Year-01-01'"""

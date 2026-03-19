@@ -295,58 +295,127 @@ def read_sql_polars(
     params: tuple = None,
 ) -> pl.DataFrame:
     """
-    Lê dados do SQL usando Polars para máxima performance.
-    """
-    try:
-        # Converter %s para :p1, :p2... para SQLAlchemy text()
-        params_dict = {}
-        if params:
-            new_sql = sql
-            for i, val in enumerate(params):
-                placeholder = f":p{i+1}"
-                new_sql = new_sql.replace("%s", placeholder, 1)
-                params_dict[f"p{i+1}"] = val
-            sql = new_sql
-            params = params_dict
+    Lê dados do SQL usando PyArrow backend (Pandas 2.x) para conversão quase zero-copy
+    ao Polars — elimina o triple-copy anterior (chunks → concat → from_pandas numpy).
 
-        # Usar chunksize para evitar carregar 1.6M rows de uma vez no Pandas
-        # o que consome ~5-10x a memória do banco.
+    Fallback automático para chunked Pandas caso o backend Arrow falhe.
+    """
+    # Converter %s → :p1, :p2... para SQLAlchemy text()
+    params_dict = {}
+    if params:
+        new_sql = sql
+        for i, val in enumerate(params):
+            new_sql = new_sql.replace("%s", f":p{i+1}", 1)
+            params_dict[f"p{i+1}"] = val
+        sql = new_sql
+        params = params_dict
+
+    # Tentativa 1: PyArrow backend — single read, near zero-copy para Polars
+    try:
+        with engine.connect().execution_options(stream_results=True) as conn:
+            print("[DEBUG_READ_SQL] Lendo com PyArrow backend (zero-copy)...")
+            df_pd = pd.read_sql(text(sql), conn, params=params, dtype_backend="pyarrow")
+            print(f"[DEBUG_READ_SQL] {len(df_pd)} linhas carregadas → convertendo para Polars...")
+            return pl.from_pandas(df_pd)
+    except Exception as e:
+        print(f"[DEBUG_READ_SQL] PyArrow backend falhou ({e}), usando chunked fallback...")
+
+    # Fallback: chunked Pandas (método anterior)
+    try:
         chunks = []
-        chunk_size = 100000 
-        
+        chunk_size = 100_000
         with engine.connect() as conn:
-            print(f"[DEBUG_READ_SQL] Lendo dados em chunks de {chunk_size}...")
-            # stream_results=True ajuda alguns drivers a não carregar tudo no socket de uma vez
-            # USAR PANDAS para a carga inicial e concatenação.
-            # O Pandas é mais tolerante com tipos mistos (NSU, IDs) que o Polars entre chunks.
-            # Após consolidar tudo no Pandas, convertemos para Polars para a análise de alto desempenho.
-            print(f"[DEBUG_READ_SQL] Iniciando carga de dados no Pandas (chunk_size={chunk_size})...")
-            iterator = pd.read_sql(text(sql), conn, params=params, chunksize=chunk_size)
-            pd_chunks = []
-            
-            total_rows = 0
-            for i, chunk_pd in enumerate(iterator):
-                total_rows += len(chunk_pd)
-                pd_chunks.append(chunk_pd)
+            print(f"[DEBUG_READ_SQL] Fallback: lendo em chunks de {chunk_size}...")
+            for i, chunk in enumerate(pd.read_sql(text(sql), conn, params=params, chunksize=chunk_size)):
+                chunks.append(chunk)
                 if (i + 1) % 5 == 0:
-                    print(f"[DEBUG_READ_SQL] Carregados {total_rows} registros no buffer Pandas...")
-            
-            if not pd_chunks:
-                return pl.DataFrame()
-            
-            print(f"[DEBUG_READ_SQL] Concatenando {len(pd_chunks)} chunks no Pandas...")
-            full_pd = pd.concat(pd_chunks, ignore_index=True)
-            
-            print(f"[DEBUG_READ_SQL] Convertendo DataFrame consolidado para Polars ({len(full_pd)} linhas)...")
-            # Ao converter do Pandas de uma vez só, o Polars fará uma única inferência de tipo 
-            # para a coluna inteira, resolvendo o problema de tipos inconsistentes.
-            return pl.from_pandas(full_pd)
-            
+                    print(f"[DEBUG_READ_SQL] {(i + 1) * chunk_size} registros no buffer...")
+        if not chunks:
+            return pl.DataFrame()
+        print(f"[DEBUG_READ_SQL] Concatenando {len(chunks)} chunks e convertendo para Polars...")
+        return pl.from_pandas(pd.concat(chunks, ignore_index=True))
     except Exception as e:
         print(f"[DEBUG_READ_SQL] FAILED: {e}")
         import traceback
         traceback.print_exc()
         raise e
+
+
+_PARQUET_CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "apps", "api", "relatorios_cache")
+
+
+def _cache_path(calc_id: str, calc_tipo: str) -> str:
+    """Retorna o caminho do arquivo Parquet de cache para um cálculo."""
+    safe = "".join(c if c.isalnum() or c in "_-" else "_" for c in f"{calc_id}_{calc_tipo}")
+    os.makedirs(_PARQUET_CACHE_DIR, exist_ok=True)
+    return os.path.join(_PARQUET_CACHE_DIR, f"{safe}.parquet")
+
+
+def invalidate_calc_cache(calc_id: str, calc_tipo: str = None) -> None:
+    """Remove o cache Parquet de um cálculo (ex: após novo processamento)."""
+    if calc_tipo:
+        path = _cache_path(calc_id, calc_tipo)
+        if os.path.exists(path):
+            os.remove(path)
+            print(f"[CACHE] Invalidado: {path}")
+    else:
+        # Remove todos os caches do calc_id
+        prefix = "".join(c if c.isalnum() or c in "_-" else "_" for c in calc_id)
+        if os.path.exists(_PARQUET_CACHE_DIR):
+            for f in os.listdir(_PARQUET_CACHE_DIR):
+                if f.startswith(prefix):
+                    os.remove(os.path.join(_PARQUET_CACHE_DIR, f))
+                    print(f"[CACHE] Invalidado: {f}")
+
+
+def load_vendas_calculos_cached(
+    engine: Engine,
+    calc_id: str,
+    calc_tipo: str,
+    columns: list = None,
+) -> pl.DataFrame:
+    """
+    Carrega vendas_calculos para um cálculo usando cache Parquet.
+
+    - 1ª chamada: busca do MySQL (~50s para 3M rows) e salva .parquet
+    - Chamadas seguintes: lê do .parquet (~2-3s, zero SQL)
+    - Cache invalida automaticamente se o arquivo tiver >24h
+    """
+    cache_file = _cache_path(calc_id, calc_tipo)
+    cache_ttl_hours = 24
+
+    # Cache hit — verificar se ainda é válido
+    if os.path.exists(cache_file):
+        age_hours = (time.time() - os.path.getmtime(cache_file)) / 3600
+        if age_hours < cache_ttl_hours:
+            print(f"[CACHE] Hit: {cache_file} ({age_hours:.1f}h atrás)")
+            df = pl.read_parquet(cache_file)
+            if columns:
+                df = df.select([c for c in columns if c in df.columns])
+            return df
+        else:
+            print(f"[CACHE] Expirado ({age_hours:.1f}h), refazendo query...")
+
+    # Cache miss — buscar do MySQL
+    print(f"[CACHE] Miss para calc_id={calc_id}, calc_tipo={calc_tipo}. Carregando do MySQL...")
+    sql = """
+        SELECT id_venda, data_venda, bandeira, forma_pagamento,
+               tx_rr_venda, vl_rr_venda, vl_venda, tx_venda, desc_venda,
+               vl_liq_venda, tx_calc, desc_calc, vl_liq_calc, perda,
+               adquirente, nsu, cod_autorizacao, perda_rr, ec_id
+        FROM vendas_calculos
+        WHERE calc_id = %s AND calc_tipo = %s
+    """
+    df = read_sql_polars(sql, engine, params=(calc_id, calc_tipo))
+
+    if not df.is_empty():
+        print(f"[CACHE] Salvando {len(df)} rows em {cache_file}...")
+        df.write_parquet(cache_file, compression="zstd", compression_level=3)
+        print(f"[CACHE] Salvo ({os.path.getsize(cache_file) / 1024 / 1024:.1f} MB)")
+
+    if columns:
+        df = df.select([c for c in columns if c in df.columns])
+    return df
 
 
 def read_sql_safe(
@@ -1267,7 +1336,7 @@ def gerar_excel_relatorio(
 
         print(f"[DEBUG] Gerando Excel com {len(dataframes_dict)} abas: {excel_path}")
 
-        with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+        with pd.ExcelWriter(excel_path, engine="xlsxwriter") as writer:
             for nome_aba, df in dataframes_dict.items():
                 if df is not None and not df.empty:
                     # Limitar nome da aba a 31 caracteres (limite do Excel)
@@ -1379,15 +1448,10 @@ def criar_grafico_vendas_por_bandeira(df: pd.DataFrame) -> str:
         )
         fig.update_traces(textposition="inside", textinfo="percent+label")
 
-        dir_path = criar_diretorio_relatorios()
-        img_path = os.path.join(
-            dir_path, f'vendas_bandeira_{datetime.now().strftime("%Y%m%d%H%M%S")}.png'
-        )
-
-        # Tentar escrever imagem com timeout e retry
-        fig.write_image(img_path, width=800, height=600, engine="kaleido")
-        print(f"[DEBUG] Gráfico de bandeiras criado: {img_path}")
-        return img_path
+        fig.update_layout(width=800, height=400, margin=dict(l=20, r=20, t=40, b=20))
+        html_str = fig.to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
+        print(f"[DEBUG] Gráfico de bandeiras gerado como HTML interativo")
+        return html_str
     except Exception as e:
         print(f"[AVISO] Erro ao criar gráfico de bandeiras: {e}")
         print("[AVISO] Relatório será gerado sem este gráfico")
@@ -1415,21 +1479,14 @@ def criar_grafico_vendas_por_forma_pagamento(df: pd.DataFrame) -> str:
         )
         fig.update_traces(textposition="inside", textinfo="percent+label")
 
-        dir_path = criar_diretorio_relatorios()
-        img_path = os.path.join(
-            dir_path,
-            f'vendas_forma_pagamento_{datetime.now().strftime("%Y%m%d%H%M%S")}.png',
-        )
-
-        # Tentar escrever imagem com timeout e retry
-        fig.write_image(img_path, width=800, height=600, engine="kaleido")
-        print(f"[DEBUG] Gráfico de forma de pagamento criado: {img_path}")
-        return img_path
+        fig.update_layout(width=800, height=400, margin=dict(l=20, r=20, t=40, b=20))
+        html_str = fig.to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
+        print(f"[DEBUG] Gráfico de forma de pagamento gerado como HTML interativo")
+        return html_str
     except Exception as e:
         print(f"[AVISO] Erro ao criar gráfico de forma de pagamento: {e}")
         print("[AVISO] Relatório será gerado sem este gráfico")
         return ""
-    return img_path
 
 
 def criar_grafico_vendas_por_mes(df: pd.DataFrame) -> str:
@@ -1455,12 +1512,8 @@ def criar_grafico_vendas_por_mes(df: pd.DataFrame) -> str:
             title="Quantidade de Vendas por Mês",
             color_discrete_sequence=["#636EFA"],
         )
-    dir_path = criar_diretorio_relatorios()
-    img_path = os.path.join(
-        dir_path, f'vendas_mes_{datetime.now().strftime("%Y%m%d%H%M%S")}.png'
-    )
-    fig.write_image(img_path, width=800, height=600)
-    return img_path
+    fig.update_layout(width=800, height=400, margin=dict(l=20, r=20, t=40, b=20))
+    return fig.to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
 
 
 def criar_grafico_valor_medio_por_bandeira(df: pd.DataFrame) -> str:
@@ -1489,12 +1542,8 @@ def criar_grafico_valor_medio_por_bandeira(df: pd.DataFrame) -> str:
             color_discrete_sequence=px.colors.qualitative.Pastel,
         )
         fig.update_layout(yaxis_tickprefix="R$ ", yaxis_tickformat=",.2f")
-    dir_path = criar_diretorio_relatorios()
-    img_path = os.path.join(
-        dir_path, f'valor_medio_bandeira_{datetime.now().strftime("%Y%m%d%H%M%S")}.png'
-    )
-    fig.write_image(img_path, width=800, height=600)
-    return img_path
+    fig.update_layout(width=800, height=400, margin=dict(l=20, r=20, t=40, b=20))
+    return fig.to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
 
 
 def criar_tabela_sumario(
@@ -2305,10 +2354,10 @@ def gerar_relatorio_html(
     header_image_url = to_file_url(caminho_cabecalho) if os.path.exists(caminho_cabecalho) else ""
 
     # Inicialização preventiva de variáveis
-    grafico_bandeiras_path = ""
-    grafico_forma_pagamento_path = ""
-    grafico_meses_path = ""
-    grafico_valores_path = ""
+    grafico_bandeiras_html = ""
+    grafico_forma_pagamento_html = ""
+    grafico_meses_html = ""
+    grafico_valores_html = ""
     primeira_venda = None
     ultima_venda = None
     quantidade = 0
@@ -2431,48 +2480,38 @@ def gerar_relatorio_html(
 
     debug_log(f"Main query starting for {processamento_id} / {calc_tipo}")
 
-    # 2. Busca de dados principal (Polars)
-    join_sql = """
-        SELECT 
-            id_venda AS venda_id, data_venda AS Data_da_venda, bandeira AS Bandeira, 
-            forma_pagamento AS Forma_de_pagamento,
-            tx_rr_venda AS Taxas_RR, vl_rr_venda AS Valor_RR, 
-            vl_venda, tx_venda, desc_venda,
-            vl_liq_venda, tx_calc, desc_calc, vl_liq_calc, perda,
-            adquirente, nsu, cod_autorizacao, perda_rr
-        FROM vendas_calculos
-        WHERE calc_id = %s
-    """
-    params = [processamento_id]
-    
-    # Se o calc_tipo foi informado/detectado, filter por ele para precisão
-    # mas se o primeiro fetch falhar, teremos um fallback
-    if calc_tipo:
-        join_sql += " AND calc_tipo = %s"
-        params.append(calc_tipo)
-        
-    if adquirente:
-        join_sql += " AND adquirente = %s"
-        params.append(adquirente)
-    if data_inicio:
-        join_sql += " AND data_venda >= %s"
-        params.append(data_inicio)
-    if data_fim:
-        join_sql += " AND data_venda <= %s"
-        params.append(data_fim)
-        
-    # NOTA: Não filtramos por APENAS_COM_PERDAS aqui no SQL inicial
-    # para garantir que os gráficos tenham todos os dados do período.
-    # Filtraremos depois via Polars para as tabelas se necessário.
+    # 2. Busca de dados principal via cache Parquet (evita re-query do MySQL)
+    # Carrega o dataset completo do cálculo; filtros de adquirente/período aplicados no Polars.
+    df_cached = load_vendas_calculos_cached(engine, processamento_id, calc_tipo)
 
-    df_pl_raw = read_sql_polars(join_sql, engine, params=tuple(params))
-    
-    # Fallback se calc_tipo causou resultado vazio
-    if df_pl_raw.is_empty() and calc_tipo:
-        debug_log(f"Query com calc_tipo={calc_tipo} vazia. Tentando sem filtro de tipo.")
-        join_sql_no_tipo = join_sql.replace("AND calc_tipo = %s", "")
-        params_no_tipo = [p for i, p in enumerate(params) if i != 1] # Remove calc_tipo
-        df_pl_raw = read_sql_polars(join_sql_no_tipo, engine, params=tuple(params_no_tipo))
+    # Fallback sem calc_tipo se cache retornou vazio
+    if df_cached.is_empty() and calc_tipo:
+        debug_log(f"Cache vazio para calc_tipo={calc_tipo}. Tentando sem filtro de tipo...")
+        sql_fallback = "SELECT id_venda, data_venda, bandeira, forma_pagamento, tx_rr_venda, vl_rr_venda, vl_venda, tx_venda, desc_venda, vl_liq_venda, tx_calc, desc_calc, vl_liq_calc, perda, adquirente, nsu, cod_autorizacao, perda_rr, ec_id FROM vendas_calculos WHERE calc_id = %s"
+        df_cached = read_sql_polars(sql_fallback, engine, params=(processamento_id,))
+
+    # Renomear colunas para aliases usados downstream
+    rename_map = {
+        "id_venda": "venda_id",
+        "data_venda": "Data_da_venda",
+        "bandeira": "Bandeira",
+        "forma_pagamento": "Forma_de_pagamento",
+        "tx_rr_venda": "Taxas_RR",
+        "vl_rr_venda": "Valor_RR",
+    }
+    df_cached = df_cached.rename({k: v for k, v in rename_map.items() if k in df_cached.columns})
+
+    # Aplicar filtros no Polars (evita queries adicionais ao MySQL)
+    lf_filtered = df_cached.lazy()
+    if adquirente and adquirente not in ("Todos", "None", "todos"):
+        lf_filtered = lf_filtered.filter(pl.col("adquirente") == adquirente)
+    if data_inicio:
+        dt_ini = pl.lit(data_inicio).cast(pl.Datetime)
+        lf_filtered = lf_filtered.filter(pl.col("Data_da_venda") >= dt_ini)
+    if data_fim:
+        dt_fim = pl.lit(data_fim).cast(pl.Datetime)
+        lf_filtered = lf_filtered.filter(pl.col("Data_da_venda") <= dt_fim)
+    df_pl_raw = lf_filtered.collect()
 
     debug_log(f"Main query result (Full for Charts): {len(df_pl_raw)} rows")
     
@@ -2835,10 +2874,10 @@ def gerar_relatorio_html(
 
     for t in threads: t.join()
     
-    grafico_bandeiras_path = graficos_paths.get("bandeira", "")
-    grafico_forma_pagamento_path = graficos_paths.get("forma", "")
-    grafico_meses_path = graficos_paths.get("mes", "")
-    grafico_valores_path = graficos_paths.get("valor", "")
+    grafico_bandeiras_html = graficos_paths.get("bandeira", "")
+    grafico_forma_pagamento_html = graficos_paths.get("forma", "")
+    grafico_meses_html = graficos_paths.get("mes", "")
+    grafico_valores_html = graficos_paths.get("valor", "")
     
     log_tempo_execucao("Polars + Threading: Gerar Gráficos", inicio_graficos)
 
@@ -2890,10 +2929,10 @@ def gerar_relatorio_html(
         "tabela_evidencias_menores_taxas_html": tabela_evidencias_menores_taxas_html,
         "tabela_vendas_filtradas_html": tabela_vendas_filtradas_html,
         "tabela_recebiveis_filtrados_html": tabela_recebiveis_filtrados_html,
-        "grafico_bandeiras_path": to_file_url(grafico_bandeiras_path),
-        "grafico_forma_pagamento_path": to_file_url(grafico_forma_pagamento_path),
-        "grafico_meses_path": to_file_url(grafico_meses_path),
-        "grafico_valores_path": to_file_url(grafico_valores_path),
+        "grafico_bandeiras_html": grafico_bandeiras_html,
+        "grafico_forma_pagamento_html": grafico_forma_pagamento_html,
+        "grafico_meses_html": grafico_meses_html,
+        "grafico_valores_html": grafico_valores_html,
         "data_geracao": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
         "materialidade_valor": materialidade_valor,
         "materialidade_percentual": materialidade_percentual,
@@ -2948,24 +2987,28 @@ def gerar_relatorio_html(
     excel_path = gerar_excel_relatorio(dataframes_excel, excel_filename)
     log_tempo_execucao("Excel: Gerar arquivo", inicio_excel)
 
-    # 12. Relatório Sintético
+    # 12. Relatório Sintético (sem converter 3.2M rows para Pandas)
     try:
-        # Usar df_charts (Polars) convertido para Pandas apenas para o sumário/gráficos do sintético
-        df_stats_pd = df_charts.to_pandas()
+        _vl_liq = float(df_charts.select(pl.col("vl_liq_venda").sum()).item() or 0)
+        _tx_media = float(df_charts.select(pl.col("tx_venda").mean()).item() or 0)
+        _bandeiras_pl = df_charts.group_by("Bandeira").agg(
+            pl.len().alias("qtd"),
+            pl.col("vl_venda").sum().alias("valor")
+        ).to_pandas().rename(columns={"Bandeira": "Bandeira"})
         sintetico_path = gerar_relatorio_sintetico_html(
-            metadados=metadados, 
-            total_transacoes=int(quantidade), 
+            metadados=metadados,
+            total_transacoes=int(quantidade),
             faturamento_bruto=float(valor_total),
-            valor_liquido=float(df_stats_pd["vl_liq_venda"].sum()), 
+            valor_liquido=_vl_liq,
             ticket_medio=float(valor_medio),
-            taxa_media=float(df_stats_pd["tx_venda"].mean()), 
+            taxa_media=_tx_media,
             total_divergencias=float(total_perdas),
-            bandeiras=df_stats_pd.groupby("Bandeira").agg(qtd=("venda_id", "count"), valor=("vl_venda", "sum")).reset_index(),
+            bandeiras=_bandeiras_pl,
             top_valores=evidencias.get("maiores_valores", pd.DataFrame()),
-            primeira_venda=primeira_venda, 
-            ultima_venda=ultima_venda, 
+            primeira_venda=primeira_venda,
+            ultima_venda=ultima_venda,
             periodo_dias=int(periodo_dias),
-            adquirente=metadados.get("adquirente", ""), 
+            adquirente=metadados.get("adquirente", ""),
             processamento_id=processamento_id
         )
     except Exception as e:
@@ -3398,46 +3441,13 @@ def criar_grafico(df: pd.DataFrame, tipo: str, titulo: str) -> str:
 
     if fig:
         if "pie" in str(type(fig.data[0])).lower():
-            # Remover rótulos de dentro da pizza, manter apenas na legenda
             fig.update_traces(textposition="none", textinfo="none")
             fig.update_layout(showlegend=True)
-        dir_path = criar_diretorio_relatorios()
-        img_path = os.path.join(
-            dir_path, f'grafico_{tipo}_{datetime.now().strftime("%Y%m%d%H%M%S")}.png'
-        )
-        try:
-            # Primeiro, tentar salvar normalmente
-            print(f"[DEBUG] Tentando salvar gráfico {tipo} no caminho: {img_path}")
-            fig.write_image(img_path, width=800, height=600, engine="kaleido")
-            
-            if os.path.exists(img_path) and os.path.getsize(img_path) > 0:
-                print(f"[DEBUG] ✓ Gráfico {tipo} salvo com sucesso ({os.path.getsize(img_path)} bytes)")
-                log_tempo_execucao(f"criar_grafico({tipo})", inicio)
-                return img_path
-            else:
-                print(f"[WARNING] Gráfico {tipo} gerado mas arquivo está vazio ou não existe")
-                raise Exception("Arquivo gerado vazio ou inexistente")
-                
-        except Exception as e:
-            print(f"[WARNING] Erro ao salvar gráfico {tipo} com kaleido: {e}")
-            try:
-                # Tentar com engine alternativo
-                import plotly.io as pio
-                print(f"[DEBUG] Tentando fallback para pio.write_image para {tipo}")
-                pio.write_image(fig, img_path, width=800, height=600, format="png")
-                
-                if os.path.exists(img_path) and os.path.getsize(img_path) > 0:
-                    print(f"[DEBUG] ✓ Gráfico {tipo} salvo com fallback ({os.path.getsize(img_path)} bytes)")
-                    log_tempo_execucao(f"criar_grafico({tipo}) - fallback", inicio)
-                    return img_path
-                else:
-                    print(f"[ERROR] Fallback falhou para {tipo}: arquivo vazio")
-                    return ""
-            except Exception as e2:
-                print(f"[ERROR] Erro fatal ao salvar gráfico {tipo}: {e2}")
-                log_tempo_execucao(f"criar_grafico({tipo}) - erro fatal", inicio)
-                # Retornar caminho vazio mas não falhar o relatório
-                return ""
+        fig.update_layout(width=800, height=400, margin=dict(l=20, r=20, t=40, b=20))
+        html_str = fig.to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
+        print(f"[DEBUG] ✓ Gráfico {tipo} gerado como HTML interativo ({len(html_str)} chars)")
+        log_tempo_execucao(f"criar_grafico({tipo})", inicio)
+        return html_str
     log_tempo_execucao(f"criar_grafico({tipo}) - vazio", inicio)
     return ""
 
@@ -3619,10 +3629,10 @@ def gerar_relatorio_mensal_html(
     header_image_url = to_file_url(caminho_cabecalho) if os.path.exists(caminho_cabecalho) else ""
 
     # Inicialização preventiva de variáveis
-    grafico_bandeiras_path = ""
-    grafico_forma_pagamento_path = ""
-    grafico_meses_path = ""
-    grafico_valores_path = ""
+    grafico_bandeiras_html = ""
+    grafico_forma_pagamento_html = ""
+    grafico_meses_html = ""
+    grafico_valores_html = ""
     primeira_venda = None
     ultima_venda = None
     quantidade = 0
@@ -3683,30 +3693,35 @@ def gerar_relatorio_mensal_html(
         except:
             if not calc_tipo: calc_tipo = "log_mensal"
 
-    # 2. Busca de dados principal (Polars)
-    join_sql = """
-        SELECT 
-            id_venda AS venda_id, data_venda AS Data_da_venda, bandeira AS Bandeira, 
-            forma_pagamento AS Forma_de_pagamento,
-            tx_rr_venda AS Taxas_RR, vl_rr_venda AS Valor_RR, 
-            vl_venda, tx_venda, desc_venda,
-            vl_liq_venda, tx_calc, desc_calc, vl_liq_calc, perda, perda_rr,
-            adquirente, nsu, cod_autorizacao
-        FROM vendas_calculos
-        WHERE calc_id = %s AND calc_tipo = %s
-    """
-    params = [processamento_id, calc_tipo]
-    if adquirente:
-        join_sql += " AND adquirente = %s"; params.append(adquirente)
-    if data_inicio:
-        join_sql += " AND data_venda >= %s"; params.append(data_inicio)
-    if data_fim:
-        join_sql += " AND data_venda <= %s"; params.append(data_fim)
-    if apenas_com_perdas:
-        join_sql += " AND (perda > 0 OR COALESCE(perda_rr, 0) > 0)"
+    # 2. Busca de dados principal via cache Parquet (evita re-query do MySQL)
+    df_cached = load_vendas_calculos_cached(engine, processamento_id, calc_tipo)
 
-    join_sql = _convert_placeholders(engine, join_sql)
-    df_pl = read_sql_polars(join_sql, engine, params=tuple(params))
+    # Renomear colunas para aliases usados downstream
+    rename_map = {
+        "id_venda": "venda_id",
+        "data_venda": "Data_da_venda",
+        "bandeira": "Bandeira",
+        "forma_pagamento": "Forma_de_pagamento",
+        "tx_rr_venda": "Taxas_RR",
+        "vl_rr_venda": "Valor_RR",
+    }
+    df_cached = df_cached.rename({k: v for k, v in rename_map.items() if k in df_cached.columns})
+
+    # Aplicar filtros no Polars
+    lf_filtered = df_cached.lazy()
+    if adquirente and adquirente not in ("Todos", "None", "todos"):
+        lf_filtered = lf_filtered.filter(pl.col("adquirente") == adquirente)
+    if data_inicio:
+        dt_ini = pl.lit(data_inicio).cast(pl.Datetime)
+        lf_filtered = lf_filtered.filter(pl.col("Data_da_venda") >= dt_ini)
+    if data_fim:
+        dt_fim = pl.lit(data_fim).cast(pl.Datetime)
+        lf_filtered = lf_filtered.filter(pl.col("Data_da_venda") <= dt_fim)
+    if apenas_com_perdas:
+        lf_filtered = lf_filtered.filter(
+            (pl.col("perda") > 0) | (pl.col("perda_rr").fill_null(0) > 0)
+        )
+    df_pl = lf_filtered.collect()
     
     # 3. Processamento Otimizado (Polars Lazy)
     lf = df_pl.lazy()
@@ -3797,8 +3812,8 @@ def gerar_relatorio_mensal_html(
         "tabela_min_max_taxas_html": to_h(df_min_max_taxas, "Taxas Mínimas e Máximas"),
         "tabela_contagem_taxas_html": to_h(df_contagem_taxas, "Contagem de Transações"),
         "tabela_dados_bancarios_html": to_h(df_dados_bancarios, "Dados Bancários"),
-        "grafico_bandeiras_path": to_file_url(graficos_paths.get("bandeira", "")),
-        "grafico_forma_pagamento_path": to_file_url(graficos_paths.get("forma", "")),
+        "grafico_bandeiras_html": graficos_paths.get("bandeira", ""),
+        "grafico_forma_pagamento_html": graficos_paths.get("forma", ""),
         "materialidade_valor": format_currency_br(total_materialidade),
         "materialidade_percentual": f"{materialidade_percentual:.2f}%",
         "data_processamento": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),

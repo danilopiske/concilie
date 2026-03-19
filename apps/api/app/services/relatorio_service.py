@@ -62,8 +62,9 @@ class RelatorioService:
                     task.message = msg
                     session.commit()
 
+                task.status = "PROCESSING"
                 update_progress(5, "Preparando ambiente...")
-                
+
                 metadata = task.metadata_json or {}
                 
                 # Extract filters from metadata

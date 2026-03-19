@@ -18,8 +18,20 @@ def get_conn(engine: Engine):
 
 
 def _adapt_sql(engine: Engine, sql: str) -> str:
-    """Minimal SQL adaptation (MySQL → SQLite) — no-op for now, placeholder."""
-    return sql
+    """Adapt raw MySQL SQL to SQLite dialect for common patterns."""
+    if get_db_type(engine) != "sqlite":
+        return sql
+
+    # INSERT IGNORE → INSERT OR IGNORE
+    adapted = sql.replace("INSERT IGNORE INTO", "INSERT OR IGNORE INTO")
+    adapted = adapted.replace("INSERT IGNORE", "INSERT OR IGNORE")
+
+    # IFNULL(col, val) → COALESCE(col, val)
+    # Simple replacement — works for most cases without nested calls
+    import re
+    adapted = re.sub(r'\bIFNULL\s*\(', 'COALESCE(', adapted, flags=re.IGNORECASE)
+
+    return adapted
 
 
 def exec_sql(engine: Engine, sql: str, params: Optional[Dict[str, Any]] = None) -> None:

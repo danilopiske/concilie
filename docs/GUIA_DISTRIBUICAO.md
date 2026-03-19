@@ -71,3 +71,79 @@ O script executa automaticamente um teste de 5 segundos após a build. Para vali
 ---
 
 **Nota Importante**: O diretório `dist_v18` não deve ser commitado no Git (está no `.gitignore`). Apenas o código fonte e scripts de build são versionados.
+
+---
+
+## 🗄️ Gerando o Banco Seed (MySQL → SQLite)
+
+O banco `data/concilie.db` é copiado para `%APPDATA%\Financial\financial.db` na primeira execução do cliente. Ele deve conter apenas os **dados de referência** (tabelas de configuração), nunca dados de processamento de clientes.
+
+### Pré-requisito
+
+O `.env` ativo deve apontar para MySQL (`DATABASE_TYPE=mysql`):
+
+```bash
+# Verificar
+cat apps/api/.env.active
+```
+
+### Gerar o seed
+
+```bash
+cd apps/api
+python scripts/export_seed.py
+```
+
+O script:
+1. Conecta ao MySQL configurado no `.env`
+2. Cria o schema SQLite via modelos SQLAlchemy
+3. Exporta as tabelas de referência: `bandeiras_cliente`, `bandeiras_disponiveis`, `taxas`, `contextos`, `termos_filtraveis`, `usuarios`
+4. Salva em `data/concilie.db`
+5. Exibe log de quantidades por tabela
+
+> **Segurança**: O script recusa incluir tabelas de processamento (`vendas_processadas`, `recebiveis_processados`, `vendas_calculos`). Se passadas via `--tables`, o script aborta com erro.
+
+### Saída esperada
+
+```
+INFO: === export_seed.py ===
+INFO: Destino: E:\Financial_P\data\concilie.db
+INFO: Tabelas: bandeiras_cliente, taxas, contextos, ...
+INFO: Schema criado em: ...
+INFO:   taxas: 42 registros exportados
+INFO:   contextos: 3 registros exportados
+INFO:   ...
+INFO: ✅ Seed gerado com sucesso: 150 registros totais
+INFO:    Arquivo: data/concilie.db (48.5 KB)
+```
+
+---
+
+## 🔄 Alternando entre MySQL e SQLite localmente
+
+O banco é controlado pela variável `DATABASE_TYPE` no `.env`:
+
+```bash
+# Usar MySQL (desenvolvimento)
+echo "DATABASE_TYPE=mysql" > apps/api/.env.active
+cp apps/api/.env.mysql apps/api/.env
+
+# Usar SQLite (testar distribuição)
+echo "DATABASE_TYPE=sqlite" > apps/api/.env.active
+cp apps/api/.env.example apps/api/.env  # ajustar SQLITE_DB_PATH se necessário
+```
+
+Reiniciar o backend após trocar o `.env`.
+
+---
+
+## 🧪 Smoke Test SQLite
+
+Antes de distribuir, verifique a compatibilidade SQLite rodando:
+
+```bash
+cd apps/api
+pytest tests/test_sqlite_smoke.py -v
+```
+
+Todos os 17 testes devem passar. Qualquer falha indica regressão de compatibilidade.

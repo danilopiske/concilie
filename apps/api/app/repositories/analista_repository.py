@@ -10,10 +10,11 @@ from app.schemas.analista import (
     AnaliseDetalhadaItem
 )
 
+
 class AnalistaRepository:
     def __init__(self, db: Session):
         self.db = db
-        self.dialect = self.db.bind.dialect.name # 'sqlite' or 'mysql'
+        self.dialect = db.get_bind().dialect.name  # 'sqlite' or 'mysql'
 
     def _get_year_sql(self, column: str) -> str:
         if self.dialect == 'sqlite':

@@ -1,9 +1,12 @@
 """
-Adaptador SQL Híbrido - MySQL/SQLite
-Converte queries e operações entre MySQL e SQLite mantendo compatibilidade total
+Adaptador SQL Híbrido - MySQL/SQLite (LEGADO)
 
-Este módulo fornece funções que detectam o tipo de banco e adaptam
-automaticamente as queries SQL para o dialeto correto.
+DEPRECATED: Este módulo é mantido apenas para compatibilidade com modules/reports.py
+e proc/proc_importacao.py. Para novo código no FastAPI, use:
+    from app.core.sql_adapter import ...
+
+Este arquivo é uma cópia do canônico app/core/sql_adapter.py.
+Não adicione novas funções aqui — adicione em app/core/sql_adapter.py.
 """
 
 from typing import List, Tuple

@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Relatório de Análise Financeira</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
     <style>
         @media print {
             @page {
@@ -262,10 +263,10 @@
         <div class="report-section">
             <h3>Gráficos de Análise</h3>
             <div class="chart-grid">
-                <div class="chart-cell"><img src="{{ grafico_bandeiras_path }}"></div>
-                <div class="chart-cell"><img src="{{ grafico_forma_pagamento_path }}"></div>
-                <div class="chart-cell"><img src="{{ grafico_meses_path }}"></div>
-                <div class="chart-cell"><img src="{{ grafico_valores_path }}"></div>
+                <div class="chart-cell">{{ grafico_bandeiras_html | safe }}</div>
+                <div class="chart-cell">{{ grafico_forma_pagamento_html | safe }}</div>
+                <div class="chart-cell">{{ grafico_meses_html | safe }}</div>
+                <div class="chart-cell">{{ grafico_valores_html | safe }}</div>
             </div>
         </div>
 

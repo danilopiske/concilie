@@ -275,13 +275,18 @@ def download_relatorio(path: str):
          raise HTTPException(status_code=403, detail="Acesso negado a este arquivo")
 
     filename = os.path.basename(actual_path)
-    # Encode filename for Content-Disposition (RFC 5987) to handle special characters/spaces
-    import urllib.parse
-    encoded_filename = urllib.parse.quote(filename)
-    headers = {
-        "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
-    }
-    return FileResponse(actual_path, headers=headers)
+    ext = os.path.splitext(filename)[1].lower()
+
+    if ext == ".html":
+        # Abrir inline no browser; filename hint para Ctrl+S salvar corretamente
+        return FileResponse(
+            actual_path,
+            media_type="text/html; charset=utf-8",
+            headers={"Content-Disposition": f'inline; filename="{filename}"'},
+        )
+    else:
+        # Excel e demais: forçar download com nome correto
+        return FileResponse(actual_path, filename=filename)
 @router.get("/historico")
 async def get_historico(
     processamento_id: str = None,
