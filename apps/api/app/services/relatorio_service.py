@@ -1,3 +1,4 @@
+import gc
 import os
 import shutil
 from sqlalchemy.orm import Session
@@ -90,6 +91,9 @@ class RelatorioService:
                 # Callback para funções legadas
                 def progress_callback(pct, msg):
                     update_progress(pct, msg)
+
+                # Force GC before heavy report generation to free memory from prior calculation
+                gc.collect()
 
                 if task.tipo_relatorio == "mensal":
                     html_path, _, sintetico_path = gerar_relatorio_mensal_html(

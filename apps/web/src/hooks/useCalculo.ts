@@ -15,10 +15,7 @@ export function useCalculo() {
 
     try {
       const { task_id } = await calculoApi.processarAsync(req);
-      const initialTask = await calculoApi.getTaskStatus(task_id);
-      setTask(initialTask);
-      
-      // Start Polling
+      // Start polling immediately — don't await initial status (DB may be busy)
       startPolling(task_id);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || 'Erro ao iniciar cálculo');
@@ -32,15 +29,18 @@ export function useCalculo() {
     pollingRef.current = setInterval(async () => {
       try {
         const currentTask = await calculoApi.getTaskStatus(taskId);
+        setError(null); // clear any previous transient error
         setTask(currentTask);
 
         if (currentTask.status === 'SUCCESS' || currentTask.status === 'FAILED') {
           stopPolling();
           setLoading(false);
         }
-      } catch (err) {
+      } catch (err: any) {
+        const msg = err.response?.data?.detail || err.message || 'Erro na comunicação com o servidor';
+        setError(`Aguardando servidor... (${msg})`);
         console.error('Polling error:', err);
-        // We don't stop polling on single network error, wait for next cycle
+        // Don't stop polling — backend may still be processing
       }
     }, 2000); // 2 seconds
   };

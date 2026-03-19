@@ -2404,8 +2404,11 @@ def gerar_relatorio_html(
     df_recebiveis_filtrados = pl.DataFrame() # Polars por padrão
     evidencias = {}
 
+    import gc
+    gc.collect()
+
     inicio_total = time.time()
-    
+
     def debug_log(msg):
         try:
             log_dir = os.path.join(os.getcwd(), "temp")
@@ -2959,12 +2962,16 @@ def gerar_relatorio_html(
 
     # 11. Excel (ZERO SQL!)
     inicio_excel = time.time()
-    
-    # IMPORTANTE: Proteção contra limites de memória e do Excel (1,048,576 linhas)
+
+    # Force GC before Excel generation to free memory from chart/table processing
+    gc.collect()
+
+    # IMPORTANTE: Limitar a 100.000 linhas para o Excel (suficiente para auditoria e evita OOM)
+    _excel_row_limit = 100000
     df_excel_main = df_main
-    if len(df_main) > 1000000:
-        print(f"[WARNING] Dataset com {len(df_main)} linhas. Truncando para 1.000.000 para o Excel.")
-        df_excel_main = df_main.head(1000000)
+    if len(df_main) > _excel_row_limit:
+        print(f"[WARNING] Dataset com {len(df_main)} linhas. Truncando para {_excel_row_limit} para o Excel.")
+        df_excel_main = df_main.head(_excel_row_limit)
         
     df_join = df_excel_main.to_pandas()
     
@@ -3612,9 +3619,12 @@ def gerar_relatorio_mensal_html(
     """
     Versão otimizada com Polars para o relatório mensal.
     """
+    import gc
+    gc.collect()
+
     inicio_total = time.time()
     print(f"[DEBUG] === INÍCIO GERAÇÃO RELATÓRIO MENSAL OTIMIZADO (POLARS) ===")
-    
+
     # Funções auxiliares para o template
     def to_file_url(path):
         return to_base64_url(path)
@@ -3830,9 +3840,14 @@ def gerar_relatorio_mensal_html(
     with open(html_path, "w", encoding="utf-8") as f: f.write(html_content)
 
     # 7. Excel (ZERO SQL)
+    gc.collect()
     excel_filename = f"relatorio_mensal_{processamento_id}_{timestamp}"
+    _excel_row_limit = 100000
+    df_join_excel = df_join.head(_excel_row_limit) if len(df_join) > _excel_row_limit else df_join
+    if len(df_join) > _excel_row_limit:
+        print(f"[WARNING] Mensal: Dataset com {len(df_join)} linhas. Truncando para {_excel_row_limit} para o Excel.")
     dataframes_excel = {
-        "1. Vendas Completas": df_join,
+        "1. Vendas Completas": df_join_excel,
         "2. Análise Consolidada": df_tabela_consolidada,
         "3. Perdas Semestre": df_perdas,
         "4. Taxas Min-Max": df_min_max_taxas,

@@ -80,46 +80,16 @@ class CalculoRepository:
             # We delete calculations of the same TYPE for this PROCESSAMENTO
             # We reference by the sales that belong to this processamento_id
             sql_del = text("""
-                DELETE FROM vendas_calculos 
+                DELETE FROM vendas_calculos
                 WHERE id_venda IN (SELECT id FROM vendas_processadas WHERE processamentoid = :pid)
                 AND calc_tipo = :tipo
             """)
             self.db.execute(sql_del, {"pid": req.processamento_id, "tipo": req.tipo_taxa})
             self.db.commit()
 
-        # 2. Insert Base Data (Massive Insert)
-        # We insert all sales into vendas_calculos with NULL calculated fields initially
-        insert_sql = text("""
-            INSERT INTO vendas_calculos (
-                id_venda, calc_id, calc_tipo, calc_usuario, bandeira, forma_pagamento, calc_data,
-                data_venda, ec_id, adquirente, arquivo_origem,
-                nsu, cod_autorizacao,
-                vl_venda, tx_venda, desc_venda, vl_liq_venda,
-                tx_rr_venda, vl_rr_venda,
-                tx_calc, desc_calc, vl_liq_calc, tx_rr_calc, vl_rr_calc, perda, perda_rr
-            )
-            SELECT 
-                id, :calc_id, :calc_tipo, :usuario, Bandeira, Forma_de_pagamento, :now,
-                Data_da_venda, ec_id, Adquirente, arquivo_origem,
-                NSU, Código_de_autorização,
-                Valor_da_venda, Taxas_Perc, (Valor_da_venda * Taxas_Perc / 100), (Valor_da_venda - (Valor_da_venda * Taxas_Perc / 100)),
-                Taxas_RR, (Valor_da_venda * Taxas_RR / 100),
-                NULL, NULL, NULL, NULL, NULL, NULL, NULL
-            FROM vendas_processadas
-            WHERE processamentoid = :pid
-        """)
-        
-        self.db.execute(insert_sql, {
-            "calc_id": custom_id,
-            "calc_tipo": req.tipo_taxa,
-            "usuario": usuario_logado,
-            "now": datetime.now(),
-            "pid": req.processamento_id
-        })
-        self.db.commit() # Commit insert before updates
-        
+        # 2. Return the generated ID — ReconciliationCore handles the actual INSERT
         return custom_id
-        
+
         # 3. Apply Calculations (UPDATEs)
         
         # 3A. Taxa de Log (Minimum Rate in Period)
