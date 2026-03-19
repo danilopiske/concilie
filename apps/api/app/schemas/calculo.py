@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
@@ -36,8 +36,7 @@ class CalculoResultado(BaseModel):
     diff_taxa: Optional[Decimal] # tx_venda - tx_calc
     perda: Optional[Decimal]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CalculoHistoryItem(BaseModel):
     calc_id: str
@@ -48,5 +47,4 @@ class CalculoHistoryItem(BaseModel):
     total_valor: Optional[Decimal] = Decimal(0)
     perda_total: Optional[Decimal] = Decimal(0)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

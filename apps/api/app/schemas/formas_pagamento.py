@@ -2,7 +2,7 @@
 Pydantic schemas para Formas de Pagamento
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, validator
 from datetime import datetime
 from typing import Optional, List
 
@@ -77,8 +77,7 @@ class FormaPagamentoResponse(FormaPagamentoBase):
     created_by: Optional[str] = None
     updated_by: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FormaPagamentoList(BaseModel):
@@ -108,5 +107,4 @@ class FormaPagamentoBandeiraResponse(FormaPagamentoBandeiraBase):
     id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

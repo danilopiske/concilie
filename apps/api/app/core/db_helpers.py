@@ -3,6 +3,7 @@ Database helper functions — ported from conf/funcoesbd.py.
 Use these instead of importing from the legacy conf package.
 """
 
+import re
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 from sqlalchemy.engine import Engine
@@ -28,7 +29,6 @@ def _adapt_sql(engine: Engine, sql: str) -> str:
 
     # IFNULL(col, val) → COALESCE(col, val)
     # Simple replacement — works for most cases without nested calls
-    import re
     adapted = re.sub(r'\bIFNULL\s*\(', 'COALESCE(', adapted, flags=re.IGNORECASE)
 
     return adapted

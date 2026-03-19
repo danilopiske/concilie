@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 root_dir = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(root_dir))
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -28,21 +29,23 @@ from app.core.database import init_db
 from fastapi.responses import JSONResponse, ORJSONResponse
 from app.api.deps import get_current_user
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Inicializar banco de dados ao startar"""
+    init_db()
+    logger.info("Banco de dados inicializado")
+    yield
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     description="Sistema de Conciliacao Financeira",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     default_response_class=ORJSONResponse,
+    lifespan=lifespan,
 )
-
-
-# Inicializar banco de dados ao startar
-@app.on_event("startup")
-async def startup_event():
-    """Criar tabelas se não existirem"""
-    init_db()
-    logger.info("Banco de dados inicializado")
 
 
 # CORS

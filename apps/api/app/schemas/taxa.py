@@ -2,7 +2,7 @@
 Pydantic schemas para Taxas
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import date
 from decimal import Decimal
 from typing import Optional
@@ -91,8 +91,7 @@ class TaxaResponse(TaxaBase):
 
     id: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TaxaCopiarRequest(BaseModel):

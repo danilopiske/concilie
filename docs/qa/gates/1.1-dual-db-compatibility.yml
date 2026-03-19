@@ -1,0 +1,48 @@
+schema: 1
+story: '1.1'
+story_title: 'Compatibilidade Dual MySQL/SQLite + Build de Distribuição'
+gate: PASS
+status_reason: 'Todos os 6 ACs implementados e verificados. 17/17 smoke tests passando. Sem issues CRITICAL ou HIGH.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-03-19T00:00:00Z'
+
+top_issues: []
+waiver:
+  active: false
+
+quality_score: 100
+expires: '2026-04-02T00:00:00Z'
+
+evidence:
+  tests_reviewed: 17
+  risks_identified: 3
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'quote_plus para senha MySQL, sem hardcoded credentials, sem SQL injection'
+  performance:
+    status: PASS
+    notes: '_adapt_sql() overhead mínimo (regex microsegundos). import re interno é LOW tech debt'
+  reliability:
+    status: PASS
+    notes: 'export_seed.py idempotente, rollback em caso de erro (unlink), StaticPool no SQLite test'
+  maintainability:
+    status: PASS
+    notes: 'Módulos auto-documentados, adaptadores legados marcados DEPRECATED claramente'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Mover import re para topo de db_helpers.py'
+      refs: ['apps/api/app/core/db_helpers.py']
+      severity: LOW
+    - action: 'Migrar schemas Pydantic de class-based config para ConfigDict (Pydantic V2)'
+      refs: ['apps/api/app/schemas/']
+      severity: MEDIUM
+    - action: 'Migrar @app.on_event("startup") para lifespan handler'
+      refs: ['apps/api/app/main.py']
+      severity: LOW

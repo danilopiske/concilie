@@ -4,7 +4,7 @@ Contexto Schemas
 
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ContextoBase(BaseModel):
@@ -29,5 +29,4 @@ class ContextoResponse(ContextoBase):
     criado_em: datetime
     atualizado_em: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -3,7 +3,7 @@ Cliente Schemas
 """
 
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class EnderecoBase(BaseModel):
@@ -67,13 +67,11 @@ class ClienteResponse(BaseModel):
     bancario: Optional[DadoBancarioBase] = None
     ecs: List[str] = []
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ECResponse(BaseModel):
     ec_id: str
     descricao: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
