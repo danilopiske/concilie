@@ -17,17 +17,19 @@ def test_calculos_historico_returns_list(client):
         assert isinstance(data, list)
 
 
-def test_calculos_invalid_id(client, auth_headers):
+def test_calculos_task_invalid_id(client, auth_headers):
+    """Task inexistente deve retornar 404."""
     if not auth_headers:
         import pytest
         pytest.skip("No valid auth credentials configured for test environment")
-    response = client.get("/api/v1/calculos/id_inexistente", headers=auth_headers)
-    assert response.status_code in (404, 422)
+    response = client.get("/api/v1/calculos/task/id_inexistente", headers=auth_headers)
+    assert response.status_code == 404
 
 
-def test_calculos_start_requires_body(client, auth_headers):
+def test_calculos_processar_requires_body(client, auth_headers):
+    """Endpoint /processar sem body deve retornar 422 (Pydantic validation)."""
     if not auth_headers:
         import pytest
         pytest.skip("No valid auth credentials configured for test environment")
-    response = client.post("/api/v1/calculos/iniciar", headers=auth_headers, json={})
-    assert response.status_code in (400, 422)
+    response = client.post("/api/v1/calculos/processar", headers=auth_headers, json={})
+    assert response.status_code == 422

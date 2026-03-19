@@ -3,7 +3,7 @@ Application Configuration
 """
 
 from typing import List
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 
 # Calculate absolute path for SQLite here (outside class)
@@ -77,10 +77,11 @@ class Settings(BaseSettings):
     # we can use a validator if strictly needed by Pydantic. 
     # For now, we will access settings.CORS_ORIGINS as a property where needed.
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"  # Ignora campos extras do .env
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+    )
 
 
 settings = Settings()

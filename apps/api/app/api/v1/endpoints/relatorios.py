@@ -1,5 +1,7 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Any, List
@@ -7,9 +9,16 @@ import os
 import pandas as pd
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 from app.core.database import get_db, engine
+from app.api.deps import get_current_user
 from app.schemas.relatorio import RelatorioRequest, RelatorioResponse, RelatorioOptions
 from app.services.relatorio_service import RelatorioService
+
+
+class SaveEditRequest(BaseModel):
+    html_content: str
 
 # Importar lógica legada
 # O path já está configurado no main.py, então import direto deve funcionar
@@ -21,7 +30,7 @@ try:
         obter_adquirentes_distintos_processamento
     )
 except ImportError as e:
-    print(f"Erro ao importar modules.reports: {e}")
+    logger.warning("Erro ao importar modules.reports: %s", e)
     try:
         import sys
         from pathlib import Path
@@ -29,12 +38,12 @@ except ImportError as e:
         if str(root_dir) not in sys.path:
             sys.path.insert(0, str(root_dir))
         from modules.reports import (
-            gerar_relatorio_mensal_html, 
+            gerar_relatorio_mensal_html,
             gerar_relatorio_html,
             obter_adquirentes_distintos_processamento
         )
     except Exception as e2:
-        print(f"CRÍTICO: Não foi possível importar relatórios legados: {e2}")
+        logger.critical("Não foi possível importar relatórios legados: %s", e2)
         # Definir Stubs para não quebrar a API
         def generar_stub(*args, **kwargs):
             raise Exception("Módulo de relatórios indisponível (dependência 'panel' ausente)")
@@ -64,12 +73,16 @@ def get_opcoes(processamento_id: str = None):
             if adquirentes:
                 opcoes["adquirentes"] = ["Todos"] + sorted(adquirentes)
         except Exception as e:
-            print(f"Erro ao buscar adquirentes: {e}")
+            logger.warning("Erro ao buscar adquirentes: %s", e)
             
     return opcoes
 
 @router.get("/adquirentes")
-def get_adquirentes(processamento_id: str, calc_tipo: str = None):
+def get_adquirentes(
+    processamento_id: str,
+    calc_tipo: str = None,
+    _: str = Depends(get_current_user),
+):
     """Retorna lista de adquirentes e período disponível para um processamento e tipo de cálculo"""
     try:
         from modules.reports import obter_adquirentes_e_periodo_processamento
@@ -91,7 +104,10 @@ def get_adquirentes(processamento_id: str, calc_tipo: str = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/gerar", response_model=RelatorioResponse)
-def gerar_relatorio(req: RelatorioRequest):
+def gerar_relatorio(
+    req: RelatorioRequest,
+    _: str = Depends(get_current_user),
+):
     """
     Gera o relatório HTML usando a lógica legada.
     """
@@ -106,7 +122,7 @@ def gerar_relatorio(req: RelatorioRequest):
         html_path = None
         sintetico_path = None
         
-        print(f"Gerando relatório {req.tipo_relatorio} para {req.processamento_id}")
+        logger.info("Gerando relatório %s para %s", req.tipo_relatorio, req.processamento_id)
 
         if req.tipo_relatorio == "mensal":
             html_path, _, sintetico_path = gerar_relatorio_mensal_html(
@@ -160,8 +176,7 @@ def gerar_relatorio(req: RelatorioRequest):
                     data_fim=data_fim_dt
                 )
         except Exception as e_abs:
-            print(f"Erro ao gerar abusividade: {e_abs}")
-            # Non-blocking error?
+            logger.warning("Erro ao gerar abusividade (não bloqueante): %s", e_abs)
         
         return RelatorioResponse(
             success=True,
@@ -174,15 +189,14 @@ def gerar_relatorio(req: RelatorioRequest):
         )
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error("Erro na geração do relatório: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro na geração do relatório: {str(e)}")
 
 @router.post("/gerar-async")
 async def gerar_relatorio_async(
     req: RelatorioRequest,
     background_tasks: BackgroundTasks,
-    usuario: str = "api_user",
+    current_user: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -204,7 +218,7 @@ async def gerar_relatorio_async(
     task = service.create_task(
         processamento_id=req.processamento_id,
         tipo_relatorio=req.tipo_relatorio,
-        usuario=usuario,
+        usuario=str(current_user),
         metadata=metadata
     )
     
@@ -255,8 +269,8 @@ def download_relatorio(path: str):
     # Se for um path absoluto com backslashes vindo do Windows, normalizar
     actual_path = os.path.normpath(actual_path)
     
-    print(f"📥 Tentativa de download: {actual_path}")
-    
+    logger.debug("Tentativa de download: %s", actual_path)
+
     if not os.path.exists(actual_path):
         # Tentar resolver se for relativo à raiz do projeto
         from pathlib import Path
@@ -264,9 +278,9 @@ def download_relatorio(path: str):
         resolved_path = root / actual_path
         if resolved_path.exists():
             actual_path = str(resolved_path)
-            print(f"✅ Path resolvido para: {actual_path}")
+            logger.debug("Path resolvido para: %s", actual_path)
         else:
-            print(f"❌ Arquivo não encontrado: {actual_path}")
+            logger.warning("Arquivo não encontrado: %s", actual_path)
             raise HTTPException(status_code=404, detail=f"Arquivo não encontrado: {os.path.basename(actual_path)}")
     
     # Basic security check: ensure it's in a known report directory
@@ -287,11 +301,30 @@ def download_relatorio(path: str):
     else:
         # Excel e demais: forçar download com nome correto
         return FileResponse(actual_path, filename=filename)
+@router.post("/tasks/{task_id}/save-edit")
+async def save_edit_relatorio(
+    task_id: str,
+    req: SaveEditRequest,
+    _: str = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Salva o relatório editado e atualiza o result_path da task."""
+    service = RelatorioService(db)
+    try:
+        saved_path = service.save_edit(task_id, req.html_content)
+        return {"success": True, "path": saved_path}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar edição: {str(e)}")
+
+
 @router.get("/historico")
 async def get_historico(
     processamento_id: str = None,
     skip: int = 0,
     limit: int = 50,
+    _: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """

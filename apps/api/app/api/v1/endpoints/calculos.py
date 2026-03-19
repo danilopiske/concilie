@@ -1,6 +1,9 @@
+import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 from app.core.database import get_db
 from app.repositories.calculo_repository import CalculoRepository
 from app.services.calculo_service import CalculoService
@@ -117,7 +120,7 @@ def listar_resultados(
     limit: int = Query(100), 
     db: Session = Depends(get_db)
 ):
-    print(f"🔍 [DEBUG] Buscando resultados para calc_id: {calc_id}")
+    logger.debug("Buscando resultados para calc_id: %s", calc_id)
     repo = CalculoRepository(db)
     return repo.listar_resultados(calc_id, skip, limit)
 

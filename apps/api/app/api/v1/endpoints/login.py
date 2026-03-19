@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -10,6 +11,7 @@ from app.core.config import settings
 from app.repositories.usuario_repository import UsuarioRepository
 from app.schemas.token import Token
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.post("/login/access-token", response_model=Token)
@@ -38,9 +40,9 @@ def login_access_token(
     try:
         if security.verify_password(form_data.password, user.senha):
             password_valid = True
-    except Exception:
-        # If verify crashes (e.g. unknown hash format)
-        pass
+    except Exception as e:
+        # If verify crashes (e.g. unknown hash format), fall through to legacy checks
+        logger.warning("bcrypt verify falhou para usuário %s: %s", form_data.username, e)
         
     if not password_valid:
         # Try Plain Text

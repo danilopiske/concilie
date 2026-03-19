@@ -136,7 +136,7 @@ async def ler_cabecalhos(
         if temp_path and os.path.exists(temp_path):
             try:
                 os.unlink(temp_path)
-            except:
+            except OSError:
                 pass
 
 def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 100) -> tuple[int, int]:
