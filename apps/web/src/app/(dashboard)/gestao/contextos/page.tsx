@@ -47,8 +47,8 @@ export default function ContextosPage() {
       await gestaoApi.contextos.deletar(confirmDelete.id);
       setConfirmDelete(null);
       refetch();
-    } catch (err: any) {
-      setDeleteError(err.response?.data?.detail || 'Erro ao excluir contexto');
+    } catch (err: unknown) {
+      setDeleteError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao excluir contexto');
       console.error(err);
     } finally {
       setDeleting(false);

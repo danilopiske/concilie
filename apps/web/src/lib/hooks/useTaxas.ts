@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { taxasApi, Taxa, TaxaCreate } from '@/lib/api/taxas';
 
+type ApiErr = { response?: { data?: { detail?: string } } };
+
 export function useTaxas(ec: string | null, contexto: string = 'padrao') {
   const [taxas, setTaxas] = useState<Taxa[]>([]);
   const [loading, setLoading] = useState(false);
@@ -20,8 +22,8 @@ export function useTaxas(ec: string | null, contexto: string = 'padrao') {
       setError(null);
       const data = await taxasApi.listarPorEC(ec, contexto);
       setTaxas(data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao carregar taxas');
+    } catch (err: unknown) {
+      setError((err as ApiErr)?.response?.data?.detail || 'Erro ao carregar taxas');
       console.error(err);
     } finally {
       setLoading(false);
@@ -38,8 +40,8 @@ export function useTaxas(ec: string | null, contexto: string = 'padrao') {
       await taxasApi.criar(taxa);
       await fetchTaxas(); // Recarregar lista
       return true;
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao adicionar taxa');
+    } catch (err: unknown) {
+      setError((err as ApiErr)?.response?.data?.detail || 'Erro ao adicionar taxa');
       throw err;
     }
   };
@@ -50,8 +52,8 @@ export function useTaxas(ec: string | null, contexto: string = 'padrao') {
       await taxasApi.atualizar(taxaId, taxa);
       await fetchTaxas(); // Recarregar lista
       return true;
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao atualizar taxa');
+    } catch (err: unknown) {
+      setError((err as ApiErr)?.response?.data?.detail || 'Erro ao atualizar taxa');
       throw err;
     }
   };
@@ -62,8 +64,8 @@ export function useTaxas(ec: string | null, contexto: string = 'padrao') {
       await taxasApi.deletar(taxaId);
       await fetchTaxas(); // Recarregar lista
       return true;
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao excluir taxa');
+    } catch (err: unknown) {
+      setError((err as ApiErr)?.response?.data?.detail || 'Erro ao excluir taxa');
       throw err;
     }
   };

@@ -132,8 +132,8 @@ export function CopiarTaxasModal({
       if (onCopiaCompleta) {
         onCopiaCompleta();
       }
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao copiar taxas');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao copiar taxas');
     } finally {
       setLoading(false);
     }

@@ -12,7 +12,7 @@ import { Alert } from '@/components/ui/Alert';
 
 export default function ProcessamentosPage() {
   // Estados de exemplo
-  const [processamentos, setProcessamentos] = React.useState<any[]>([]);
+  const [processamentos, setProcessamentos] = React.useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<number[]>([]);

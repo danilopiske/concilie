@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -95,16 +95,12 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
 const STORAGE_KEY = 'sidebar-collapsed';
 
 export function Sidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const pathname = usePathname();
-
-  // Restaurar estado do localStorage
-  useEffect(() => {
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved !== null) {
-      setIsCollapsed(saved === 'true');
-    }
-  }, []);
+    return saved === 'true';
+  });
+  const pathname = usePathname();
 
   // Persistir estado
   const toggleCollapsed = () => {

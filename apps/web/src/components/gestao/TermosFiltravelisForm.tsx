@@ -57,8 +57,8 @@ export function TermosFiltravelisForm({ ec, contexto, onSuccess }: TermosFiltrav
       
       // Limpar mensagem após 3 segundos
       setTimeout(() => setMensagem(null), 3000);
-    } catch (err: any) {
-      setMensagem({ tipo: 'error', texto: err.message });
+    } catch (err: unknown) {
+      setMensagem({ tipo: 'error', texto: (err as Error).message });
     }
   };
 
@@ -76,13 +76,13 @@ export function TermosFiltravelisForm({ ec, contexto, onSuccess }: TermosFiltrav
       setTermoParaExcluir(null);
       
       setTimeout(() => setMensagem(null), 3000);
-    } catch (err: any) {
-      setMensagem({ tipo: 'error', texto: err.message });
+    } catch (err: unknown) {
+      setMensagem({ tipo: 'error', texto: (err as Error).message });
       setTermoParaExcluir(null);
     }
   };
 
-  const columns: TableColumn<any>[] = [
+  const columns: TableColumn<TermoFiltravel>[] = [
     {
       key: 'termo',
       label: 'Termo',

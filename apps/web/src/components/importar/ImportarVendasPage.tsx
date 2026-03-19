@@ -43,7 +43,7 @@ export default function ImportarVendasPage() {
   const processamentosAnteriores = [
     { value: "96617268_0002", label: "96617268_0002 - 20/12/2025 10:33" },
   ];
-  const arquivosProcessados: any[] = [];
+  const arquivosProcessados: Record<string, unknown>[] = [];
 
   // Estados de UI
   const [cliente, setCliente] = React.useState("");
@@ -157,7 +157,7 @@ export default function ImportarVendasPage() {
           <div className="flex-1">
             <FileUpload
               accept=".csv,.xlsx"
-              onFileSelect={setFile}
+              onFileSelect={(files) => setFile(files ? files[0] ?? null : null)}
               selectedFile={file}
               loading={isUploading}
               disabled={isUploading}

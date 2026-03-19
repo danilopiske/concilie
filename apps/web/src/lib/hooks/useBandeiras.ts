@@ -16,8 +16,8 @@ export function useBandeiras() {
       const data = await gestaoApi.bandeiras.listar();
       setBandeiras(data);
       setError(null);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao carregar bandeiras');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao carregar bandeiras');
       console.error(err);
     } finally {
       setLoading(false);

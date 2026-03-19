@@ -12,7 +12,7 @@ import { Alert } from '@/components/ui/Alert';
 
 export default function DeParaPage() {
   // Estados de exemplo
-  const [mapeamentos, setMapeamentos] = React.useState<any[]>([]);
+  const [mapeamentos, setMapeamentos] = React.useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 

@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { calculoApi, CalculoPreviewRequest, CalculoTask } from '@/lib/api/calculo';
 
+type ApiErr = { response?: { data?: { detail?: string } }; message?: string };
+
 export function useCalculo() {
   const [task, setTask] = useState<CalculoTask | null>(null);
   const [loading, setLoading] = useState(false);
@@ -17,8 +19,8 @@ export function useCalculo() {
       const { task_id } = await calculoApi.processarAsync(req);
       // Start polling immediately — don't await initial status (DB may be busy)
       startPolling(task_id);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Erro ao iniciar cálculo');
+    } catch (err: unknown) {
+      setError((err as ApiErr)?.response?.data?.detail || (err as ApiErr)?.message || 'Erro ao iniciar cálculo');
       setLoading(false);
     }
   };
@@ -36,8 +38,8 @@ export function useCalculo() {
           stopPolling();
           setLoading(false);
         }
-      } catch (err: any) {
-        const msg = err.response?.data?.detail || err.message || 'Erro na comunicação com o servidor';
+      } catch (err: unknown) {
+        const msg = (err as ApiErr)?.response?.data?.detail || (err as ApiErr)?.message || 'Erro na comunicação com o servidor';
         setError(`Aguardando servidor... (${msg})`);
         console.error('Polling error:', err);
         // Don't stop polling — backend may still be processing

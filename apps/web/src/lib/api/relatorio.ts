@@ -43,7 +43,7 @@ export interface RelatorioTask {
   excel_path?: string;
   processamento_id?: string;
   updated_at: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export const relatorioApi = {

@@ -43,12 +43,12 @@ export function UsuarioFormModal({ isOpen, onClose, onSave, usuarioEdit }: Usuar
     e.preventDefault();
     setLoading(true);
     try {
-      const payload: any = {
+      const payload: { usuario: string; nome?: string; empresa?: string; senha?: string } = {
         usuario: formData.usuario,
         nome: formData.nome || undefined,
         empresa: formData.empresa || undefined,
       };
-      
+
       // Only include password if set (always required for create, optional for update)
       if (formData.senha) {
         payload.senha = formData.senha;

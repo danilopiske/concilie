@@ -71,8 +71,8 @@ export default function DeParaPage() {
         await deparaApi.criar(formData);
       }
       fetchRules();
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Erro ao salvar');
+    } catch (err: unknown) {
+      alert((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao salvar');
       throw err;
     }
   };

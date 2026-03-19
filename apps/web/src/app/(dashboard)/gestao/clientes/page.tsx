@@ -45,8 +45,8 @@ export default function ClientesPage() {
       setDeleteError(null);
       await deletarCliente(clienteParaExcluir);
       setClienteParaExcluir(null);
-    } catch (err: any) {
-      setDeleteError(err.message);
+    } catch (err: unknown) {
+      setDeleteError((err as Error)?.message);
       setClienteParaExcluir(null);
     }
   };

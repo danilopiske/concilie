@@ -48,9 +48,11 @@ export default function ImportarVendasPage() {
   const [files, setFiles] = useState<File[] | null>(null);
 
   // Preview State
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [previewColumns, setPreviewColumns] = useState<string[]>([]);
   const [fileId, setFileId] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [uploadResult, setUploadResult] = useState<any>(null);
 
   // Hook for Async Import
@@ -188,10 +190,10 @@ export default function ImportarVendasPage() {
         setSuccess(`Arquivos analisados! Mostrando ${response.total_files} arquivo(s). Amostra rápida gerada com ${response.total_rows_preview} linhas iniciais. Ao clicar em "Gravar", o arquivo completo (todas as linhas) será processado em segundo plano.`);
       }
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setError(
-        err.response?.data?.detail || 
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
         'Ocorreu um erro ao enviar o arquivo. Tente novamente.'
       );
     } finally {

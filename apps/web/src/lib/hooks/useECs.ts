@@ -5,6 +5,8 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api/client';
 
+type ApiErr = { response?: { data?: { detail?: string } } };
+
 export function useECs(clienteId: number | null) {
   const [ecs, setEcs] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -23,9 +25,9 @@ export function useECs(clienteId: number | null) {
         
         const { data } = await apiClient.get(`/clientes/${clienteId}/ecs`);
         setEcs(data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Erro ao carregar ECs:', err);
-        setError(err.response?.data?.detail || 'Erro ao carregar ECs');
+        setError((err as ApiErr)?.response?.data?.detail || 'Erro ao carregar ECs');
         setEcs([]);
       } finally {
         setLoading(false);

@@ -184,7 +184,7 @@ export function AbusividadeReport({ processamentoId }: AbusividadeReportProps) {
                 </div>
                 <h3 className="text-xl font-bold mb-2">Nenhuma Abusividade Detectada</h3>
                 <p className="max-w-md">
-                    Não foram encontradas variações de taxa na janela "<strong>{translateAgrupamento(agrupamento)}</strong>" maiores que <strong>{tolerancia}%</strong>.
+                    Não foram encontradas variações de taxa na janela &quot;<strong>{translateAgrupamento(agrupamento)}</strong>&quot; maiores que <strong>{tolerancia}%</strong>.
                 </p>
             </div>
         ) : (

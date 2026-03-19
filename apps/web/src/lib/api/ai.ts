@@ -2,13 +2,13 @@ import { apiClient } from './client';
 
 export interface AIAnalysisRequest {
   question: string;
-  context_filters?: Record<string, any>;
+  context_filters?: Record<string, unknown>;
 }
 
 export interface AIAnalysisResponse {
   answer: string;
-  chart_data?: any;
-  table_data?: any;
+  chart_data?: unknown;
+  table_data?: unknown;
   generated_code?: string;
 }
 

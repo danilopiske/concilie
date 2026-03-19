@@ -33,7 +33,7 @@ export function useSystemInfo() {
         });
         setInfo(data);
         setError(null);
-      } catch (err: any) {
+      } catch (err: unknown) {
         setError('Não foi possível conectar ao backend');
         console.error('Erro ao buscar info do sistema:', err);
       } finally {

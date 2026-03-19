@@ -3,21 +3,24 @@
  * Tabela reutilizável com formatação automática
  */
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ReactNode } from 'react';
 import { Badge } from '@/components/ui/Badge';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type TableColumn<T = any> = {
   key: string;
   label: string | ReactNode;
   sortable?: boolean;
   format?: 'currency' | 'date' | 'boolean' | 'badge';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   render?: (value: any, row: T) => ReactNode;
   width?: string;
 };
 
 export type TableVariant = 'simple' | 'info';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface TableProps<T = any> {
   variant?: TableVariant;
   columns: TableColumn<T>[];
@@ -33,21 +36,21 @@ export interface TableProps<T = any> {
 }
 
 const formatters = {
-  currency: (value: any) => {
+  currency: (value: unknown) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     }).format(Number(value) || 0);
   },
-  date: (value: any) => {
+  date: (value: unknown) => {
     if (!value) return '-';
-    const date = typeof value === 'string' ? new Date(value) : value;
+    const date = typeof value === 'string' ? new Date(value) : (value as Date);
     return new Intl.DateTimeFormat('pt-BR').format(date);
   },
-  boolean: (value: any) => {
+  boolean: (value: unknown) => {
     return value ? 'Sim' : 'Não';
   },
-  badge: (value: any) => {
+  badge: (value: unknown) => {
     if (typeof value === 'boolean') {
       return value ? (
         <Badge variant="success">Sim</Badge>
@@ -59,6 +62,7 @@ const formatters = {
   },
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function Table<T extends Record<string, any>>({
   variant = 'simple',
   columns,
@@ -74,17 +78,9 @@ export function Table<T extends Record<string, any>>({
 }: TableProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Reset/Adjust page when data changes
-  useEffect(() => {
-    if (pagination) {
-       const totalPages = Math.ceil(data.length / pageSize);
-       if (currentPage > totalPages && totalPages > 0) {
-           setCurrentPage(totalPages);
-       } else if (totalPages === 0) {
-           setCurrentPage(1);
-       }
-    }
-  }, [data.length, pagination, pageSize]);
+  // Compute effective page (clamp to valid range without setState in effect)
+  const totalPages = pagination ? Math.ceil(data.length / pageSize) : 1;
+  const effectivePage = totalPages > 0 ? Math.min(currentPage, totalPages) : 1;
 
   const handleSort = (columnKey: string, sortable?: boolean) => {
 
@@ -158,8 +154,8 @@ export function Table<T extends Record<string, any>>({
                  </div>
                </td>
              </tr>
-          ) : (pagination 
-              ? data.slice((currentPage - 1) * pageSize, currentPage * pageSize) 
+          ) : (pagination
+              ? data.slice((effectivePage - 1) * pageSize, effectivePage * pageSize)
               : data
            ).length === 0 ? (
             <tr>
@@ -171,8 +167,8 @@ export function Table<T extends Record<string, any>>({
               </td>
             </tr>
           ) : (
-            (pagination 
-                ? data.slice((currentPage - 1) * pageSize, currentPage * pageSize) 
+            (pagination
+                ? data.slice((effectivePage - 1) * pageSize, effectivePage * pageSize)
                 : data
              ).map((row, rowIndex) => {
               const key = rowKey 
@@ -202,19 +198,19 @@ export function Table<T extends Record<string, any>>({
       {pagination && data.length > pageSize && (
         <div className="px-6 py-3 flex items-center justify-between border-t border-gray-200">
            <div className="text-sm text-gray-500">
-              Mostrando <span className="font-medium">{((currentPage - 1) * pageSize) + 1}</span> a <span className="font-medium">{Math.min(currentPage * pageSize, data.length)}</span> de <span className="font-medium">{data.length}</span> resultados
+              Mostrando <span className="font-medium">{((effectivePage - 1) * pageSize) + 1}</span> a <span className="font-medium">{Math.min(effectivePage * pageSize, data.length)}</span> de <span className="font-medium">{data.length}</span> resultados
            </div>
            <div className="flex gap-2">
-              <button 
+              <button
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
+                  disabled={effectivePage === 1}
                   className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 hover:bg-gray-50 disabled:hover:bg-white"
               >
                   Anterior
               </button>
-              <button 
-                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(data.length / pageSize), p + 1))}
-                  disabled={currentPage >= Math.ceil(data.length / pageSize)}
+              <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={effectivePage >= totalPages}
                   className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 hover:bg-gray-50 disabled:hover:bg-white"
               >
                   Próxima

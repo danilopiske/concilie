@@ -2,6 +2,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { importacaoApi } from '@/lib/api/importacao';
 
+type ApiErr = { response?: { data?: { detail?: string } }; message?: string };
+
 export interface ImportTask {
   id: string;
   status: 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED';
@@ -69,9 +71,9 @@ export function useImportacao() {
       } else {
         throw new Error('Task ID não retornado pelo servidor.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Erro ao iniciar importação:', err);
-      setError(err.response?.data?.detail || err.message || 'Erro ao iniciar o processamento.');
+      setError((err as ApiErr)?.response?.data?.detail || (err as ApiErr)?.message || 'Erro ao iniciar o processamento.');
       setLoading(false);
     }
   }, [startPolling]);

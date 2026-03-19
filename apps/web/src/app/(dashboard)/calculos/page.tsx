@@ -80,8 +80,9 @@ export default function CalculosToolPage() {
         tem_receba_rapido: temRecebaRapido
       });
       setPreviewData(data);
-    } catch (err: any) {
-      setError('Erro ao gerar preview: ' + (err.response?.data?.detail || err.message));
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } }; message?: string };
+      setError('Erro ao gerar preview: ' + (e.response?.data?.detail || e.message));
     } finally {
       setLoadingPreview(false);
     }

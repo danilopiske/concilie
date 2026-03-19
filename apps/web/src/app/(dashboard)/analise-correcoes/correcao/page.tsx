@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { ComponentType } from 'react';
 import { Panel, PanelHeader, PanelBody } from '@/components/ui/Panel';
 import { Button } from '@/components/ui/Button';
 import { Table, TableColumn } from '@/components/ui/Table';
@@ -258,9 +259,10 @@ export default function CorrecaoToolPage() {
         valores,
         usuario: user?.usuario
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      const msg = err.response?.data?.detail || err.message || 'Erro desconhecido';
+      const apiErr = err as { response?: { data?: { detail?: string } }; message?: string };
+      const msg = apiErr.response?.data?.detail || apiErr.message || 'Erro desconhecido';
       alert(`Erro ao remover: ${msg}`);
       return;
     } finally {
@@ -279,7 +281,7 @@ export default function CorrecaoToolPage() {
     title: string, 
     data: ResumoItem[], 
     campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento',
-    icon: any
+    icon: ComponentType<{ className?: string }>
   ) => {
     const selected = selectedItems[campo] || [];
     const isAllSelected = data.length > 0 && selected.length === data.length;
@@ -482,8 +484,8 @@ export default function CorrecaoToolPage() {
                   <ol className="list-decimal pl-5 space-y-1">
                       <li>Carregue a lista de processamentos</li>
                       <li>Selecione um processamento (verá o resumo de formas de pagamento e bandeiras)</li>
-                      <li>Para <strong>Atualizar</strong>: Clique no botão 'Editar' na linha desejada</li>
-                      <li>Para <strong>Remover</strong>: Clique no botão 'Remover' na linha desejada (move para vendas_filtradas)</li>
+                      <li>Para <strong>Atualizar</strong>: Clique no botão &apos;Editar&apos; na linha desejada</li>
+                      <li>Para <strong>Remover</strong>: Clique no botão &apos;Remover&apos; na linha desejada (move para vendas_filtradas)</li>
                   </ol>
                   <p className="mt-3 text-xs text-gray-500">Nota: Após cada operação, o resumo é atualizado automaticamente.</p>
               </div>

@@ -100,8 +100,8 @@ export default function RelatorioTagsPage() {
       }
       setModalOpen(false);
       await fetchTags();
-    } catch (err: any) {
-      const msg = err?.response?.data?.detail ?? 'Erro ao salvar tag.';
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Erro ao salvar tag.';
       setFormError(msg);
     } finally {
       setSaving(false);

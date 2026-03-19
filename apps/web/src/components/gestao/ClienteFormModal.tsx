@@ -182,7 +182,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
       setLoading(true);
       setError(null);
 
-      const dados: any = { // Use any safely here or create proper type
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dados: any = {
         // cliente_id: parseInt(formData.cliente_id), // Don't force this anymore
         nome_fantasia: formData.nome_fantasia,
         razao_social: formData.razao_social,
@@ -223,8 +224,8 @@ export function ClienteFormModal({ isOpen, onClose, cliente, onSaved }: ClienteF
       onSaved();
       onClose();
       resetForm();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao salvar cliente');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao salvar cliente');
       console.error(err);
     } finally {
       setLoading(false);

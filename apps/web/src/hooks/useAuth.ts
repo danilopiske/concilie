@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api/client';
 
@@ -9,17 +9,12 @@ export interface User {
 
 export function useAuth() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Cookie é gerenciado pelo browser; apenas restaura dados do usuário para exibição
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === 'undefined') return null;
     const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
-  }, []);
+    return savedUser ? (JSON.parse(savedUser) as User) : null;
+  });
+  const [loading] = useState(false);
 
   const login = async (usuario: string, senha: string) => {
     try {

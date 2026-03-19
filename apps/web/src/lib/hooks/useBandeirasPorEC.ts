@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import { gestaoApi } from '@/lib/api/gestao';
 
+type ApiErr = { response?: { data?: { detail?: string } } };
+
 export function useBandeirasPorEC() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -12,8 +14,8 @@ export function useBandeirasPorEC() {
       setError(null);
       const data = await gestaoApi.bandeirasPorEC.obter(ecId);
       setBandeirasEC(data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao carregar bandeiras do EC');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao carregar bandeiras do EC');
       console.error(err);
     } finally {
       setLoading(false);
@@ -27,8 +29,8 @@ export function useBandeirasPorEC() {
       await gestaoApi.bandeirasPorEC.atualizar(ecId, bandeiras);
       // Recarregar para garantir sincronia
       await fetchBandeirasEC(ecId);
-    } catch (err: any) {
-      const msg = err.response?.data?.detail || 'Erro ao salvar bandeiras do EC';
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao salvar bandeiras do EC';
       setError(msg);
       throw new Error(msg);
     } finally {

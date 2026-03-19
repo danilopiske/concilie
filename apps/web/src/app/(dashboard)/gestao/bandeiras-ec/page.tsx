@@ -39,9 +39,7 @@ export default function BandeirasECPage() {
   // Carregar bandeiras do EC quando selecionado
   useEffect(() => {
     if (selectedEC) {
-      fetchBandeirasEC(selectedEC); 
-    } else {
-      setLocalBandeirasState({});
+      fetchBandeirasEC(selectedEC);
     }
   }, [selectedEC, fetchBandeirasEC]);
 
@@ -49,7 +47,7 @@ export default function BandeirasECPage() {
   useEffect(() => {
     if (bandeirasEC && bandeiras.length > 0) {
       const newState: Record<string, boolean> = {};
-      
+
       bandeiras.forEach(b => {
         // Se a bandeira existe no dict do EC, usar valor (1=true, 0=false)
         // Se não existe, usar o padrão da bandeira
@@ -59,7 +57,8 @@ export default function BandeirasECPage() {
           newState[b.nome] = b.padrao; // Assumindo b.padrao como boolean
         }
       });
-      
+
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalBandeirasState(newState);
     }
   }, [bandeirasEC, bandeiras]);
@@ -71,7 +70,9 @@ export default function BandeirasECPage() {
   };
 
   const handleECChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedEC(e.target.value);
+    const newEC = e.target.value;
+    setSelectedEC(newEC);
+    if (!newEC) setLocalBandeirasState({});
     setSuccessMsg(null);
   };
 

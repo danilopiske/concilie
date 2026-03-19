@@ -48,7 +48,7 @@ export interface ImportTask {
     status: 'pending' | 'processing' | 'completed' | 'failed';
     created_at: string;
     updated_at?: string;
-    metadata: any;
+    metadata: Record<string, unknown>;
     result?: {
         rows_processed: number;
         columns: string[];

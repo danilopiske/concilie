@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -146,13 +146,14 @@ export default function ProcessamentosPage() {
       key: 'status', 
       label: 'Status',
       render: (value) => {
-        const variants: any = {
+        const variants: Record<string, string> = {
           'Sucesso': 'success',
           'Erro': 'error',
           'Processando': 'warning',
           'Pendente': 'default'
         };
-        return <Badge variant={variants[value] || 'default'}>{value}</Badge>;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return <Badge variant={(variants[String(value)] || 'default') as any}>{String(value)}</Badge>;
       }
     },
     { 
@@ -330,8 +331,8 @@ export default function ProcessamentosPage() {
 
 // Sub-components
 
-function StatsCard({ title, value, icon, color, highlight = false }: any) {
-  const colorMap: any = {
+function StatsCard({ title, value, icon, color, highlight = false }: { title: string; value: string | number; icon: React.ReactNode; color: string; highlight?: boolean }) {
+  const colorMap: Record<string, string> = {
     blue: 'bg-blue-50 border-blue-100',
     green: 'bg-green-50 border-green-100',
     emerald: 'bg-emerald-50 border-emerald-100',

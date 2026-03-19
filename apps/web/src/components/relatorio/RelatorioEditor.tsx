@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEditor, EditorContent, ReactRenderer } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Suggestion, { SuggestionOptions } from '@tiptap/suggestion';
-import { Extension } from '@tiptap/core';
+import Suggestion, { SuggestionOptions, SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
+import { Extension, Editor, Range } from '@tiptap/core';
 import tippy, { Instance as TippyInstance } from 'tippy.js';
 import { RelatorioTag } from '@/lib/api/relatorio-tags';
 
@@ -29,6 +29,8 @@ const SlashList = React.forwardRef<{ onKeyDown: (e: KeyboardEvent) => boolean },
       [items, command]
     );
 
+    // Reset selection index when items list changes (legitimate pattern for suggestion menus)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => setSelectedIndex(0), [items]);
 
     React.useImperativeHandle(ref, () => ({
@@ -109,13 +111,14 @@ function buildSlashExtension(tags: RelatorioTag[]): Extension {
             let popup: TippyInstance[];
 
             return {
-              onStart(props: any) {
+              onStart(props: SuggestionProps<RelatorioTag>) {
                 component = new ReactRenderer(SlashList, {
                   props,
                   editor: props.editor,
                 });
                 popup = tippy('body', {
-                  getReferenceClientRect: props.clientRect,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  getReferenceClientRect: props.clientRect as any,
                   appendTo: () => document.body,
                   content: component.element,
                   showOnCreate: true,
@@ -124,11 +127,12 @@ function buildSlashExtension(tags: RelatorioTag[]): Extension {
                   placement: 'bottom-start',
                 });
               },
-              onUpdate(props: any) {
+              onUpdate(props: SuggestionProps<RelatorioTag>) {
                 component.updateProps(props);
-                popup[0].setProps({ getReferenceClientRect: props.clientRect });
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                popup[0].setProps({ getReferenceClientRect: props.clientRect as any });
               },
-              onKeyDown(props: any) {
+              onKeyDown(props: SuggestionKeyDownProps) {
                 if (props.event.key === 'Escape') {
                   popup[0].hide();
                   return true;
@@ -146,8 +150,8 @@ function buildSlashExtension(tags: RelatorioTag[]): Extension {
             range,
             props,
           }: {
-            editor: any;
-            range: any;
+            editor: Editor;
+            range: Range;
             props: RelatorioTag;
           }) => {
             editor
@@ -174,15 +178,14 @@ interface RelatorioEditorProps {
 }
 
 export function RelatorioEditor({ initialContent, tags, onChange }: RelatorioEditorProps) {
-  const slashExt = useRef(buildSlashExtension(tags));
-
-  useEffect(() => {
-    slashExt.current = buildSlashExtension(tags);
-  }, [tags]);
+  // Build extension once on mount; TipTap does not support runtime extension updates
+  // without destroying/recreating the editor, so tags are captured at initialization.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const extensions = useMemo(() => [StarterKit, buildSlashExtension(tags)], []);
 
   const editor = useEditor({
     immediatelyRender: false,
-    extensions: [StarterKit, slashExt.current],
+    extensions,
     content: initialContent,
     onUpdate: ({ editor }) => {
       onChange?.(editor.getHTML());

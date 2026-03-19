@@ -383,7 +383,7 @@ export default function RelatoriosPage() {
           ) : (
             <Card className="p-6 h-full flex flex-col items-center justify-center text-center text-gray-400 border-dashed">
               <FileText className="w-12 h-12 mb-4 opacity-50" />
-              <p>Configure os filtros e clique em "Gerar" para visualizar os resultados.</p>
+              <p>Configure os filtros e clique em &quot;Gerar&quot; para visualizar os resultados.</p>
               {task?.status === 'PROCESSING' && (
                  <div className="mt-4 text-blue-600 animate-pulse">
                      Geração em curso... {task.progress}%

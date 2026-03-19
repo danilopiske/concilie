@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
@@ -51,7 +51,7 @@ function reconstructHtml(fullHtml: string, newContent: string): string {
   return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 }
 
-export default function RelatorioEditorPage() {
+function RelatorioEditorContent() {
   const searchParams = useSearchParams();
   const taskId = searchParams.get('task_id') ?? '';
 
@@ -94,8 +94,8 @@ export default function RelatorioEditorPage() {
 
       const tagsData = await relatorioTagsApi.listar('true');
       setTags(tagsData);
-    } catch (err: any) {
-      setError(err?.message ?? 'Erro ao carregar relatório.');
+    } catch (err: unknown) {
+      setError((err as Error)?.message ?? 'Erro ao carregar relatório.');
     } finally {
       setLoadingContent(false);
     }
@@ -116,8 +116,8 @@ export default function RelatorioEditorPage() {
       setPreviewUrl(relatorioApi.downloadUrl(result.path) + '&t=' + Date.now());
       setSuccessMsg('Relatório salvo com sucesso!');
       setTimeout(() => setSuccessMsg(null), 3000);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail ?? 'Erro ao salvar relatório.');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Erro ao salvar relatório.');
     } finally {
       setSaving(false);
     }
@@ -212,5 +212,13 @@ export default function RelatorioEditorPage() {
         </>
       ) : null}
     </div>
+  );
+}
+
+export default function RelatorioEditorPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-16"><span className="text-gray-400">Carregando...</span></div>}>
+      <RelatorioEditorContent />
+    </Suspense>
   );
 }

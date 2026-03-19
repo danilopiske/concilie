@@ -39,8 +39,8 @@ export default function BandeirasPage() {
       await gestaoApi.bandeiras.deletar(confirmDelete.id);
       setConfirmDelete(null);
       refetch();
-    } catch (err: any) {
-      setDeleteError(err.response?.data?.detail || 'Erro ao excluir bandeira');
+    } catch (err: unknown) {
+      setDeleteError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao excluir bandeira');
       console.error(err);
     } finally {
       setDeleting(false);
@@ -133,7 +133,7 @@ export default function BandeirasPage() {
 
       {/* Info Alert */}
       <Alert variant="info">
-        Bandeiras marcadas como "Padrão" serão selecionadas automaticamente para novos clientes.
+        Bandeiras marcadas como &quot;Padrão&quot; serão selecionadas automaticamente para novos clientes.
       </Alert>
 
       {/* Table */}

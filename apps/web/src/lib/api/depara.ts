@@ -27,10 +27,10 @@ export const deparaApi = {
     await apiClient.delete(`/depara/${id}`);
   },
 
-  lerCabecalhos: async (file: File): Promise<{ headers: string[], debug_info?: any }> => {
+  lerCabecalhos: async (file: File): Promise<{ headers: string[], debug_info?: unknown }> => {
     const formData = new FormData();
     formData.append('file', file);
-    const { data } = await apiClient.post<{ headers: string[], debug_info?: any }>('/depara/ler-cabecalhos', formData, {
+    const { data } = await apiClient.post<{ headers: string[], debug_info?: unknown }>('/depara/ler-cabecalhos', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

@@ -48,7 +48,7 @@ export default function RelatorioAbusividadePage() {
 
       setReportData(data);
       setSearched(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error(err);
         setError('Erro ao gerar relatório. Verifique os filtros e tente novamente.');
     } finally {

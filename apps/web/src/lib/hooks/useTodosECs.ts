@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api/client';
 
+type ApiErr = { response?: { data?: { detail?: string } } };
+
 export function useTodosECs() {
   const [todosECs, setTodosECs] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,9 +48,9 @@ export function useTodosECs() {
         const ecsArray = Array.from(todosECsSet).sort();
         console.log('✅ [useTodosECs] TODOS OS ECs CARREGADOS:', ecsArray.length, ecsArray);
         setTodosECs(ecsArray);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('❌ [useTodosECs] ERRO CRÍTICO ao carregar ECs:', err);
-        setError(err.response?.data?.detail || 'Erro ao carregar ECs');
+        setError((err as ApiErr)?.response?.data?.detail || 'Erro ao carregar ECs');
       } finally {
         console.log('🏁 [useTodosECs] Carregamento finalizado. Loading = false');
         setLoading(false);

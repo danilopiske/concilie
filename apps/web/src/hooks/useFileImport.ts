@@ -3,6 +3,16 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { importacaoApi } from '@/lib/api/importacao';
 import { ImportTask } from '@/lib/types/importacao';
 
+type ApiTaskStatus = {
+  id: string;
+  status: string;
+  progress: number;
+  message: string;
+  updated_at: string;
+  result?: ImportTask['result'];
+  error?: string;
+};
+
 interface UseFileImportResult {
     upload: (file: File) => Promise<void>;
     status: ImportTask['status'] | 'idle';
@@ -34,9 +44,9 @@ export function useFileImport(): UseFileImportResult {
 
     const pollStatus = useCallback(async (taskId: string) => {
         try {
-            const task = await importacaoApi.getTaskStatus(taskId);
-            
-            setStatus(task.status);
+            const task = await importacaoApi.getTaskStatus(taskId) as ApiTaskStatus;
+
+            setStatus(task.status as ImportTask['status']);
             setProgress(task.progress);
 
             if (task.status === 'completed') {
@@ -66,9 +76,9 @@ export function useFileImport(): UseFileImportResult {
             setStatus('processing');
             pollInterval.current = setInterval(() => pollStatus(task_id), 1000); // Poll every 1s
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             setStatus('failed');
-            setError(err.message || 'Failed to start upload');
+            setError((err as Error)?.message || 'Failed to start upload');
         }
     }, [pollStatus]);
 

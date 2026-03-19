@@ -63,8 +63,8 @@ export function BandeiraFormModal({ isOpen, onClose, onSaved }: BandeiraFormModa
       onSaved();
       onClose();
       resetForm();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao criar bandeira');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao criar bandeira');
       console.error(err);
     } finally {
       setLoading(false);

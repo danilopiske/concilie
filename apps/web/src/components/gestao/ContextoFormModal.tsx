@@ -88,8 +88,8 @@ export function ContextoFormModal({ isOpen, onClose, contexto, onSaved }: Contex
       onSaved();
       onClose();
       resetForm();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao salvar contexto');
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao salvar contexto');
       console.error(err);
     } finally {
       setLoading(false);

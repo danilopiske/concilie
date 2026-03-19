@@ -8,6 +8,8 @@ import { useState, useEffect } from 'react';
 import { gestaoApi } from '@/lib/api/gestao';
 import { Cliente, ClienteDetalhado, ClienteCreate } from '@/lib/types/gestao';
 
+type ApiErr = { response?: { data?: { detail?: string } }; message?: string };
+
 export function useClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,8 +21,8 @@ export function useClientes() {
       setError(null);
       const data = await gestaoApi.clientes.listar();
       setClientes(data);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erro ao carregar clientes');
+    } catch (err: unknown) {
+      setError((err as ApiErr)?.response?.data?.detail || 'Erro ao carregar clientes');
       console.error('Erro ao buscar clientes:', err);
     } finally {
       setLoading(false);
@@ -36,8 +38,8 @@ export function useClientes() {
       const novoCliente = await gestaoApi.clientes.criar(cliente);
       await fetchClientes();
       return novoCliente;
-    } catch (err: any) {
-      throw new Error(err.response?.data?.detail || 'Erro ao criar cliente');
+    } catch (err: unknown) {
+      throw new Error((err as ApiErr)?.response?.data?.detail || 'Erro ao criar cliente');
     }
   };
 
@@ -46,8 +48,8 @@ export function useClientes() {
       const clienteAtualizado = await gestaoApi.clientes.atualizar(clienteId, cliente);
       await fetchClientes();
       return clienteAtualizado;
-    } catch (err: any) {
-      throw new Error(err.response?.data?.detail || 'Erro ao atualizar cliente');
+    } catch (err: unknown) {
+      throw new Error((err as ApiErr)?.response?.data?.detail || 'Erro ao atualizar cliente');
     }
   };
 
@@ -55,8 +57,8 @@ export function useClientes() {
     try {
       await gestaoApi.clientes.deletar(clienteId);
       await fetchClientes();
-    } catch (err: any) {
-      throw new Error(err.response?.data?.detail || 'Erro ao deletar cliente');
+    } catch (err: unknown) {
+      throw new Error((err as ApiErr)?.response?.data?.detail || 'Erro ao deletar cliente');
     }
   };
 
@@ -88,8 +90,8 @@ export function useClienteDetalhado(clienteId: number | null) {
         setError(null);
         const data = await gestaoApi.clientes.obter(clienteId);
         setCliente(data);
-      } catch (err: any) {
-        setError(err.response?.data?.detail || 'Erro ao carregar cliente');
+      } catch (err: unknown) {
+        setError((err as ApiErr)?.response?.data?.detail || 'Erro ao carregar cliente');
         console.error('Erro ao buscar cliente:', err);
       } finally {
         setLoading(false);

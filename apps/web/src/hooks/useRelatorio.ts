@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { relatorioApi, RelatorioRequest, RelatorioTask } from '@/lib/api/relatorio';
 
+type ApiErr = { response?: { data?: { detail?: string } }; message?: string };
+
 export function useRelatorio() {
   const [task, setTask] = useState<RelatorioTask | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,8 +22,8 @@ export function useRelatorio() {
       
       // Start Polling
       startPolling(task_id);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Erro ao iniciar geração do relatório');
+    } catch (err: unknown) {
+      setError((err as ApiErr)?.response?.data?.detail || (err as ApiErr)?.message || 'Erro ao iniciar geração do relatório');
       setLoading(false);
     }
   };

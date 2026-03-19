@@ -26,7 +26,7 @@ export const importacaoApi = {
 
   processamentos: {
     async listar(clienteId?: number, status?: string, simple: boolean = false): Promise<Processamento[]> {
-      const params: any = { simple };
+      const params: { simple: boolean; cliente_id?: number; status?: string } = { simple };
       if (clienteId) params.cliente_id = clienteId;
       if (status) params.status = status;
       
