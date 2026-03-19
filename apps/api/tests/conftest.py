@@ -69,8 +69,17 @@ def client():
 
 
 @pytest.fixture()
-def auth_headers(client):
-    """Authenticate and return Bearer token headers."""
+def auth_headers(client, db):
+    """Authenticate and return Bearer token headers.
+    Ensures test user exists in the database.
+    """
+    from app.models.usuario import Usuario
+    admin = db.query(Usuario).filter(Usuario.usuario == "admin@test.com").first()
+    if not admin:
+        # Use simple password for testing local setup
+        db.add(Usuario(usuario="admin@test.com", senha="admin123", nome="Admin Test"))
+        db.commit()
+
     response = client.post(
         "/api/v1/login/access-token",
         data={"username": "admin@test.com", "password": "admin123"},
@@ -79,3 +88,13 @@ def auth_headers(client):
         token = response.json().get("access_token", "")
         return {"Authorization": f"Bearer {token}"}
     return {}
+
+
+@pytest.fixture()
+def db():
+    """Database session for direct DB manipulation in tests."""
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

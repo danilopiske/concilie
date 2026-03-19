@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Panel, PanelHeader, PanelBody } from '@/components/ui/Panel';
 import { Button } from '@/components/ui/Button';
 import { Loading } from '@/components/shared/Loading';
@@ -10,14 +11,15 @@ import { relatorioApi, RelatorioResponse, RelatorioTask } from '@/lib/api/relato
 import { calculoApi, CalculoHistoryItem } from '@/lib/api/calculo';
 import { useRelatorio } from '@/hooks/useRelatorio';
 import { Processamento } from '@/lib/types/importacao';
-import { 
-  FileText, 
-  Download, 
+import {
+  FileText,
+  Download,
   ExternalLink,
   Filter,
   Calendar,
   Settings,
-  Clock
+  Clock,
+  Tags
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 
@@ -130,6 +132,13 @@ export default function RelatoriosPage() {
                 Gere relatórios detalhados (HTML/Excel) para auditoria e conferência.
             </p>
         </div>
+
+        <Link href="/relatorios/tags">
+          <Button variant="secondary" size="sm">
+            <Tags className="h-4 w-4 mr-2" />
+            Gerenciar Tags
+          </Button>
+        </Link>
 
       </div>
 

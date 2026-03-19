@@ -17,6 +17,7 @@ from app.models.log import LogCorrecao
 from app.models.import_task import ImportTask
 from app.models.calculo_task import CalculoTask
 from app.models.relatorio_task import RelatorioTask
+from app.models.relatorio_tag import RelatorioTag
 
 __all__ = [
     "Base",
@@ -38,5 +39,6 @@ __all__ = [
     "LogCorrecao",
     "ImportTask",
     "CalculoTask",
-    "RelatorioTask"
+    "RelatorioTask",
+    "RelatorioTag"
 ]

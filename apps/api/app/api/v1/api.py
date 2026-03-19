@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (
     analista,
     calculos,
     relatorios,
+    relatorio_tags,
     usuarios,
     contextos,
     login,
@@ -50,6 +51,8 @@ api_router.include_router(analista.router, prefix="/analista", tags=["analista"]
 api_router.include_router(calculos.router, prefix="/calculos", tags=["calculos"])
 
 api_router.include_router(relatorios.router, prefix="/relatorios", tags=["relatorios"])
+
+api_router.include_router(relatorio_tags.router, prefix="/relatorio-tags", tags=["relatorio-tags"])
 
 api_router.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"])
 

@@ -97,5 +97,13 @@ export const relatorioApi = {
   downloadUrl: (path: string) => {
     const baseUrl = apiClient.defaults.baseURL;
     return `${baseUrl}/relatorios/download?path=${encodeURIComponent(path)}`;
-  }
+  },
+
+  saveEdit: async (taskId: string, htmlContent: string): Promise<{ success: boolean; path: string }> => {
+    const response = await apiClient.post<{ success: boolean; path: string }>(
+      `/relatorios/tasks/${taskId}/save-edit`,
+      { html_content: htmlContent }
+    );
+    return response.data;
+  },
 };

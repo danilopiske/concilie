@@ -1,6 +1,7 @@
 import gc
 import os
 import shutil
+from pathlib import Path
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.models.relatorio_task import RelatorioTask
@@ -46,6 +47,28 @@ class RelatorioService:
                 task.progress = progress
                 task.message = message
                 session.commit()
+
+    def save_edit(self, task_id: str, html_content: str) -> str:
+        """Persiste o HTML editado e atualiza result_path na task."""
+        task = self.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task {task_id} não encontrada")
+        if task.status != "SUCCESS":
+            raise ValueError("Apenas relatórios com status SUCCESS podem ser editados")
+
+        # Determinar diretório de saída a partir do result_path existente
+        if task.result_path:
+            output_dir = Path(task.result_path).parent
+        else:
+            output_dir = Path("relatorios_gerados")
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        edited_path = output_dir / f"{task_id}_edited.html"
+        edited_path.write_text(html_content, encoding="utf-8")
+
+        task.result_path = str(edited_path)
+        self.db.commit()
+        return str(edited_path)
 
     def run_async_report(self, task_id: str):
         # Usar uma nova sessão dedicada para todo o processo em background

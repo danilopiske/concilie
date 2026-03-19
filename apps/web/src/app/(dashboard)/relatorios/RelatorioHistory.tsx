@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { Table, TableColumn } from "@/components/ui/Table";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Download, RefreshCw, FileText, AlertCircle, Loader2, Clock } from 'lucide-react';
+import { Download, RefreshCw, FileText, AlertCircle, Loader2, Clock, Pencil } from 'lucide-react';
 import { relatorioApi, RelatorioTask } from '@/lib/api/relatorio';
 
 interface RelatorioHistoryProps {
@@ -108,11 +109,19 @@ export function RelatorioHistory({ processamentoId, refreshTrigger }: RelatorioH
       label: '', // Empty label for actions
       width: '100px',
       render: (_, row) => (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          {row.status === 'SUCCESS' && (
+            <Link href={`/relatorios/editor?task_id=${row.id}`}>
+              <Button size="sm" variant="secondary" className="rounded-xl h-8 px-3 font-bold text-xs">
+                <Pencil className="h-3 w-3 mr-1" />
+                EDITAR
+              </Button>
+            </Link>
+          )}
           {row.status === 'SUCCESS' && row.result_path && (
-            <Button 
-              size="sm" 
-              variant="primary" 
+            <Button
+              size="sm"
+              variant="primary"
               onClick={() => handleDownload(row.result_path!)}
               className="rounded-xl h-8 px-4 font-bold text-xs"
             >

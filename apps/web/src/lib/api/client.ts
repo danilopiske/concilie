@@ -13,13 +13,31 @@ export const apiClient: AxiosInstance = axios.create({
   withCredentials: true, // envia cookie HttpOnly automaticamente
 });
 
-// Interceptor para tratamento de erros
+// Interceptor para adicionar o token de autorização
+apiClient.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
+// Interceptor para tratamento de erros e captura de token
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Se for a rota de login, salvar o token recebido no localStorage
+    if (response.config.url?.includes('/login/access-token') && response.data.access_token) {
+      localStorage.setItem('access_token', response.data.access_token);
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
-      // Redirecionar para login (futuro)
+      // Remover token inválido
       if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token');
         window.location.href = '/login';
       }
     }
