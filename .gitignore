@@ -187,9 +187,13 @@ dev_tools/
 # Diretórios não relacionados (devem ser removidos)
 spotify_downloader/
 bd_structures/
-docs/
 docs_old/
-scripts/
+# Ignorar arquivos doc avulsos mas rastrear docs/stories/
+docs/*.md
+docs/*.pdf
+docs/*.docx
+# scripts/ apenas na raiz do projeto (não afeta apps/api/scripts/)
+/scripts/
 
 # Arquivos de teste temporários (debug scripts na raiz)
 check_*.py
