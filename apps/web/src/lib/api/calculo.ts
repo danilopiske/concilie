@@ -90,5 +90,29 @@ export const calculoApi = {
 
   deleteCalculo: async (calcId: string): Promise<void> => {
     await apiClient.delete(`calculos/${calcId}`);
-  }
+  },
+
+  exportExcel: (calcId: string): void => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    const baseUrl = apiClient.defaults.baseURL;
+    const url = `${baseUrl}/calculos/export/${encodeURIComponent(calcId)}`;
+
+    // Fetch com auth header e disparar download via blob
+    fetch(url, {
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Erro ao exportar Excel');
+        return res.blob();
+      })
+      .then((blob) => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `calculo_${calcId}.xlsx`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      })
+      .catch((err) => console.error(err));
+  },
 };

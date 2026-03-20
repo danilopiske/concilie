@@ -12,15 +12,16 @@ import { calculoApi, CalculoStats, CalculoResultado } from '@/lib/api/calculo';
 import { useCalculo } from '@/hooks/useCalculo';
 import { Processamento } from '@/lib/types/importacao';
 import { formatCurrency } from '@/lib/utils/formatters';
-import { 
-  Calculator, 
-  Search, 
-  Play, 
-  TrendingDown, 
+import {
+  Calculator,
+  Search,
+  Play,
+  TrendingDown,
   AlertTriangle,
   Settings,
   BarChart2,
-  RefreshCw
+  RefreshCw,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 
@@ -359,13 +360,21 @@ export default function CalculosToolPage() {
                   Resultados (Top 100 Discrepâncias)
               </PanelHeader>
               <PanelBody>
-                  <Table 
-                    columns={resultsColumns} 
-                    data={resultsData} 
+                  <Table
+                    columns={resultsColumns}
+                    data={resultsData}
                     emptyMessage="Nenhuma discrepância encontrada ou cálculo ainda não realizado."
                   />
-                  <div className="mt-2 text-right text-xs text-gray-500">
-                      Mostrando apenas os 100 maiores desvios.
+                  <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Mostrando apenas os 100 maiores desvios.</span>
+                      <Button
+                        variant="secondary"
+                        onClick={() => calculoApi.exportExcel(selectedProcessamento)}
+                        disabled={!selectedProcessamento}
+                      >
+                        <FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" />
+                        Exportar Excel (completo)
+                      </Button>
                   </div>
               </PanelBody>
           </Panel>

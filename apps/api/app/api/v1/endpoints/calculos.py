@@ -1,7 +1,13 @@
+import io
 import logging
+from decimal import Decimal
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -125,6 +131,138 @@ def listar_resultados(
     logger.debug("Buscando resultados para calc_id: %s", calc_id)
     repo = CalculoRepository(db)
     return repo.listar_resultados(calc_id, skip, limit)
+
+
+@router.get("/export/{calc_id:path}")
+def export_calculo_excel(calc_id: str, db: Session = Depends(get_db)):
+    """Exporta todos os resultados de um cálculo para Excel (2 sheets: Resumo + Detalhamento)."""
+    from app.models.vendas_calculos import VendasCalculos
+
+    registros = (
+        db.query(VendasCalculos)
+        .filter(VendasCalculos.calc_id == calc_id)
+        .order_by(VendasCalculos.perda.asc())
+        .all()
+    )
+    if not registros:
+        raise HTTPException(status_code=404, detail="Nenhum resultado encontrado para este cálculo.")
+
+    wb = Workbook()
+
+    # ── Cores e estilos ─────────────────────────────────────────────────────
+    HEADER_FILL = PatternFill("solid", fgColor="223A6B")
+    HEADER_FONT = Font(bold=True, color="FFFFFF")
+    LOSS_FILL   = PatternFill("solid", fgColor="FFE5E5")
+    TOTAL_FONT  = Font(bold=True)
+
+    def _style_header(ws, row=1):
+        for cell in ws[row]:
+            cell.fill = HEADER_FILL
+            cell.font = HEADER_FONT
+            cell.alignment = Alignment(horizontal="center")
+
+    def _autofit(ws):
+        for col_cells in ws.columns:
+            length = max((len(str(c.value or "")) for c in col_cells), default=10)
+            ws.column_dimensions[get_column_letter(col_cells[0].column)].width = min(length + 4, 40)
+
+    # ── Sheet 1: Resumo ──────────────────────────────────────────────────────
+    ws_resumo = wb.active
+    ws_resumo.title = "Resumo"
+
+    total_valor   = sum(float(r.vl_venda or 0) for r in registros)
+    total_perda   = sum(float(r.perda or 0) for r in registros)
+    com_perda     = sum(1 for r in registros if r.perda is not None and r.perda < 0)
+    media_tx_vend = sum(float(r.tx_venda or 0) for r in registros) / len(registros)
+    media_tx_calc = (
+        sum(float(r.tx_calc or 0) for r in registros if r.tx_calc is not None)
+        / max(sum(1 for r in registros if r.tx_calc is not None), 1)
+    )
+
+    resumo_rows = [
+        ("Parâmetro", "Valor"),
+        ("Cálculo ID", registros[0].calc_id),
+        ("Tipo de Taxa", registros[0].calc_tipo or "-"),
+        ("Usuário", registros[0].calc_usuario or "-"),
+        ("Data do Cálculo", str(registros[0].calc_data)[:19] if registros[0].calc_data else "-"),
+        ("", ""),
+        ("Total de Registros", len(registros)),
+        ("Total Valor de Venda (R$)", round(total_valor, 2)),
+        ("Total Perda/Ganho (R$)", round(total_perda, 2)),
+        ("Registros com Perda", com_perda),
+        ("Média Taxa Cobrada (%)", round(media_tx_vend, 4)),
+        ("Média Taxa Calculada (%)", round(media_tx_calc, 4)),
+    ]
+
+    for row in resumo_rows:
+        ws_resumo.append(list(row))
+
+    _style_header(ws_resumo, row=1)
+    _autofit(ws_resumo)
+
+    # ── Sheet 2: Detalhamento ────────────────────────────────────────────────
+    ws_det = wb.create_sheet("Detalhamento")
+
+    headers = [
+        "Data Venda", "Bandeira", "Forma Pagamento", "Adquirente",
+        "NSU", "Cód. Autorização", "Vl. Venda (R$)",
+        "Tx. Cobrada (%)", "Desc. Cobrado (R$)", "Vl. Líq. Cobrado (R$)",
+        "Tx. Calculada (%)", "Desc. Calculado (R$)", "Vl. Líq. Calculado (R$)",
+        "Diferença Taxa (%)", "Perda/Ganho (R$)",
+    ]
+    ws_det.append(headers)
+    _style_header(ws_det, row=1)
+
+    for r in registros:
+        diff_taxa = (
+            float(r.tx_venda) - float(r.tx_calc)
+            if r.tx_venda is not None and r.tx_calc is not None
+            else None
+        )
+        row_data = [
+            str(r.data_venda)[:10] if r.data_venda else "",
+            r.bandeira or "",
+            r.forma_pagamento or "",
+            r.adquirente or "",
+            r.nsu or "",
+            r.cod_autorizacao or "",
+            float(r.vl_venda) if r.vl_venda is not None else None,
+            float(r.tx_venda) if r.tx_venda is not None else None,
+            float(r.desc_venda) if r.desc_venda is not None else None,
+            float(r.vl_liq_venda) if r.vl_liq_venda is not None else None,
+            float(r.tx_calc) if r.tx_calc is not None else None,
+            float(r.desc_calc) if r.desc_calc is not None else None,
+            float(r.vl_liq_calc) if r.vl_liq_calc is not None else None,
+            round(diff_taxa, 4) if diff_taxa is not None else None,
+            float(r.perda) if r.perda is not None else None,
+        ]
+        ws_det.append(row_data)
+        # Destacar linhas com perda
+        if r.perda is not None and float(r.perda) < 0:
+            for cell in ws_det[ws_det.max_row]:
+                cell.fill = LOSS_FILL
+
+    # Linha de totais
+    total_row = ws_det.max_row + 1
+    ws_det.cell(total_row, 1, "TOTAL")
+    ws_det.cell(total_row, 7, round(total_valor, 2))
+    ws_det.cell(total_row, 15, round(total_perda, 2))
+    for col in [1, 7, 15]:
+        ws_det.cell(total_row, col).font = TOTAL_FONT
+
+    _autofit(ws_det)
+
+    # ── Serializar e retornar ────────────────────────────────────────────────
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"calculo_{calc_id.replace('/', '_')}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @router.delete("/{calc_id:path}")
