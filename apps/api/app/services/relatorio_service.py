@@ -8,7 +8,7 @@ from pathlib import Path
 from modules.reports import gerar_relatorio_html, gerar_relatorio_mensal_html
 from sqlalchemy.orm import Session
 
-from app.core.database import engine
+from app.core.database import SessionLocal, engine
 from app.models.relatorio_task import RelatorioTask
 from app.services.abusividade_relatorio_service import AbusividadeRelatorioService
 
@@ -41,14 +41,17 @@ class RelatorioService:
             query = query.filter(RelatorioTask.processamento_id == processamento_id)
         return query.order_by(RelatorioTask.created_at.desc()).offset(skip).limit(limit).all()
 
+    def _update_progress(self, session, task, pct: int, msg: str):
+        task.progress = pct
+        task.message = msg
+        session.commit()
+
     def update_task_progress(self, task_id: str, progress: int, message: str):
         # Usar nova sessão para evitar conflitos de transação no background
-        with Session(engine) as session:
+        with SessionLocal() as session:
             task = session.query(RelatorioTask).filter(RelatorioTask.id == task_id).first()
             if task:
-                task.progress = progress
-                task.message = message
-                session.commit()
+                self._update_progress(session, task, progress, message)
 
     def save_edit(self, task_id: str, html_content: str) -> str:
         """Persiste o HTML editado e atualiza result_path na task."""
@@ -75,7 +78,7 @@ class RelatorioService:
     def run_async_report(self, task_id: str):
         # Usar uma nova sessão dedicada para todo o processo em background
         # Isso evita usar a sessão do request original que é fechada quando a API responde
-        with Session(engine) as session:
+        with SessionLocal() as session:
             try:
                 # Buscar a task com a nova sessão
                 task = session.get(RelatorioTask, task_id)
@@ -83,13 +86,8 @@ class RelatorioService:
                     print(f"Task {task_id} não encontrada para processamento async")
                     return
 
-                def update_progress(pct, msg):
-                    task.progress = pct
-                    task.message = msg
-                    session.commit()
-
                 task.status = "PROCESSING"
-                update_progress(5, "Preparando ambiente...")
+                self._update_progress(session, task, 5, "Preparando ambiente...")
 
                 metadata = task.metadata_json or {}
 
@@ -115,7 +113,7 @@ class RelatorioService:
 
                 # Callback para funções legadas
                 def progress_callback(pct, msg):
-                    update_progress(pct, msg)
+                    self._update_progress(session, task, pct, msg)
 
                 # Force GC before heavy report generation to free memory from prior calculation
                 gc.collect()
@@ -151,7 +149,7 @@ class RelatorioService:
 
                 # Gerar Abusividade se solicitado no background
                 if metadata.get('gerar_abusividade'):
-                    update_progress(95, "Gerando demonstrativo de abusividade...")
+                    self._update_progress(session, task, 95, "Gerando demonstrativo de abusividade...")
                     # Passar a sessão do background para o serviço de abusividade
                     abs_service = AbusividadeRelatorioService(session)
                     abusividade_path = abs_service.gerar_html(
