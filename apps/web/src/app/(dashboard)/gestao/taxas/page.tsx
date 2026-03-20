@@ -8,8 +8,10 @@
 import { useState } from 'react';
 import { Copy } from 'lucide-react';
 import { Breadcrumb } from '@/components/layout';
+import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { TaxasForm } from '@/components/gestao/TaxasForm';
 import { CopiarTaxasModal } from '@/components/gestao/CopiarTaxasModal';
+import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { useClientes } from '@/lib/hooks/useClientes';
 import { useECs } from '@/lib/hooks/useECs';
@@ -27,13 +29,6 @@ export default function GestaoTaxasPage() {
   const { ecs, loading: loadingECs } = useECs(clienteSelecionado);
   const { contextos, loading: loadingContextos } = useContextos();
   const { todosECs, loading: loadingTodosECs, error: errorTodosECs } = useTodosECs();
-
-  console.log('📄 [GestaoTaxasPage] Estado todosECs:', {
-    todosECs_length: todosECs?.length || 0,
-    todosECs_sample: todosECs?.slice(0, 3),
-    loading: loadingTodosECs,
-    error: errorTodosECs,
-  });
 
   const handleClienteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
@@ -84,15 +79,18 @@ export default function GestaoTaxasPage() {
               Configure taxas por EC, bandeira e forma de pagamento. Taxas genéricas aplicam-se a todas as bandeiras.
             </p>
           </div>
-          <button
-            onClick={() => setModalCopiarAberto(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
-          >
+          <Button onClick={() => setModalCopiarAberto(true)} className="flex items-center gap-2">
             <Copy className="w-4 h-4" />
             Copiar Taxas
-          </button>
+          </Button>
         </div>
       </div>
+
+      {errorTodosECs && (
+        <div className="mb-4">
+          <ErrorMessage message="Erro ao carregar lista de ECs para cópia de taxas." />
+        </div>
+      )}
 
       {/* Seletores */}
       <div className="bg-white shadow rounded-lg p-6 mb-6">

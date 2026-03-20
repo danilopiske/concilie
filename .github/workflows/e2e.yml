@@ -1,0 +1,102 @@
+name: E2E Tests (Playwright)
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    name: Smoke Tests E2E
+    runs-on: ubuntu-latest
+    needs: []
+    timeout-minutes: 30
+
+    services:
+      api:
+        image: python:3.11-slim
+        # Note: API is started as a step, not a service container
+        # because it needs the repo code
+
+    defaults:
+      run:
+        working-directory: apps/web
+
+    env:
+      E2E_USER: admin
+      E2E_PASSWORD: ${{ secrets.E2E_PASSWORD || '1234' }}
+      PLAYWRIGHT_BASE_URL: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: pip install poetry==1.8.3 && poetry install --no-interaction
+
+      - name: Start API server
+        working-directory: apps/api
+        run: |
+          poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          echo "Waiting for API..."
+          for i in {1..30}; do
+            curl -sf http://localhost:8000/api/v1/health && break
+            sleep 2
+          done
+        env:
+          DATABASE_TYPE: sqlite
+          SQLITE_DB_PATH: ../../data/concilie.db
+          SECRET_KEY: ci-secret-key-e2e-tests
+          ALGORITHM: HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES: 60
+
+      - name: Install web dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Next.js app
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+      - name: Start Next.js server
+        run: |
+          pnpm start &
+          echo "Waiting for Next.js..."
+          for i in {1..30}; do
+            curl -sf http://localhost:3000 && break
+            sleep 2
+          done
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Run E2E smoke tests
+        run: pnpm test:e2e
+        env:
+          E2E_USER: ${{ env.E2E_USER }}
+          E2E_PASSWORD: ${{ env.E2E_PASSWORD }}
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7

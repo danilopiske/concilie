@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/Button';
 import { UsuariosTable } from '@/components/configuracoes/UsuariosTable';
 import { UsuarioFormModal } from '@/components/configuracoes/UsuarioFormModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { Usuario, UsuarioCreate, UsuarioUpdate, usuariosApi } from '@/lib/api/usuarios';
 
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<Usuario | null>(null);
@@ -23,12 +25,13 @@ export default function UsuariosPage() {
 
   const fetchUsuarios = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await usuariosApi.listar();
       setUsuarios(data);
-    } catch (error) {
-      console.error('Failed to fetch users:', error);
-      // alert('Erro ao carregar usuários.'); // Optional: Toast notification
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+      setError('Erro ao carregar usuários. Verifique a conexão com a API.');
     } finally {
       setLoading(false);
     }
@@ -58,9 +61,9 @@ export default function UsuariosPage() {
       await usuariosApi.deletar(userToDelete.id);
       await fetchUsuarios();
       setUserToDelete(null);
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      alert('Erro ao excluir usuário.');
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setError('Erro ao excluir usuário.');
     } finally {
       setDeleting(false);
     }
@@ -76,8 +79,8 @@ export default function UsuariosPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 text-white">Gerenciar Usuários</h1>
-          <p className="text-gray-500 text-gray-400">Cadastre e gerencie o acesso ao sistema</p>
+          <h1 className="text-2xl font-bold text-gray-900">Gerenciar Usuários</h1>
+          <p className="text-gray-500">Cadastre e gerencie o acesso ao sistema</p>
         </div>
         
         <Button onClick={() => { setEditingUser(null); setIsModalOpen(true); }}>
@@ -86,12 +89,14 @@ export default function UsuariosPage() {
         </Button>
       </div>
 
-      <div className="flex items-center bg-white bg-gray-800 border rounded-md px-3 py-2 max-w-md">
+      {error && <ErrorMessage message={error} />}
+
+      <div className="flex items-center bg-white border rounded-md px-3 py-2 max-w-md">
         <Search className="text-gray-400 mr-2" size={20} />
         <input
           type="text"
           placeholder="Buscar por nome, login ou empresa..."
-          className="bg-transparent border-none outline-none w-full text-gray-700 text-gray-200 placeholder-gray-400"
+          className="bg-transparent border-none outline-none w-full text-gray-700 placeholder-gray-400"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />

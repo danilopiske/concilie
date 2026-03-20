@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs';
 import { Button } from '@/components/ui/Button';
 import { importacaoApi } from '@/lib/api/importacao';
 import { Processamento } from '@/lib/types/importacao';
+import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { BarChart3, Search } from 'lucide-react';
 
 import { BandeirasReport } from './_components/BandeirasReport';
@@ -23,6 +24,7 @@ export default function AnalisePage() {
   const [processamentos, setProcessamentos] = useState<Processamento[]>([]);
   const [selectedProcessamento, setSelectedProcessamento] = useState<string>('');
   const [loadingProc, setLoadingProc] = useState(false);
+  const [errorProc, setErrorProc] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProcessamentos();
@@ -40,6 +42,7 @@ export default function AnalisePage() {
       }
     } catch (err) {
       console.error(err);
+      setErrorProc('Erro ao carregar processamentos. Verifique a conexão com a API.');
     } finally {
       setLoadingProc(false);
     }
@@ -52,6 +55,8 @@ export default function AnalisePage() {
         <BarChart3 className="w-6 h-6" />
         <h1 className="text-xl font-bold uppercase tracking-wide">Analista de Dados</h1>
       </div>
+
+      {errorProc && <ErrorMessage message={errorProc} />}
 
       {/* Seleção de Processamento - Estilo Legacy */}
       <Panel className="bg-gray-50 border-gray-300">

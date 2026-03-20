@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Panel, PanelHeader, PanelBody } from '@/components/ui/Panel';
+import { Breadcrumb } from '@/components/layout';
 import { Button } from '@/components/ui/Button';
 import { Table, TableColumn } from '@/components/ui/Table';
 import { Loading } from '@/components/shared/Loading';
@@ -87,6 +88,12 @@ export default function GestaoCalculosPage() {
 
   return (
     <div className="max-w-7xl mx-auto pb-10 space-y-6">
+      <Breadcrumb
+        items={[
+          { label: 'Cálculos', href: '/calculos' },
+          { label: 'Gestão de Cálculos' },
+        ]}
+      />
       <div className="border-b pb-4">
         <div className="flex items-center gap-2 text-gray-700 mb-1">
             <History className="w-6 h-6" />

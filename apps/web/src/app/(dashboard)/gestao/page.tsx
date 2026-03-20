@@ -12,7 +12,6 @@ import {
   Filter,
   CreditCard,
   DollarSign,
-  Wallet,
 } from 'lucide-react';
 
 interface GestaoCard {
@@ -52,12 +51,6 @@ const GESTAO_TOOLS: GestaoCard[] = [
     description: 'Gerencie taxas de transação por bandeira e forma de pagamento',
     href: '/gestao/taxas',
     icon: DollarSign,
-  },
-  {
-    title: 'Formas de Pagamento',
-    description: 'Configure as formas de pagamento aceitas',
-    href: '/gestao/formas-pagamento',
-    icon: Wallet,
   },
 ];
 
