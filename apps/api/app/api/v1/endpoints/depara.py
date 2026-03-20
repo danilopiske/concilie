@@ -86,20 +86,11 @@ async def ler_cabecalhos(
         project_root = current_dir.parent.parent.parent.parent.parent.parent
         sys.path.append(str(project_root))
 
-        try:
-            from proc.proc_importacao import (
-                is_multisheet_rede_file,
-                read_file_with_header,
-                safe_read_multisheet_file,
-            )
-        except ImportError:
-            # Fallback para caminho hardcoded se a relatividade falhar (ambiente de dev vs prod)
-            sys.path.append(r"d:/Financial  base/Financial_P")
-            from proc.proc_importacao import (
-                is_multisheet_rede_file,
-                read_file_with_header,
-                safe_read_multisheet_file,
-            )
+        from proc.proc_importacao import (
+            is_multisheet_rede_file,
+            read_file_with_header,
+            safe_read_multisheet_file,
+        )
 
         # Salvar arquivo temporário
         suffix = Path(filename).suffix

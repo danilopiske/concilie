@@ -3,10 +3,13 @@ Application Configuration
 """
 
 import json
+import logging
 import os
 from typing import List, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_logger = logging.getLogger(__name__)
 
 # Calculate absolute path for SQLite here (outside class)
 _current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -38,7 +41,13 @@ class Settings(BaseSettings):
         Otherwise falls back to ALLOWED_ORIGINS + optional FRONTEND_URL.
         """
         if self.ALLOWED_ORIGINS_STR:
-            return json.loads(self.ALLOWED_ORIGINS_STR)
+            try:
+                return json.loads(self.ALLOWED_ORIGINS_STR)
+            except json.JSONDecodeError as e:
+                _logger.warning(
+                    "ALLOWED_ORIGINS_STR inválido (%s), usando defaults. Valor: %r",
+                    e, self.ALLOWED_ORIGINS_STR
+                )
 
         origins = self.ALLOWED_ORIGINS.copy()
 

@@ -183,5 +183,5 @@ class RelatorioService:
                         task.status = "FAILED"
                         task.message = f"Erro: {str(e)}"
                         session.commit()
-                except:
-                    pass
+                except Exception:
+                    pass  # Já logamos o erro principal acima

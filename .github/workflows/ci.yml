@@ -43,7 +43,6 @@ jobs:
           SECRET_KEY: ${{ secrets.SECRET_KEY_CI || 'ci-test-secret-key-not-for-production' }}
           ALGORITHM: HS256
           ACCESS_TOKEN_EXPIRE_MINUTES: 30
-          CORS_ORIGINS: '["http://localhost:3000"]'
 
   # ── Frontend: lint + typecheck + build ───────────────────────────────────
   lint-web:

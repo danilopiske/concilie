@@ -88,10 +88,13 @@ def auth_headers(client, db):
         "/api/v1/login/access-token",
         data={"username": "admin@test.com", "password": "admin123"},
     )
-    if response.status_code == 200:
-        token = response.json().get("access_token", "")
-        return {"Authorization": f"Bearer {token}"}
-    return {}
+    if response.status_code != 200:
+        pytest.fail(
+            f"auth_headers: login falhou com status {response.status_code}. "
+            f"Response: {response.text[:200]}"
+        )
+    token = response.json().get("access_token", "")
+    return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture()
