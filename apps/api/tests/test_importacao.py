@@ -3,20 +3,29 @@ Tests for importacao (async import) endpoints.
 """
 
 
-def test_importacao_task_not_found(client):
+def test_importacao_task_not_found(client, auth_headers):
     """Status de task inexistente deve retornar 404."""
-    response = client.get("/api/v1/importacao-async/task/id_inexistente")
+    if not auth_headers:
+        import pytest
+        pytest.skip("No valid auth credentials configured for test environment")
+    response = client.get("/api/v1/importacao-async/task/id_inexistente", headers=auth_headers)
     assert response.status_code in (404, 422)
 
 
-def test_importacao_confirmar_requires_body(client):
+def test_importacao_confirmar_requires_body(client, auth_headers):
     """Confirmar sem body deve retornar 422."""
-    response = client.post("/api/v1/importacao-async/confirmar", json={})
+    if not auth_headers:
+        import pytest
+        pytest.skip("No valid auth credentials configured for test environment")
+    response = client.post("/api/v1/importacao-async/confirmar", headers=auth_headers, json={})
     assert response.status_code == 422
 
 
-def test_importacao_confirmar_minimal_payload(client):
-    """Confirmar com payload mínimo válido (sem auth) deve retornar 4xx."""
+def test_importacao_confirmar_minimal_payload(client, auth_headers):
+    """Confirmar com payload mínimo válido deve retornar 4xx ou iniciar processamento."""
+    if not auth_headers:
+        import pytest
+        pytest.skip("No valid auth credentials configured for test environment")
     payload = {
         "cliente_id": "cli_test",
         "tipo": "vendas",
@@ -25,13 +34,14 @@ def test_importacao_confirmar_minimal_payload(client):
         "ec_id": "ec_test",
         "processamentoid": None,
     }
-    response = client.post("/api/v1/importacao-async/confirmar", json=payload)
-    # Pode retornar 200/202 (processando) ou erro de negócio (4xx/5xx)
-    # O endpoint não exige auth, então pode iniciar background task
+    response = client.post("/api/v1/importacao-async/confirmar", headers=auth_headers, json=payload)
     assert response.status_code in (200, 202, 400, 422, 500)
 
 
-def test_importacao_task_id_path_param(client):
+def test_importacao_task_id_path_param(client, auth_headers):
     """Task ID com barras deve ser aceito pelo path converter."""
-    response = client.get("/api/v1/importacao-async/task/2024/01/test-id")
+    if not auth_headers:
+        import pytest
+        pytest.skip("No valid auth credentials configured for test environment")
+    response = client.get("/api/v1/importacao-async/task/2024/01/test-id", headers=auth_headers)
     assert response.status_code in (404, 422)

@@ -2,8 +2,9 @@
 API v1 Router
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.api import deps
 from app.api.v1.endpoints import (
     abusividade,
     ai,
@@ -27,39 +28,27 @@ from app.api.v1.endpoints import (
 
 api_router = APIRouter()
 
-api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
-
-api_router.include_router(clientes.router, prefix="/clientes", tags=["clientes"])
-
-api_router.include_router(gestao.router, prefix="/gestao", tags=["gestao"])
-
-api_router.include_router(termos.router, prefix="/termos", tags=["termos"])
-
-api_router.include_router(taxas.router, prefix="/taxas", tags=["taxas"])
-
-api_router.include_router(depara.router, prefix="/depara", tags=["depara"])
-
-api_router.include_router(processamentos.router, prefix="/processamentos", tags=["processamentos"])
-
-api_router.include_router(correcao.router, prefix="/correcao", tags=["correcao"])
-
-api_router.include_router(importacao.router, prefix="/importar", tags=["importacao"])
-
-api_router.include_router(importacao_async.router, prefix="/importacao-async", tags=["importacao-async"])
-
-api_router.include_router(analista.router, prefix="/analista", tags=["analista"])
-
-api_router.include_router(calculos.router, prefix="/calculos", tags=["calculos"])
-
-api_router.include_router(relatorios.router, prefix="/relatorios", tags=["relatorios"])
-
-api_router.include_router(relatorio_tags.router, prefix="/relatorio-tags", tags=["relatorio-tags"])
-
-api_router.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"])
-
-api_router.include_router(contextos.router, prefix="/contextos", tags=["contextos"])
-
-api_router.include_router(abusividade.router, prefix="/abusividade", tags=["abusividade"])
-
+# ── Routers públicos (sem autenticação) ───────────────────────────────────────
 api_router.include_router(login.router, tags=["login"])
+
+# ── Routers protegidos (requerem JWT válido) ──────────────────────────────────
+_auth = [Depends(deps.get_current_user)]
+
+api_router.include_router(ai.router, prefix="/ai", tags=["ai"], dependencies=_auth)
+api_router.include_router(clientes.router, prefix="/clientes", tags=["clientes"], dependencies=_auth)
+api_router.include_router(gestao.router, prefix="/gestao", tags=["gestao"], dependencies=_auth)
+api_router.include_router(termos.router, prefix="/termos", tags=["termos"], dependencies=_auth)
+api_router.include_router(taxas.router, prefix="/taxas", tags=["taxas"], dependencies=_auth)
+api_router.include_router(depara.router, prefix="/depara", tags=["depara"], dependencies=_auth)
+api_router.include_router(processamentos.router, prefix="/processamentos", tags=["processamentos"], dependencies=_auth)
+api_router.include_router(correcao.router, prefix="/correcao", tags=["correcao"], dependencies=_auth)
+api_router.include_router(importacao.router, prefix="/importar", tags=["importacao"], dependencies=_auth)
+api_router.include_router(importacao_async.router, prefix="/importacao-async", tags=["importacao-async"], dependencies=_auth)
+api_router.include_router(analista.router, prefix="/analista", tags=["analista"], dependencies=_auth)
+api_router.include_router(calculos.router, prefix="/calculos", tags=["calculos"], dependencies=_auth)
+api_router.include_router(relatorios.router, prefix="/relatorios", tags=["relatorios"], dependencies=_auth)
+api_router.include_router(relatorio_tags.router, prefix="/relatorio-tags", tags=["relatorio-tags"], dependencies=_auth)
+api_router.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"], dependencies=_auth)
+api_router.include_router(contextos.router, prefix="/contextos", tags=["contextos"], dependencies=_auth)
+api_router.include_router(abusividade.router, prefix="/abusividade", tags=["abusividade"], dependencies=_auth)
 

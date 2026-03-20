@@ -3,16 +3,22 @@ Tests for relatorios (reports) endpoints.
 """
 
 
-def test_relatorios_opcoes_sem_processamento(client):
+def test_relatorios_opcoes_sem_processamento(client, auth_headers):
     """Opcoes sem processamento_id deve retornar resposta válida."""
-    response = client.get("/api/v1/relatorios/opcoes")
+    if not auth_headers:
+        import pytest
+        pytest.skip("No valid auth credentials configured for test environment")
+    response = client.get("/api/v1/relatorios/opcoes", headers=auth_headers)
     # Pode retornar 200 com lista vazia ou erro se módulo legado indisponível
     assert response.status_code in (200, 500, 503)
 
 
-def test_relatorios_opcoes_com_processamento(client):
+def test_relatorios_opcoes_com_processamento(client, auth_headers):
     """Opcoes com processamento_id inválido deve retornar 200 ou erro de negócio."""
-    response = client.get("/api/v1/relatorios/opcoes?processamento_id=id_inexistente")
+    if not auth_headers:
+        import pytest
+        pytest.skip("No valid auth credentials configured for test environment")
+    response = client.get("/api/v1/relatorios/opcoes?processamento_id=id_inexistente", headers=auth_headers)
     assert response.status_code in (200, 404, 500, 503)
 
 

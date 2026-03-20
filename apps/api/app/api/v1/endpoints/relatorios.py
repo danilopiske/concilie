@@ -82,7 +82,6 @@ def get_opcoes(processamento_id: str = None):
 def get_adquirentes(
     processamento_id: str,
     calc_tipo: str = None,
-    _: str = Depends(get_current_user),
 ):
     """Retorna lista de adquirentes e período disponível para um processamento e tipo de cálculo"""
     try:
@@ -107,7 +106,6 @@ def get_adquirentes(
 @router.post("/gerar", response_model=RelatorioResponse)
 def gerar_relatorio(
     req: RelatorioRequest,
-    _: str = Depends(get_current_user),
 ):
     """
     Gera o relatório HTML usando a lógica legada.
@@ -306,7 +304,6 @@ def download_relatorio(path: str):
 async def save_edit_relatorio(
     task_id: str,
     req: SaveEditRequest,
-    _: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Salva o relatório editado e atualiza o result_path da task."""
@@ -325,8 +322,7 @@ async def get_historico(
     processamento_id: str = None,
     skip: int = 0,
     limit: int = 50,
-    _: str = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     Retorna o histórico de relatórios gerados.

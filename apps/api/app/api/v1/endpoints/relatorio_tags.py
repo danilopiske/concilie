@@ -7,7 +7,6 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.repositories.relatorio_tag_repository import RelatorioTagRepository
 from app.schemas.relatorio_tag import RelatorioTagCreate, RelatorioTagResponse, RelatorioTagUpdate
@@ -25,7 +24,6 @@ def _parse_ativo(ativo: Optional[str] = "true") -> Optional[bool]:
 @router.get("/", response_model=List[RelatorioTagResponse])
 def listar_tags(
     ativo: Optional[str] = "true",
-    _: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Lista tags. ativo=true (default) | false | all"""
@@ -36,7 +34,6 @@ def listar_tags(
 @router.post("/", response_model=RelatorioTagResponse, status_code=201)
 def criar_tag(
     data: RelatorioTagCreate,
-    _: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Cria nova tag. Retorna 422 se nome já existir."""
@@ -52,7 +49,6 @@ def criar_tag(
 @router.get("/{tag_id}", response_model=RelatorioTagResponse)
 def obter_tag(
     tag_id: int,
-    _: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Retorna tag por ID."""
@@ -67,7 +63,6 @@ def obter_tag(
 def atualizar_tag(
     tag_id: int,
     data: RelatorioTagUpdate,
-    _: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Atualiza tag. Retorna 422 se novo nome já existir em outra tag."""
@@ -88,7 +83,6 @@ def atualizar_tag(
 @router.delete("/{tag_id}", status_code=204)
 def excluir_tag(
     tag_id: int,
-    _: str = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """Soft delete: marca tag como inativa."""

@@ -13,7 +13,6 @@ router = APIRouter()
 def listar_usuarios(
     skip: int = 0,
     limit: int = 100,
-    _: str = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """
@@ -25,7 +24,6 @@ def listar_usuarios(
 @router.post("/", response_model=UsuarioResponse)
 def criar_usuario(
     usuario_in: UsuarioCreate,
-    _: str = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """
@@ -43,7 +41,6 @@ def criar_usuario(
 def atualizar_usuario(
     usuario_id: int,
     usuario_in: UsuarioUpdate,
-    _: str = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """
@@ -61,7 +58,6 @@ def atualizar_usuario(
 @router.delete("/{usuario_id}", response_model=Any)
 def deletar_usuario(
     usuario_id: int,
-    _: str = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db)
 ) -> Any:
     """

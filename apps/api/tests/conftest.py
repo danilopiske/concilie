@@ -15,8 +15,9 @@ from sqlalchemy.pool import StaticPool
 root_dir = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(root_dir))
 
-from app.main import app
+from app.core import security
 from app.core.database import get_db
+from app.main import app
 from app.models import Base
 
 
@@ -76,8 +77,11 @@ def auth_headers(client, db):
     from app.models.usuario import Usuario
     admin = db.query(Usuario).filter(Usuario.usuario == "admin@test.com").first()
     if not admin:
-        # Use simple password for testing local setup
-        db.add(Usuario(usuario="admin@test.com", senha="admin123", nome="Admin Test"))
+        db.add(Usuario(
+            usuario="admin@test.com",
+            senha=security.get_password_hash("admin123"),
+            nome="Admin Test",
+        ))
         db.commit()
 
     response = client.post(
