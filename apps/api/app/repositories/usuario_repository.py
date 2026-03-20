@@ -1,10 +1,12 @@
-from typing import List, Optional
-from sqlalchemy.orm import Session
 import hashlib
+from typing import List, Optional
 
-from app.repositories.base import BaseRepository
+from sqlalchemy.orm import Session
+
 from app.models.usuario import Usuario
+from app.repositories.base import BaseRepository
 from app.schemas.usuario import UsuarioCreate, UsuarioUpdate
+
 
 class UsuarioRepository(BaseRepository[Usuario]):
     def __init__(self, db: Session):
@@ -36,14 +38,14 @@ class UsuarioRepository(BaseRepository[Usuario]):
         db_obj = self.get(usuario_id)
         if not db_obj:
             return None
-            
+
         update_data = dados.model_dump(exclude_unset=True)
         if "senha" in update_data:
             update_data["senha"] = self._hash_password(update_data["senha"])
-            
+
         for field, value in update_data.items():
             setattr(db_obj, field, value)
-            
+
         self.db.add(db_obj)
         self.db.commit()
         self.db.refresh(db_obj)

@@ -2,11 +2,13 @@
 Cliente Repository
 """
 
-from typing import List, Optional, Dict, Any
-from sqlalchemy.orm import Session
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.models.cliente import EC, Cliente, Contato, DadoBancario, ECCliente, Endereco
 from app.repositories.base import BaseRepository
-from app.models.cliente import Cliente, Endereco, Contato, DadoBancario, ECCliente, EC
 
 
 class ClienteRepository(BaseRepository[Cliente]):
@@ -122,8 +124,8 @@ class ClienteRepository(BaseRepository[Cliente]):
                 next_id = (max_id or 0) + 1
                 cliente_data["cliente_id"] = next_id
                 # Update the ID for subsequent related data (endereco, contatos, etc)
-                cliente_id = next_id 
-                
+                cliente_id = next_id
+
             cliente = Cliente(**cliente_data)
             self.db.add(cliente)
             self.db.flush() # Flush to ensure ID is reserved/used in transaction

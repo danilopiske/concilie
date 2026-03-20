@@ -1,7 +1,10 @@
-from sqlalchemy import Column, String, Integer, DateTime, JSON, ForeignKey
-from sqlalchemy.sql import func
-from .base import Base
 import uuid
+
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.sql import func
+
+from .base import Base
+
 
 class ImportTask(Base):
     __tablename__ = "import_tasks"
@@ -15,6 +18,6 @@ class ImportTask(Base):
     contexto = Column(String(50))
     usuario = Column(String(50))
     metadata_json = Column(JSON) # Store any extra info (e.g. filename)
-    
+
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

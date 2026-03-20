@@ -1,21 +1,23 @@
 import logging
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
+from fastapi import BackgroundTasks
+
 from app.core.database import get_db
 from app.repositories.calculo_repository import CalculoRepository
+from app.schemas.calculo import (
+    CalculoHistoryItem,
+    CalculoPreviewRequest,
+    CalculoRequest,
+    CalculoResultado,
+    CalculoStats,
+)
 from app.services.calculo_service import CalculoService
 from app.services.reconciliation_core import ReconciliationCore
-from fastapi import BackgroundTasks
-from app.schemas.calculo import (
-    CalculoPreviewRequest, 
-    CalculoStats, 
-    CalculoRequest, 
-    CalculoResultado,
-    CalculoHistoryItem
-)
 
 router = APIRouter()
 
@@ -45,7 +47,7 @@ def processar_calculo(req: CalculoRequest, db: Session = Depends(get_db)):
     try:
         repo = CalculoRepository(db)
         custom_id = repo.processar_calculo(req)
-        
+
         engine = db.get_bind()
         result = ReconciliationCore.calculate_rates(
             engine=engine,
@@ -57,9 +59,9 @@ def processar_calculo(req: CalculoRequest, db: Session = Depends(get_db)):
         )
         if not result.get("success"):
             raise HTTPException(status_code=500, detail=result.get("error"))
-            
+
         return {
-            "status": "success", 
+            "status": "success",
             "message": f"Cálculo processado com sucesso. {result.get('rows')} registros.",
             "calc_id": custom_id
         }
@@ -68,7 +70,7 @@ def processar_calculo(req: CalculoRequest, db: Session = Depends(get_db)):
 
 @router.post("/processar-async")
 async def processar_calculo_async(
-    req: CalculoRequest, 
+    req: CalculoRequest,
     background_tasks: BackgroundTasks,
     usuario: str = "api_user",
     db: Session = Depends(get_db)
@@ -83,9 +85,9 @@ async def processar_calculo_async(
         tem_receba_rapido=req.tem_receba_rapido,
         substituir=req.substituir
     )
-    
+
     background_tasks.add_task(service.run_async_calculo, task.id)
-    
+
     return {
         "status": "processing",
         "task_id": task.id,
@@ -102,7 +104,7 @@ async def get_task_status(
     task = service.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
-    
+
     return {
         "id": task.id,
         "status": task.status,
@@ -115,9 +117,9 @@ async def get_task_status(
 
 @router.get("/resultados/{calc_id:path}", response_model=List[CalculoResultado])
 def listar_resultados(
-    calc_id: str, 
-    skip: int = Query(0), 
-    limit: int = Query(100), 
+    calc_id: str,
+    skip: int = Query(0),
+    limit: int = Query(100),
     db: Session = Depends(get_db)
 ):
     logger.debug("Buscando resultados para calc_id: %s", calc_id)

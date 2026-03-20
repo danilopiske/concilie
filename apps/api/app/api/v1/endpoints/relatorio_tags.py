@@ -3,13 +3,14 @@ Endpoints CRUD para RelatorioTag (seções inseríveis no editor via slash comma
 """
 
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
 from app.api.deps import get_current_user
-from app.schemas.relatorio_tag import RelatorioTagCreate, RelatorioTagUpdate, RelatorioTagResponse
+from app.core.database import get_db
 from app.repositories.relatorio_tag_repository import RelatorioTagRepository
+from app.schemas.relatorio_tag import RelatorioTagCreate, RelatorioTagResponse, RelatorioTagUpdate
 
 router = APIRouter()
 

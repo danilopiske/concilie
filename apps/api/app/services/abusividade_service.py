@@ -1,9 +1,12 @@
-import polars as pl
-from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+import polars as pl
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.models.vendas_calculos import VendasCalculos
+
 
 class AbusividadeService:
     def __init__(self, db: Session):
@@ -15,7 +18,7 @@ class AbusividadeService:
         """
         if agrupamento == 'hierarquico':
             return self._analisar_hierarquia(processamento_id, tolerancia=tolerancia)
-        
+
         return self._detectar_variacoes_polars(processamento_id=processamento_id, agrupamento=agrupamento, tolerancia=tolerancia)
 
     def _analisar_hierarquia(self, processamento_id: str, tolerancia: float = 0.0) -> List[Dict[str, Any]]:
@@ -28,12 +31,12 @@ class AbusividadeService:
 
         for nivel in niveis:
             resultados = self._detectar_variacoes_polars(processamento_id=processamento_id, agrupamento=nivel, tolerancia=tolerancia)
-            
+
             for item in resultados:
                 if item['id'] not in ids_processados:
                     ids_processados.add(item['id'])
                     todos_resultados.append(item)
-        
+
         todos_resultados.sort(key=lambda x: x['data_venda'] or datetime.min)
         return todos_resultados
 
@@ -53,7 +56,7 @@ class AbusividadeService:
         2. Processamento vetorizado para detectar variações de taxa.
         """
         engine = self.db.get_bind()
-        
+
         # 1. Construir query SQL eficiente
         sql = "SELECT id, calc_id, data_venda, ec_id, bandeira, forma_pagamento, tx_venda, vl_venda, cod_autorizacao, nsu FROM vendas_calculos WHERE 1=1"
         params = {}
@@ -74,7 +77,7 @@ class AbusividadeService:
         # 2. Carregar para Polars
         try:
             lf = pl.read_database(sql, connection=engine, partition_column=None, row_picker=None, params=params).lazy()
-            
+
             # Se vazio, retorna logo
             if lf.collect().is_empty():
                 return []
@@ -126,7 +129,7 @@ class AbusividadeService:
 
         # 5. Join de volta para pegar o detalhe das transações que estão nessas chaves
         chaves_com_problema = variacoes_videntes.select("chave_agrupamento")
-        
+
         resultado_final = (
             lf.join(chaves_com_problema, on="chave_agrupamento", how="inner")
             .sort("dt")

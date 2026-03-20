@@ -2,7 +2,8 @@
 Termo Filtravel Model
 """
 
-from sqlalchemy import Column, Integer, String, CHAR
+from sqlalchemy import CHAR, Column, Integer, String
+
 from app.models.base import Base
 
 

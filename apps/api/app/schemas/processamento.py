@@ -1,6 +1,8 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, Dict, Any, List
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict
+
 
 class ProcessamentoBase(BaseModel):
     cliente_id: Optional[int] = None
@@ -19,7 +21,7 @@ class ProcessamentoResponse(ProcessamentoBase):
     linhas_sucesso: int = 0
     linhas_erro: int = 0
     criado_por: Optional[str] = None
-    
+
     # New Fields for Correction Context
     ec_id: Optional[str] = None
     data_min: Optional[datetime] = None

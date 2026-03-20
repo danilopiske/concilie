@@ -1,8 +1,11 @@
 import os
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy.orm import Session
+
 from app.services.abusividade_service import AbusividadeService
+
 
 class AbusividadeRelatorioService:
     def __init__(self, db: Session):
@@ -17,12 +20,12 @@ class AbusividadeRelatorioService:
         rows_list: List[str] = []
         cnpj_placeholder = "07.464.624/0001-09"
         adquirente_placeholder = "N/A"
-        
+
         try:
             service = AbusividadeService(self.db)
             # Fetch data from optimized Polars-based service
             dados = service.analisar_processamento(processamento_id)
-            
+
             # Filter by dates if provided
             if data_inicio:
                 dados = [d for d in dados if d['data_venda'] >= data_inicio]
@@ -33,13 +36,13 @@ class AbusividadeRelatorioService:
                 return None
 
             adquirente_placeholder = dados[0]['bandeira'] if dados else "N/A"
-            
+
             # Efficient row building using list and join
             for d in dados:
                 data_str = d['data_venda'].strftime('%d/%m/%Y') if d['data_venda'] else '-'
                 valor_str = f"R$ {d['valor_venda']:.2f}"
                 taxa_str = f"{d['taxa_aplicada']:.2f}%"
-                
+
                 rows_list.append(f"""
                 <tr>
                     <td>{data_str}</td>
@@ -80,18 +83,18 @@ class AbusividadeRelatorioService:
             <body>
                 <div class="container">
                     <h1>Demonstrativo de Oscilações na Aplicação de Taxas</h1>
-                    
+
                     <div class="header-info">
                         <p><strong>CNPJ:</strong> {cnpj_placeholder}</p>
                         <p><strong>Adquirente:</strong> {adquirente_placeholder}</p>
                     </div>
 
                     <div class="content">
-                        <p>Abaixo, apresentamos a demonstração detalhada das variações identificadas nos extratos eletrônicos, 
+                        <p>Abaixo, apresentamos a demonstração detalhada das variações identificadas nos extratos eletrônicos,
                         fundamentada em auditoria sistêmica tecnicamente especializada.</p>
-                        
-                        <p>Constatou-se que, <span class="text-bold" style="text-decoration: underline;">em apenas {num_dias} dias de faturamento</span>, a Adquirente aplicou 
-                        <span class="highlight">taxas diferentes</span> sobre a mesma bandeira e modalidade para a adquirente {adquirente_placeholder}, 
+
+                        <p>Constatou-se que, <span class="text-bold" style="text-decoration: underline;">em apenas {num_dias} dias de faturamento</span>, a Adquirente aplicou
+                        <span class="highlight">taxas diferentes</span> sobre a mesma bandeira e modalidade para a adquirente {adquirente_placeholder},
                         evidenciando falta de padronização e impacto financeiro direto ao estabelecimento:</p>
                     </div>
 
@@ -111,7 +114,7 @@ class AbusividadeRelatorioService:
                             {formatted_rows}
                         </tbody>
                     </table>
-                    
+
                     <div class="footer-note">
                         Relatório gerado em {datetime.now().strftime('%d/%m/%Y %H:%M:%S')} - Auditoria Concilie
                     </div>
@@ -119,13 +122,13 @@ class AbusividadeRelatorioService:
             </body>
             </html>
             """
-            
+
             filename = f"Demonstrativo_Abusividade_{processamento_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.html"
             full_path = os.path.join(self.output_dir, filename)
-            
+
             with open(full_path, "w", encoding="utf-8") as f:
                 f.write(html_content)
-                
+
             return full_path
 
         except Exception as e:
@@ -133,4 +136,4 @@ class AbusividadeRelatorioService:
             print(f"❌ Erro ao gerar relatório de abusividade: {str(e)}")
             traceback.print_exc()
             return None
-    
+

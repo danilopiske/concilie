@@ -6,9 +6,11 @@ Use these instead of importing from the legacy conf package.
 import re
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
-from sqlalchemy.engine import Engine
+
 from sqlalchemy import text
-from app.core.sql_adapter import normalize_text_compare, get_db_type
+from sqlalchemy.engine import Engine
+
+from app.core.sql_adapter import get_db_type, normalize_text_compare
 
 
 @contextmanager

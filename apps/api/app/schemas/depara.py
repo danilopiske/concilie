@@ -1,5 +1,7 @@
-from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, field_validator
+
 
 class DeParaBase(BaseModel):
     origem_nome: Optional[str] = None

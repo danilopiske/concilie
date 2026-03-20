@@ -2,8 +2,9 @@
 Modelo de Tags de Relatório (seções inseríveis via slash commands no editor)
 """
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.sql import func
+
 from .base import Base
 
 

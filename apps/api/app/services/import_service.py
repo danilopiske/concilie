@@ -1,30 +1,30 @@
 
-import pandas as pd
-from sqlalchemy.orm import Session
-from fastapi import UploadFile, HTTPException
-import shutil
 import os
-import uuid
+import shutil
 import traceback
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
-from app.core.config import settings
-from app.models.import_task import ImportTask
-from fastapi import BackgroundTasks
+import uuid
 import zipfile
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+import pandas as pd
+from fastapi import BackgroundTasks, HTTPException, UploadFile
 
 # Legacy logic imports
 from proc.proc_importacao import (
-    preparar_dataframe_de_arquivo,
+    classificar_e_gravar_recebiveis,
     # normalizar functions are called internally by classificar_e_gravar
     classificar_e_gravar_vendas,
-    classificar_e_gravar_recebiveis
+    preparar_dataframe_de_arquivo,
 )
-from app.repositories.processamento_repository import gerar_novo_id as processamento_gerar_novo_id, salvar as processamento_salvar
-from datetime import datetime
+from sqlalchemy.orm import Session
 
-import zipfile
-from typing import List, Dict, Any, Optional, Union
+from app.core.config import settings
+from app.models.import_task import ImportTask
+from app.repositories.processamento_repository import gerar_novo_id as processamento_gerar_novo_id
+from app.repositories.processamento_repository import salvar as processamento_salvar
+
 
 class ImportService:
     def __init__(self, db: Session):
@@ -34,11 +34,11 @@ class ImportService:
         self.temp_dir.mkdir(exist_ok=True)
 
     async def preview_upload(
-        self, 
-        files: List[UploadFile], 
-        cliente_id: int, 
+        self,
+        files: List[UploadFile],
+        cliente_id: int,
         ec_id: str,
-        contexto: str, 
+        contexto: str,
         tipo: str,
         usuario: str
     ) -> Dict[str, Any]:
@@ -52,7 +52,7 @@ class ImportService:
         file_ids = []
         original_names = []
         total_lines = 0
-        
+
         # Directory for this batch
         batch_id = str(uuid.uuid4())
         batch_dir = self.temp_dir / batch_id
@@ -63,25 +63,25 @@ class ImportService:
             files_processed_count = 0
             MAX_FILES_PREVIEW = 5
             MAX_ROWS_PER_FILE = 2000
-            
+
             for file in files:
                 # 1. Save or Extract
                 filename = f"{uuid.uuid4()}_{file.filename}"
                 temp_path = batch_dir / filename
-                
+
                 with temp_path.open("wb") as buffer:
                     shutil.copyfileobj(file.file, buffer)
-                
+
                 # Check if it's a ZIP
                 if file.filename.lower().endswith(".zip"):
                     extract_dir = batch_dir / f"extracted_{uuid.uuid4().hex}"
                     extract_dir.mkdir(exist_ok=True)
                     with zipfile.ZipFile(temp_path, 'r') as zip_ref:
                         zip_ref.extractall(extract_dir)
-                    
+
                     # Remove the ZIP itself after extraction to only process contents
                     temp_path.unlink()
-                    
+
                     # Add all files in ZIP to processing list (recursive)
                     for root, _, filenames in os.walk(extract_dir):
                         for f in filenames:
@@ -89,11 +89,11 @@ class ImportService:
                                 file_full_path = Path(root) / f
                                 file_ids.append(str(file_full_path.relative_to(self.temp_dir)))
                                 original_names.append(f)
-                                
+
                                 # Only process for preview if below limit
                                 if files_processed_count < MAX_FILES_PREVIEW:
                                     all_dfs.append(self._process_single_file(
-                                        file_full_path, cliente_id, ec_id, contexto, tipo, usuario, 
+                                        file_full_path, cliente_id, ec_id, contexto, tipo, usuario,
                                         row_limit=MAX_ROWS_PER_FILE
                                     ))
                                     files_processed_count += 1
@@ -101,7 +101,7 @@ class ImportService:
                     # Single file
                     file_ids.append(str(temp_path.relative_to(self.temp_dir)))
                     original_names.append(file.filename)
-                    
+
                     if files_processed_count < MAX_FILES_PREVIEW:
                         all_dfs.append(self._process_single_file(
                             temp_path, cliente_id, ec_id, contexto, tipo, usuario,
@@ -115,12 +115,12 @@ class ImportService:
             # Combine all results for preview
             df_norm = pd.concat(all_dfs, ignore_index=True)
             total_lines_preview = len(df_norm)
-            
+
             # 4. Prepare Preview Data (First 50 rows)
             preview_data = df_norm.head(50).fillna("").astype(str).to_dict(orient="records")
-            
+
             return {
-                "file_id": batch_id, 
+                "file_id": batch_id,
                 "file_ids": file_ids,
                 "original_names": original_names,
                 "total_files": len(original_names),
@@ -135,7 +135,7 @@ class ImportService:
             # ORIGINAL ERROR LOGGING
             print(f"❌ ERROR in preview_upload: {str(e)}")
             traceback.print_exc()
-            
+
             # Cleanup on error
             if batch_dir.exists():
                 try:
@@ -165,11 +165,11 @@ class ImportService:
             log_callback=log_cb,
             nrows=row_limit
         )
-        
+
         # Apply row limit for preview to avoid heavy normalization on huge files
         if row_limit and len(df_mapeado) > row_limit:
             df_mapeado = df_mapeado.head(row_limit)
-        
+
         # Normalize based on type
         if tipo == "R":
             from proc.proc_importacao import normalizar_dataframe_recebiveis
@@ -182,7 +182,7 @@ class ImportService:
                 df_mapeado, engine, ec_id, contexto, usuario, tipo_arquivo=tipo
             )
             df_norm = pd.concat([df_proc, df_filt], ignore_index=True) if not df_filt.empty else df_proc
-            
+
         return df_norm
 
     def confirm_import(
@@ -204,7 +204,7 @@ class ImportService:
         - Deletes the whole batch folder
         """
         batch_dir = self.temp_dir / file_id
-        
+
         if not batch_dir.exists():
             raise HTTPException(status_code=404, detail="Session expired or not found. Please upload again.")
 
@@ -218,7 +218,7 @@ class ImportService:
 
         try:
             engine = self.db.get_bind()
-            
+
             # Find all files in the batch dir (including extracted ones)
             all_files = []
             for root, _, filenames in os.walk(batch_dir):
@@ -229,10 +229,10 @@ class ImportService:
                  raise HTTPException(status_code=400, detail="No files found in batch for confirmation.")
 
             for file_path in all_files:
-                # Re-parse 
+                # Re-parse
                 def progress_cb(val): pass
                 def log_cb(msg): pass
-                
+
                 df_mapeado, transf, idx = preparar_dataframe_de_arquivo(
                     path=str(file_path),
                     engine=engine,
@@ -257,7 +257,7 @@ class ImportService:
                         arquivo_origem=file_path.name,
                         processamentoid=aggregated_result["processamentoid"]
                     )
-                else: 
+                else:
                     result_data = classificar_e_gravar_vendas(
                         engine=engine,
                         df=df_mapeado,
@@ -268,17 +268,17 @@ class ImportService:
                         arquivo_origem=file_path.name,
                         processamentoid=aggregated_result["processamentoid"]
                     )
-                
+
                 # Update aggregated result
                 aggregated_result["processadas"] += result_data.get("processadas", 0)
                 aggregated_result["filtradas"] += result_data.get("filtradas", 0)
                 aggregated_result["total"] += result_data.get("total", 0)
                 aggregated_result["files_processed"] += 1
-                
+
                 # If we generated a new processamentoid in the first file, reuse it for others
                 if not aggregated_result["processamentoid"]:
                     aggregated_result["processamentoid"] = result_data.get("processamentoid")
-                
+
             return {
                 "status": "success",
                 "message": f"Successfully processed {aggregated_result['files_processed']} files.",
@@ -292,7 +292,7 @@ class ImportService:
             print(f"Error saving batch to DB: {error_msg}")
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Failed to save data: {error_msg}")
-            
+
         finally:
             # Always clean up the WHOLE batch directory
             if batch_dir.exists():
@@ -326,7 +326,7 @@ class ImportService:
 
     def get_active_tasks(self, cliente_id: Optional[int] = None) -> List[ImportTask]:
         """Gets recently active tasks for the dashboard."""
-        from datetime import datetime, timedelta
+        from datetime import timedelta
         recent_threshold = datetime.now() - timedelta(hours=1)
         query = self.db.query(ImportTask).filter(
             ImportTask.status.in_(["PENDING", "PROCESSING"]),
@@ -338,9 +338,10 @@ class ImportService:
 
     async def run_async_import(self, task_id: str):
         """Worker function for async import. Runs in a separate thread to avoid blocking event loop."""
-        from app.core.database import SessionLocal
         from fastapi.concurrency import run_in_threadpool
-        
+
+        from app.core.database import SessionLocal
+
         # Create a FRESH session for the background task
         # This prevents issues with closed sessions from the original request
         with SessionLocal() as db:
@@ -398,7 +399,7 @@ class ImportService:
                 error_msg = str(e)
                 if len(error_msg) > 500:
                     error_msg = error_msg[:500] + "... [TRUNCATED]"
-                    
+
                 task.status = "FAILED"
                 task.message = f"Erro: {error_msg}"[:255]
                 db.commit()
@@ -423,9 +424,9 @@ class ImportService:
         """
         # Use provided session or instance session
         db = worker_db or self.db
-        
+
         batch_dir = self.temp_dir / file_id
-        
+
         if not batch_dir.exists():
             raise HTTPException(status_code=404, detail="Session expired or not found. Please upload again.")
 
@@ -439,7 +440,7 @@ class ImportService:
 
         try:
             engine = db.get_bind()
-            
+
             # Find all files in the batch dir (including extracted ones)
             all_files = []
             for root, _, filenames in os.walk(batch_dir):
@@ -486,7 +487,7 @@ class ImportService:
                         processamentoid=aggregated_result["processamentoid"],
                         progress_callback=inner_progress # Pass the callback
                     )
-                else: 
+                else:
                     result_data = classificar_e_gravar_vendas(
                         engine=engine,
                         df=df_mapeado,
@@ -498,17 +499,17 @@ class ImportService:
                         processamentoid=aggregated_result["processamentoid"],
                         progress_callback=inner_progress # Pass the callback
                     )
-                
+
                 # Update aggregated result
                 aggregated_result["processadas"] += result_data.get("processadas", 0)
                 aggregated_result["filtradas"] += result_data.get("filtradas", 0)
                 aggregated_result["total"] += result_data.get("total", 0)
                 aggregated_result["files_processed"] += 1
-                
+
                 # If we generated a new processamentoid in the first file, reuse it for others
                 if not aggregated_result["processamentoid"]:
                     aggregated_result["processamentoid"] = result_data.get("processamentoid")
-                
+
             return {
                 "status": "success",
                 "message": f"Successfully processed {aggregated_result['files_processed']} files.",
@@ -522,7 +523,7 @@ class ImportService:
             print(f"Error saving batch to DB: {error_msg}")
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Failed to save data: {error_msg}")
-            
+
         finally:
             # Always clean up the WHOLE batch directory
             if batch_dir.exists():

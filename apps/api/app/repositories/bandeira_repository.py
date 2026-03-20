@@ -2,10 +2,12 @@
 Bandeira Repository
 """
 
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy.orm import Session
+
+from app.models.bandeira import BandeiraCliente, BandeiraDisponivel
 from app.repositories.base import BaseRepository
-from app.models.bandeira import BandeiraDisponivel, BandeiraCliente
 
 
 class BandeiraDisponivelRepository(BaseRepository[BandeiraDisponivel]):

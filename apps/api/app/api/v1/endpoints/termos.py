@@ -3,12 +3,13 @@ Endpoints de Termos Filtráveis
 """
 
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas.termo import TermoFiltravelCreate, TermoFiltravelResponse
 from app.repositories.termo_repository import TermoFiltravelRepository
+from app.schemas.termo import TermoFiltravelCreate, TermoFiltravelResponse
 
 router = APIRouter()
 # Force reload for DB lock clearance

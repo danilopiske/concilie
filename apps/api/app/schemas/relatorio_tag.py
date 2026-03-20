@@ -2,10 +2,10 @@
 Pydantic schemas para RelatorioTag
 """
 
-from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional
 from datetime import datetime
+from typing import Optional
 
+from pydantic import BaseModel, ConfigDict, Field
 
 TIPOS_VALIDOS = ("secao", "clausula", "assinatura", "cabecalho", "rodape")
 

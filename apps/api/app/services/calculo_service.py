@@ -5,8 +5,10 @@ from sqlalchemy.orm import Session
 from app.models.calculo_task import CalculoTask
 
 logger = logging.getLogger(__name__)
-from app.services.reconciliation_core import ReconciliationCore
 from typing import Optional
+
+from app.services.reconciliation_core import ReconciliationCore
+
 
 class CalculoService:
     def __init__(self, db: Session):
@@ -42,9 +44,10 @@ class CalculoService:
 
     async def run_async_calculo(self, task_id: str):
         """Worker function for async calculation."""
-        from app.core.database import SessionLocal
         from fastapi.concurrency import run_in_threadpool
-        
+
+        from app.core.database import SessionLocal
+
         with SessionLocal() as db:
             task = db.query(CalculoTask).filter(CalculoTask.id == task_id).first()
             if not task:
@@ -67,11 +70,11 @@ class CalculoService:
                     db.commit()
 
                 engine = db.get_bind()
-                
+
                 from app.repositories.calculo_repository import CalculoRepository
                 from app.schemas.calculo import CalculoRequest
                 repo = CalculoRepository(db)
-                
+
                 # 1. Prepare/Clean and generate ID
                 req = CalculoRequest(
                     processamento_id=task.processamento_id,
@@ -81,7 +84,7 @@ class CalculoService:
                     substituir=meta.get("substituir", False)
                 )
                 custom_id = repo.processar_calculo(req, usuario_logado=task.usuario)
-                
+
                 # 2. Heavy work in threadpool
                 result = await run_in_threadpool(
                     ReconciliationCore.calculate_rates,
@@ -101,7 +104,7 @@ class CalculoService:
                 else:
                     task.status = "FAILED"
                     task.message = f"Erro: {result.get('error')}"
-                
+
                 db.commit()
 
             except Exception as e:

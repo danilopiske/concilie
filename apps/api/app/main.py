@@ -3,8 +3,8 @@ Financial  API
 FastAPI Application Entry Point
 """
 
-import sys
 import logging
+import sys
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -20,14 +20,15 @@ root_dir = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.insert(0, str(root_dir))
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Depends
-from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.config import settings
-from app.api.v1.api import api_router
-from app.core.database import init_db
+from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, ORJSONResponse
+
 from app.api.deps import get_current_user
+from app.api.v1.api import api_router
+from app.core.config import settings
+from app.core.database import init_db
 
 
 @asynccontextmanager
@@ -110,7 +111,7 @@ async def health_check():
 @app.get("/debug/db-info")
 async def debug_database_info(_: str = Depends(get_current_user)):
     """Endpoint de debug - informações detalhadas do banco"""
-    from app.core.database import get_db_info, engine
+    from app.core.database import engine, get_db_info
 
     db_info = get_db_info()
 

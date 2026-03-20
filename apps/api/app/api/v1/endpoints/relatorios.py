@@ -1,19 +1,20 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+import os
+from datetime import datetime
+from typing import Any, List
+
+import pandas as pd
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import Any, List
-import os
-import pandas as pd
-from datetime import datetime
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-from app.core.database import get_db, engine
 from app.api.deps import get_current_user
-from app.schemas.relatorio import RelatorioRequest, RelatorioResponse, RelatorioOptions
+from app.core.database import engine, get_db
+from app.schemas.relatorio import RelatorioOptions, RelatorioRequest, RelatorioResponse
 from app.services.relatorio_service import RelatorioService
 
 
@@ -25,9 +26,9 @@ class SaveEditRequest(BaseModel):
 # Tentativa de importar lógica legada com fallbacks robustos
 try:
     from modules.reports import (
-        gerar_relatorio_mensal_html, 
         gerar_relatorio_html,
-        obter_adquirentes_distintos_processamento
+        gerar_relatorio_mensal_html,
+        obter_adquirentes_distintos_processamento,
     )
 except ImportError as e:
     logger.warning("Erro ao importar modules.reports: %s", e)
@@ -38,16 +39,16 @@ except ImportError as e:
         if str(root_dir) not in sys.path:
             sys.path.insert(0, str(root_dir))
         from modules.reports import (
-            gerar_relatorio_mensal_html,
             gerar_relatorio_html,
-            obter_adquirentes_distintos_processamento
+            gerar_relatorio_mensal_html,
+            obter_adquirentes_distintos_processamento,
         )
     except Exception as e2:
         logger.critical("Não foi possível importar relatórios legados: %s", e2)
         # Definir Stubs para não quebrar a API
         def generar_stub(*args, **kwargs):
             raise Exception("Módulo de relatórios indisponível (dependência 'panel' ausente)")
-            
+
         gerar_relatorio_mensal_html = generar_stub
         gerar_relatorio_html = generar_stub
         obter_adquirentes_distintos_processamento = lambda *args: []
@@ -57,7 +58,7 @@ router = APIRouter()
 @router.get("/opcoes", response_model=RelatorioOptions)
 def get_opcoes(processamento_id: str = None):
     """
-    Retorna opções de filtro. 
+    Retorna opções de filtro.
     Se processamento_id for passado, retorna adquirentes desse processamento.
     Caso contrário, apenas lista de processamentos é relevante (frontend busca lista separada).
     """
@@ -65,7 +66,7 @@ def get_opcoes(processamento_id: str = None):
         "processamentos": [], # Frontend usa endpoint existente de processamentos
         "adquirentes": ["Todos"]
     }
-    
+
     if processamento_id:
         try:
             # Usar engine direto pois as funcoes legadas esperam engine, nao session
@@ -74,7 +75,7 @@ def get_opcoes(processamento_id: str = None):
                 opcoes["adquirentes"] = ["Todos"] + sorted(adquirentes)
         except Exception as e:
             logger.warning("Erro ao buscar adquirentes: %s", e)
-            
+
     return opcoes
 
 @router.get("/adquirentes")
@@ -87,14 +88,14 @@ def get_adquirentes(
     try:
         from modules.reports import obter_adquirentes_e_periodo_processamento
         adquirentes, periodo, available_types = obter_adquirentes_e_periodo_processamento(engine, processamento_id, calc_tipo=calc_tipo)
-        
+
         # Converter dates para strings para o JSON
         if periodo:
             if 'data_min' in periodo and periodo['data_min']:
                 periodo['data_min'] = periodo['data_min'].isoformat() if hasattr(periodo['data_min'], 'isoformat') else str(periodo['data_min'])
             if 'data_max' in periodo and periodo['data_max']:
                 periodo['data_max'] = periodo['data_max'].isoformat() if hasattr(periodo['data_max'], 'isoformat') else str(periodo['data_max'])
-                
+
         return {
             "adquirentes": ["Todos"] + (sorted(adquirentes) if adquirentes else []),
             "periodo": periodo,
@@ -114,14 +115,14 @@ def gerar_relatorio(
     try:
         # Converter adquirente 'Todos' para None
         adquirente_filtro = req.adquirente if req.adquirente and req.adquirente != "Todos" else None
-        
+
         # Converter datas para datetime
         data_inicio_dt = datetime.combine(req.data_inicio, datetime.min.time()) if req.data_inicio else None
         data_fim_dt = datetime.combine(req.data_fim, datetime.max.time()) if req.data_fim else None
 
         html_path = None
         sintetico_path = None
-        
+
         logger.info("Gerando relatório %s para %s", req.tipo_relatorio, req.processamento_id)
 
         if req.tipo_relatorio == "mensal":
@@ -150,34 +151,34 @@ def gerar_relatorio(
                 data_fim=data_fim_dt,
                 apenas_com_perdas=req.apenas_com_perdas
             )
-            
+
         if not html_path or not os.path.exists(html_path):
              raise HTTPException(status_code=500, detail="Erro ao gerar arquivo de relatório")
 
         excel_path = html_path.replace(".html", ".xlsx")
         has_excel = os.path.exists(excel_path)
-        
+
         # Gerar Relatório de Abusividade (Novo)
         abusividade_path = None
         try:
              from app.services.abusividade_relatorio_service import AbusividadeRelatorioService
              abs_service = AbusividadeRelatorioService(next(get_db())) # Hacky session if not passed properly, checking imports
              # Better way: get db session from Dependency? endpoints usage usually has access to db
-             # But here we are in a function. We need the db session. 
+             # But here we are in a function. We need the db session.
              # Wait, get_db is a generator. We should ideally pass db to this function if possible or create new.
              # Actually, `gerar_relatorio` creates its own engine connections in legacy usually.
              # Let's create a new session cleanly.
-             
+
              with Session(engine) as session:
                 abs_service = AbusividadeRelatorioService(session)
                 abusividade_path = abs_service.gerar_html(
-                    req.processamento_id, 
-                    data_inicio=data_inicio_dt, 
+                    req.processamento_id,
+                    data_inicio=data_inicio_dt,
                     data_fim=data_fim_dt
                 )
         except Exception as e_abs:
             logger.warning("Erro ao gerar abusividade (não bloqueante): %s", e_abs)
-        
+
         return RelatorioResponse(
             success=True,
             message="Relatório gerado com sucesso",
@@ -203,7 +204,7 @@ async def gerar_relatorio_async(
     Inicia a geração do relatório em segundo plano.
     """
     service = RelatorioService(db)
-    
+
     # Preparar metadados para a task
     metadata = req.dict()
     # Converter datas para string ISO para armazenamento JSON
@@ -211,7 +212,7 @@ async def gerar_relatorio_async(
         metadata['data_inicio'] = metadata['data_inicio'].isoformat()
     if metadata.get('data_fim'):
         metadata['data_fim'] = metadata['data_fim'].isoformat()
-    
+
     # Flag para abusividade (pode vir no request ou ser inferido)
     metadata['gerar_abusividade'] = True # Padrão para este endpoint assíncrono
 
@@ -221,9 +222,9 @@ async def gerar_relatorio_async(
         usuario=str(current_user),
         metadata=metadata
     )
-    
+
     background_tasks.add_task(service.run_async_report, task.id)
-    
+
     return {
         "status": "processing",
         "task_id": task.id,
@@ -242,7 +243,7 @@ async def get_task_status(
     task = service.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
-    
+
     return {
         "id": task.id,
         "status": task.status,
@@ -265,10 +266,10 @@ def download_relatorio(path: str):
     # Normalizar o path para evitar problemas de encoding/barras
     import urllib.parse
     actual_path = urllib.parse.unquote(path)
-    
+
     # Se for um path absoluto com backslashes vindo do Windows, normalizar
     actual_path = os.path.normpath(actual_path)
-    
+
     logger.debug("Tentativa de download: %s", actual_path)
 
     if not os.path.exists(actual_path):
@@ -282,7 +283,7 @@ def download_relatorio(path: str):
         else:
             logger.warning("Arquivo não encontrado: %s", actual_path)
             raise HTTPException(status_code=404, detail=f"Arquivo não encontrado: {os.path.basename(actual_path)}")
-    
+
     # Basic security check: ensure it's in a known report directory
     path_lower = actual_path.lower()
     if "relatorios" not in path_lower and "temp" not in path_lower:

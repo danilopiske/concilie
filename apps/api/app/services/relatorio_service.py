@@ -1,15 +1,17 @@
 import gc
 import os
 import shutil
-from pathlib import Path
-from sqlalchemy.orm import Session
 from datetime import datetime
-from app.models.relatorio_task import RelatorioTask
-from app.core.database import engine
-from app.services.abusividade_relatorio_service import AbusividadeRelatorioService
+from pathlib import Path
 
 # Legacy imports
 from modules.reports import gerar_relatorio_html, gerar_relatorio_mensal_html
+from sqlalchemy.orm import Session
+
+from app.core.database import engine
+from app.models.relatorio_task import RelatorioTask
+from app.services.abusividade_relatorio_service import AbusividadeRelatorioService
+
 
 class RelatorioService:
     def __init__(self, db: Session):
@@ -77,7 +79,7 @@ class RelatorioService:
             try:
                 # Buscar a task com a nova sessão
                 task = session.get(RelatorioTask, task_id)
-                if not task: 
+                if not task:
                     print(f"Task {task_id} não encontrada para processamento async")
                     return
 
@@ -90,7 +92,7 @@ class RelatorioService:
                 update_progress(5, "Preparando ambiente...")
 
                 metadata = task.metadata_json or {}
-                
+
                 # Extract filters from metadata
                 calc_tipo = metadata.get('calc_tipo')
                 adquirente = metadata.get('adquirente')

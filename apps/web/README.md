@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Concilie Web — Frontend Next.js
 
-## Getting Started
+Interface web do sistema Concilie de reconciliação financeira, construída com Next.js 15 + Tailwind CSS.
 
-First, run the development server:
+## Pré-requisitos
+
+- Node.js 20+
+- [pnpm](https://pnpm.io/) 10+
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Na raiz do monorepo
+cd apps/web
+
+# Instalar dependências
+pnpm install
+
+# Copiar e preencher variáveis de ambiente
+cp .env.example .env.local
+# Edite .env.local com as configurações locais
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Variáveis de Ambiente
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Veja `.env.example` para a lista completa.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variável | Descrição | Padrão |
+|----------|-----------|--------|
+| `NEXT_PUBLIC_API_URL` | URL do backend FastAPI | `http://localhost:8000` |
 
-## Learn More
+## Executar
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+# Modo desenvolvimento
+pnpm dev
+# Acesse: http://localhost:3000
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Build de produção
+pnpm build
+pnpm start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Testes
 
-## Deploy on Vercel
+```bash
+# E2E com Playwright (requer API + Next.js rodando)
+pnpm test:e2e
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Com UI do Playwright
+pnpm test:e2e:headed
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Ver relatório HTML dos testes
+pnpm test:e2e:report
+```
+
+## Lint e Typecheck
+
+```bash
+# ESLint
+pnpm lint
+
+# TypeScript
+pnpm typecheck
+```
+
+## Estrutura
+
+```
+src/
+├── app/            # App Router (Next.js 15)
+├── components/     # Componentes React reutilizáveis
+├── lib/            # Utilitários e clientes API
+└── types/          # Definições TypeScript
+e2e/                # Testes E2E Playwright
+├── helpers/        # Utilitários de teste (auth, etc.)
+└── *.spec.ts       # Test specs por funcionalidade
+```

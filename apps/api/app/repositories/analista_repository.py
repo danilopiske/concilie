@@ -1,13 +1,15 @@
-from typing import List, Dict, Any
-from sqlalchemy.orm import Session
+from typing import Any, Dict, List
+
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.schemas.analista import (
     AgregacaoBandeira,
     AgregacaoFormaPagamento,
+    AgregacaoFormaPagamentoAno,
     AgregacaoPeriodo,
     AgregacaoRecebivel,
-    AgregacaoFormaPagamentoAno,
-    AnaliseDetalhadaItem
+    AnaliseDetalhadaItem,
 )
 
 
@@ -42,12 +44,12 @@ class AnalistaRepository:
             elif period_type == 'semestre':
                  # Mysql doesn't have SEMESTER(), manual calc: IF(MONTH(col) <= 6, 1, 2)
                 return f"CONCAT(YEAR({column}), '-S', IF(MONTH({column}) <= 6, 1, 2))"
-        
+
         return "ERROR_PERIOD_TYPE"
 
     def get_bandeiras(self, processamento_id: str) -> List[AgregacaoBandeira]:
         sql = text("""
-            SELECT 
+            SELECT
                 Bandeira as bandeira,
                 COUNT(*) as quantidade,
                 SUM(Valor_da_venda) as valor_total,
@@ -61,7 +63,7 @@ class AnalistaRepository:
             GROUP BY Bandeira
             ORDER BY valor_total DESC
         """)
-        
+
         results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
         return [
             AgregacaoBandeira(
@@ -78,7 +80,7 @@ class AnalistaRepository:
 
     def get_formas_pagamento(self, processamento_id: str) -> List[AgregacaoFormaPagamento]:
         sql = text("""
-            SELECT 
+            SELECT
                 Forma_de_pagamento as forma_pagamento,
                 COUNT(*) as quantidade,
                 SUM(Valor_da_venda) as valor_total,
@@ -92,7 +94,7 @@ class AnalistaRepository:
             GROUP BY Forma_de_pagamento
             ORDER BY valor_total DESC
         """)
-        
+
         results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
         return [
             AgregacaoFormaPagamento(
@@ -110,23 +112,23 @@ class AnalistaRepository:
     def get_recebiveis(self, processamento_id: str) -> List[AgregacaoRecebivel]:
         # Check if table has records for this PID
         check = self.db.execute(text("SELECT COUNT(*) FROM recebiveis_processados WHERE processamentoid = :pid"), {"pid": processamento_id}).scalar()
-        
+
         if check and check > 0:
             # Quote identifiers differently if needed, but ANSI quotes " usually work in both for column names
             # MySQL needs ANSI_QUOTES mode for ", otherwise `
             # For safety, let's use logic to strip quotes if MySQL or rely on sqlalchemy text() handling?
             # Actually standard types like "Tipo de Recebível" with spaces need quotes.
             # In MySQL, default is backtick `. SQLite uses ".
-            
+
             col_tipo = '"Tipo de Recebível"'
             col_valor = '"Valor do Recebível"'
-            
+
             if self.dialect != 'sqlite': # Assume MySQL default mode (no ANSI quotes)
                  col_tipo = '`Tipo de Recebível`'
                  col_valor = '`Valor do Recebível`'
 
             sql = text(f"""
-                SELECT 
+                SELECT
                     {col_tipo} as tipo_recebivel,
                     COUNT(*) as quantidade,
                     SUM({col_valor}) as valor_total
@@ -152,7 +154,7 @@ class AnalistaRepository:
         group_expr = self._get_period_sql("Data_da_venda", tipo_periodo)
 
         sql = text(f"""
-            SELECT 
+            SELECT
                 {group_expr} as periodo,
                 COUNT(*) as quantidade,
                 SUM(Valor_da_venda) as valor_total,
@@ -164,7 +166,7 @@ class AnalistaRepository:
             GROUP BY {group_expr}
             ORDER BY periodo
         """)
-        
+
         results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
         return [
             AgregacaoPeriodo(
@@ -182,7 +184,7 @@ class AnalistaRepository:
         year_expr = self._get_year_sql("Data_da_venda")
 
         sql = text(f"""
-            SELECT 
+            SELECT
                 {year_expr} as ano,
                 Forma_de_pagamento as forma_pagamento,
                 COUNT(*) as quantidade,
@@ -195,7 +197,7 @@ class AnalistaRepository:
             GROUP BY {year_expr}, Forma_de_pagamento
             ORDER BY ano, valor_total DESC
         """)
-        
+
         results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
         return [
             AgregacaoFormaPagamentoAno(

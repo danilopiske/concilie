@@ -2,8 +2,10 @@
 Taxa Repository
 """
 
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy.orm import Session
+
 from app.models.taxa import Taxa
 
 

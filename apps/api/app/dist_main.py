@@ -1,13 +1,14 @@
 # ... imports kept ... (will be fully rewritten in block below)
-import sys
-import os
-import webbrowser
-import uvicorn
-import multiprocessing
-import threading
 import http.server
+import multiprocessing
+import os
 import socketserver
+import sys
+import threading
+import webbrowser
 from pathlib import Path
+
+import uvicorn
 
 # Adicionar o diretório atual ao path para garantir que imports funcionem
 if getattr(sys, 'frozen', False):
@@ -31,7 +32,7 @@ if not db_path.exists():
     print("✨ Primeira execução detectada (Banco de dados ausente).")
     # Tentar encontrar o banco seed (concilie.db) empacotado
     seed_db_path = bundle_dir / "data" / "concilie.db"
-    
+
     if seed_db_path.exists():
         print(f"📦 Copiando banco de dados modelo de {seed_db_path}...")
         try:
@@ -47,6 +48,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
 
 # Importar settings e configurar DB
 from app.core.config import settings
+
 settings.DATABASE_TYPE = "sqlite"
 settings.SQLITE_DB_PATH = str(db_path)
 
@@ -67,17 +69,17 @@ class SPAHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         # 1. Tentar resolver o path real
         path = self.translate_path(self.path)
-        
+
         # 2. Se não existir, verificar fallback
         if not os.path.exists(path):
             # Se parece um arquivo (tem extensão), retorna 404 (evita loop em assets)
             if "." in self.path.split("/")[-1]:
                  super().do_GET()
                  return
-            
+
             # Se for rota (sem extensão), serve index.html
             self.path = "/"
-            
+
         super().do_GET()
 
 def find_free_port(start_port=3000, max_port=3100):
@@ -100,9 +102,9 @@ def start_frontend_server(server_ready_event, final_port_container):
         # Fallback to pure dynamic
         with socketserver.TCPServer(("127.0.0.1", 0), SPAHandler) as s:
             PORT = s.server_address[1]
-    
+
     final_port_container['port'] = PORT
-    
+
     try:
         # We need to create the server again bound to the specific port if we used find_free_port logic
         # Or if we just claimed it, we hope it's still free. A small race condition exists but is negligible for desktop.
@@ -121,7 +123,7 @@ def open_browser(port_container):
         if 'port' in port_container:
             break
         time.sleep(0.5)
-        
+
     port = port_container.get('port', 3000)
     time.sleep(1) # Small buffer
     print(f"🚀 Abrindo navegador em http://localhost:{port}...")
@@ -129,7 +131,7 @@ def open_browser(port_container):
 
 def main():
     multiprocessing.freeze_support()
-    
+
     print(f"📂 Diretório de Dados: {app_data_dir}")
     print(f"📂 Banco de Dados: {db_path}")
 
@@ -141,7 +143,7 @@ def main():
         # Iniciar Frontend em Thread separada
         t_frontend = threading.Thread(target=start_frontend_server, args=(server_ready, port_container), daemon=True)
         t_frontend.start()
-        
+
         # Agendar abertura do browser
         t_browser = threading.Thread(target=open_browser, args=(port_container,), daemon=True)
         t_browser.start()

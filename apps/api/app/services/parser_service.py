@@ -1,8 +1,10 @@
-import polars as pl
 import os
-from pathlib import Path
-from typing import Dict, Any, List, Tuple
 import subprocess
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
+import polars as pl
+
 
 class ParserService:
     @staticmethod
@@ -22,7 +24,7 @@ class ParserService:
         try:
             # Polars' read_excel with engine='calamine' is currently the fastest method in Python ecosystem
             # It avoids the overhead of openpyxl
-            
+
             # 1. Read Raw Data (No Header)
             # We read with has_header=False to perform our own heuristic detection
             df = pl.read_excel(
@@ -31,10 +33,10 @@ class ParserService:
                 read_options={"header_row": None}, # Read all rows as data
                 infer_schema_length=0 # Force all as string initially for safety
             )
-            
+
             # 2. Heuristic Header Detection
             header_idx, score = ParserService._detect_header_row(df)
-            
+
             # 3. Reload or Slice with correct header
             if header_idx is not None:
                 # Get header names from the detected row
@@ -72,45 +74,45 @@ class ParserService:
         """
         best_idx = None
         best_score = 0
-        
+
         # Keywords that strongly suggest a header row
         keywords = {
-            "data", "valor", "cpf", "cnpj", "agencia", "conta", "banco", 
+            "data", "valor", "cpf", "cnpj", "agencia", "conta", "banco",
             "venda", "recebimento", "status", "taxa", "liquido", "bruto"
         }
 
         # Scan top 20 rows
         for i in range(min(20, df.height)):
             row_values = [str(x).lower().strip() for x in df.row(i) if x is not None]
-            
+
             # Skip empty rows
             if not any(row_values):
                 continue
-            
+
             # Score this row
             score = 0
             matches = 0
-            
+
             for cell in row_values:
                 if any(k in cell for k in keywords):
                     matches += 1
-            
+
             # Heuristic scoring
             score = matches * 2
-            
+
             # Penalize if too many cells are empty (headers usually cover most cols)
             filled_ratio = len(row_values) / len(df.columns)
             if filled_ratio > 0.5:
                 score += 3
-                
+
             if score > best_score:
                 best_score = score
                 best_idx = i
-                
+
         # Threshold to accept as header
         if best_score >= 4:
             return best_idx, best_score
-            
+
         return None, 0
 
     @staticmethod
@@ -119,7 +121,7 @@ class ParserService:
         standardizes column names (snake_case, ascii).
         """
         import unidecode
-        
+
         new_cols = []
         for col in df.columns:
             # Lowercase, remove accents, replace spaces with _
@@ -127,5 +129,5 @@ class ParserService:
             clean = "".join(c if c.isalnum() else "_" for c in clean)
             clean = clean.replace("__", "_").strip("_")
             new_cols.append(clean)
-            
+
         return df.rename(dict(zip(df.columns, new_cols)))

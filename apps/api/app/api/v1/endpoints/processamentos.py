@@ -1,9 +1,11 @@
+from typing import List
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from typing import List
+
 from app.core.database import get_db
 from app.repositories.processamento_repository import ProcessamentoRepository
-from app.schemas.processamento import ProcessamentoResponse, ProcessamentoFilter
+from app.schemas.processamento import ProcessamentoFilter, ProcessamentoResponse
 
 router = APIRouter()
 

@@ -1,9 +1,11 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from app.schemas.calculo import CalculoPreviewRequest, CalculoStats, CalculoRequest
-from app.models.vendas_calculos import VendasCalculos
 import time
 from datetime import datetime
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.models.vendas_calculos import VendasCalculos
+from app.schemas.calculo import CalculoPreviewRequest, CalculoRequest, CalculoStats
 
 
 class CalculoRepository:
@@ -28,7 +30,7 @@ class CalculoRepository:
             WHERE processamentoid = :pid
         """)
         result = self.db.execute(sql, {"pid": req.processamento_id}).fetchone()
-        
+
         if not result or result[0] == 0:
             return CalculoStats(total_vendas=0, valor_total=0, valor_medio=0, min_taxa_orig=0, max_taxa_orig=0, media_taxa_orig=0)
 
@@ -44,7 +46,7 @@ class CalculoRepository:
              sql_cad = text("""
                 SELECT COUNT(*)
                 FROM vendas_processadas vp
-                JOIN taxas t ON t.ec = vp.ec_id 
+                JOIN taxas t ON t.ec = vp.ec_id
                     AND LOWER(t.bandeira) = LOWER(vp.Bandeira)
                     AND LOWER(t.forma_pagamento) = LOWER(vp.Forma_de_pagamento)
                     AND vp.Data_da_venda BETWEEN t.data_ini AND t.data_fim
@@ -70,7 +72,7 @@ class CalculoRepository:
         ec_sql = text("SELECT ec_id FROM vendas_processadas WHERE processamentoid = :pid LIMIT 1")
         ec_res = self.db.execute(ec_sql, {"pid": req.processamento_id}).fetchone()
         ec_id = str(ec_res[0]) if ec_res else "unknown"
-        
+
         tipo_clean = req.tipo_taxa.replace("log_", "")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         custom_id = f"{ec_id}_{tipo_clean}_{timestamp}"
@@ -91,54 +93,54 @@ class CalculoRepository:
         return custom_id
 
         # 3. Apply Calculations (UPDATEs)
-        
+
         # 3A. Taxa de Log (Minimum Rate in Period)
         # Logic: Find min(Taxas_Perc) for same EC, Bandeira, FormaPagamento in period
         # We need to port `_convert_min_tx_update_for_sqlite` logic essentially
-        
+
         # 3A. Taxa de Log (Minimum Rate in Period)
         # Using UPDATE JOIN which is compatible with MySQL
-        
+
         period_formula_vp = self._get_period_formula("vp", col_name="Data_da_venda")
         period_formula_vc = self._get_period_formula("vc", col_name="data_venda")
 
         # IMPORTANT: We join on lower case strings to match Python/SQLite logic
         # But in MySQL default collation is case insensitive anyway. Explicit lower is safer.
-        
+
         update_sql = f"""
             UPDATE vendas_calculos vc
             JOIN (
-                SELECT 
-                    vp.ec_id, 
-                    vp.Bandeira as bandeira, 
+                SELECT
+                    vp.ec_id,
+                    vp.Bandeira as bandeira,
                     vp.Forma_de_pagamento as forma_pagamento,
                     {period_formula_vp} as periodo_ini,
                     MIN(vp.Taxas_Perc) as min_tx_venda
                 FROM vendas_processadas vp
                 WHERE vp.processamentoid = :pid AND vp.Taxas_Perc > 0
                 GROUP BY vp.ec_id, vp.Bandeira, vp.Forma_de_pagamento, {period_formula_vp}
-            ) min_table ON 
-                vc.ec_id = min_table.ec_id 
+            ) min_table ON
+                vc.ec_id = min_table.ec_id
                 AND vc.bandeira = min_table.bandeira
                 AND vc.forma_pagamento = min_table.forma_pagamento
                 AND {period_formula_vc} = min_table.periodo_ini
             SET vc.tx_calc = min_table.min_tx_venda
             WHERE vc.calc_id = :calc_id AND vc.calc_tipo = :calc_tipo
         """
-        
-        # Adjust for SQLite if needed (SQLite doesn't support UPDATE JOIN directly in standard SQL standard, 
+
+        # Adjust for SQLite if needed (SQLite doesn't support UPDATE JOIN directly in standard SQL standard,
         # but supports FROM clause in some versions or requires the scalar subquery approach).
         if self.dialect == 'sqlite':
             # Fallback to the scalar subquery approach for SQLite which we know works there
              period_formula = self._get_period_formula("vp") # reuse helper
-             # Note: SQLite CTE support in UPDATE is limited in some python libs/driver versions, 
+             # Note: SQLite CTE support in UPDATE is limited in some python libs/driver versions,
              # but scalar subquery in SET is standard.
              update_sql = f"""
                  UPDATE vendas_calculos
                  SET tx_calc = (
                     SELECT MIN(vp.Taxas_Perc)
                     FROM vendas_processadas vp
-                    WHERE vp.processamentoid = :pid 
+                    WHERE vp.processamentoid = :pid
                       AND vp.Taxas_Perc > 0
                       AND vp.ec_id = vendas_calculos.ec_id
                       AND LOWER(vp.Bandeira) = LOWER(vendas_calculos.bandeira)
@@ -149,7 +151,7 @@ class CalculoRepository:
              """
 
         self.db.execute(text(update_sql), {"pid": req.processamento_id, "calc_id": req.processamento_id, "calc_tipo": req.tipo_taxa})
-        
+
         # 3B. Taxa CAD (If enabled)
         if req.usar_taxa_cad:
             # Logic: Update tx_calc from TAXAS table where matches
@@ -165,7 +167,7 @@ class CalculoRepository:
                     AND vendas_calculos.calc_data BETWEEN t.data_ini AND t.data_fim
                     LIMIT 1
                 )
-                WHERE calc_id = :calc_id 
+                WHERE calc_id = :calc_id
                   AND calc_tipo = :calc_tipo
                   AND EXISTS (
                         SELECT 1 FROM taxas t
@@ -176,28 +178,28 @@ class CalculoRepository:
                   )
             """)
             self.db.execute(sql_cad, {"calc_id": req.processamento_id, "calc_tipo": req.tipo_taxa})
-        
+
         # 4. Final values calculation (Desc, Liq, Perda)
         # Update derived columns based on tx_calc
         sql_final = text("""
             UPDATE vendas_calculos
-            SET 
+            SET
                 desc_calc = (vl_venda * tx_calc / 100),
                 vl_liq_calc = (vl_venda - (vl_venda * tx_calc / 100)),
                 perda = (vl_liq_venda - (vl_venda - (vl_venda * tx_calc / 100)))
             WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo AND tx_calc IS NOT NULL
         """)
         self.db.execute(sql_final, {"calc_id": req.processamento_id, "calc_tipo": req.tipo_taxa})
-        
+
         self.db.commit()
-    
+
     def listar_resultados(self, calc_id_or_pid: str, skip: int = 0, limit: int = 100):
         # We try to match by calc_id first, then fallback to proc_id if no results (for legacy)
         results = self.db.query(VendasCalculos)\
             .filter(VendasCalculos.calc_id == calc_id_or_pid)\
             .order_by(VendasCalculos.perda.asc())\
             .offset(skip).limit(limit).all()
-            
+
         if not results:
              # Fallback to see if any calculation exists for this processamento_id as calc_id
              return self.db.query(VendasCalculos)\
@@ -209,7 +211,7 @@ class CalculoRepository:
     def listar_historico(self, skip: int = 0, limit: int = 50):
         # Returns summary of unique calculations
         sql = text("""
-            SELECT 
+            SELECT
                 calc_id, calc_tipo, calc_usuario, MAX(calc_data) as calc_data,
                 COUNT(*) as total_registros,
                 SUM(vl_venda) as total_valor,

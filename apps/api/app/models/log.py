@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, DateTime, Integer, String, Text
+
 from app.models.base import Base
+
 
 class LogCorrecao(Base):
     __tablename__ = "log_correcoes_importacao"

@@ -3,10 +3,12 @@ Repository de Taxas — sem dependências de conf.funcoesbd.
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 from sqlalchemy.orm import Session
+
 from app.core.db_helpers import exec_sql, fetch_all, normalize_compare
-from app.schemas.taxa import TaxaCreate, TaxaUpdate, TaxaCopiarRequest
+from app.schemas.taxa import TaxaCopiarRequest, TaxaCreate, TaxaUpdate
 
 logger = logging.getLogger(__name__)
 

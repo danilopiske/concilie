@@ -3,17 +3,19 @@ Endpoints de Taxas
 """
 
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+
 from app.core.database import get_db
+from app.repositories.taxas_repository import TaxasRepository
 from app.schemas.taxa import (
-    TaxaCreate,
-    TaxaUpdate,
-    TaxaResponse,
     TaxaCopiarRequest,
     TaxaCopiarResponse,
+    TaxaCreate,
+    TaxaResponse,
+    TaxaUpdate,
 )
-from app.repositories.taxas_repository import TaxasRepository
 
 router = APIRouter()
 

@@ -3,6 +3,7 @@ Cliente Model
 """
 
 from sqlalchemy import Column, Integer, String, Text
+
 from app.models.base import Base
 
 

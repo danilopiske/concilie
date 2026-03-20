@@ -2,10 +2,11 @@
 Exemplo de uso do SQL Debug Helper
 """
 
-from app.utils.sql_debug import log_query, debug_query, get_db_type
+from sqlalchemy.orm import Session
+
 from app.core.database import engine, get_db
 from app.models.cliente import Cliente
-from sqlalchemy.orm import Session
+from app.utils.sql_debug import debug_query, get_db_type, log_query
 
 
 def exemplo_debug_basico():

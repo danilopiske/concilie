@@ -3,25 +3,26 @@ API v1 Router
 """
 
 from fastapi import APIRouter
+
 from app.api.v1.endpoints import (
-    clientes,
-    gestao,
-    termos,
-    taxas,
-    depara,
-    processamentos,
-    correcao,
-    importacao,
-    importacao_async,
+    abusividade,
+    ai,
     analista,
     calculos,
-    relatorios,
-    relatorio_tags,
-    usuarios,
+    clientes,
     contextos,
+    correcao,
+    depara,
+    gestao,
+    importacao,
+    importacao_async,
     login,
-    abusividade,
-    ai
+    processamentos,
+    relatorio_tags,
+    relatorios,
+    taxas,
+    termos,
+    usuarios,
 )
 
 api_router = APIRouter()

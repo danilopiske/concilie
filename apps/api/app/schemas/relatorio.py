@@ -1,6 +1,8 @@
-from typing import Optional, List
-from pydantic import BaseModel
 from datetime import date
+from typing import List, Optional
+
+from pydantic import BaseModel
+
 
 class RelatorioOptions(BaseModel):
     processamentos: List[dict] # {id: str, label: str}
@@ -10,12 +12,12 @@ class RelatorioRequest(BaseModel):
     processamento_id: str
     calc_tipo: Optional[str] = "log_mensal"
     tipo_relatorio: str = "retroativo" # 'mensal' | 'retroativo'
-    
+
     # Filtros
     data_inicio: Optional[date] = None
     data_fim: Optional[date] = None
     adquirente: Optional[str] = None
-    
+
     # Opções
     incluir_filtradas: bool = False
     incluir_recebiveis_filtrados: bool = False

@@ -1,6 +1,7 @@
 # DEPRECATED: Use app.core.sql_adapter (funções standalone) em vez desta classe.
 # Este módulo não é usado internamente — mantido apenas por compatibilidade externa.
 from typing import List
+
 from sqlalchemy.engine import Engine
 
 

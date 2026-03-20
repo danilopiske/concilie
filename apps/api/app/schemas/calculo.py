@@ -1,7 +1,9 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict
+
 
 class CalculoPreviewRequest(BaseModel):
     processamento_id: str
@@ -22,7 +24,7 @@ class CalculoStats(BaseModel):
     vendas_com_cad: int = 0
     vendas_com_log: int = 0
     taxas_rr_count: int = 0
-    
+
 class CalculoResultado(BaseModel):
     id: int
     calc_id: str
@@ -35,7 +37,7 @@ class CalculoResultado(BaseModel):
     tx_calc: Optional[Decimal]
     diff_taxa: Optional[Decimal] # tx_venda - tx_calc
     perda: Optional[Decimal]
-    
+
     model_config = ConfigDict(from_attributes=True)
 
 class CalculoHistoryItem(BaseModel):

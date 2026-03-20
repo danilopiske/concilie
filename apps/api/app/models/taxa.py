@@ -2,8 +2,9 @@
 Taxa Model
 """
 
-from sqlalchemy import Column, Integer, String, CHAR, Date, DECIMAL, TIMESTAMP
+from sqlalchemy import CHAR, DECIMAL, TIMESTAMP, Column, Date, Integer, String
 from sqlalchemy.sql import func
+
 from app.models.base import Base
 
 

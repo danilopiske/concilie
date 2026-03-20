@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy.orm import Session
 from typing import List, Optional
+
+import pandas as pd
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
 from app.core.database import get_db
 from app.repositories.depara_repository import DeParaRepository
-from app.schemas.depara import DeParaCreate, DeParaUpdate, DeParaResponse
-import pandas as pd
+from app.schemas.depara import DeParaCreate, DeParaResponse, DeParaUpdate
 
 router = APIRouter()
 
@@ -67,14 +69,14 @@ async def ler_cabecalhos(
     """
     filename = file.filename.lower()
     temp_path = None
-    
+
     try:
-        import sys
         import os
-        import tempfile
         import shutil
+        import sys
+        import tempfile
         from pathlib import Path
-        
+
         # Adicionar raiz do projeto ao path para importar proc
         # Base: d:/Financial  base/Financial_P/apps/api/app/api/v1/endpoints/depara.py
         # Target: d:/Financial  base/Financial_P
@@ -83,23 +85,31 @@ async def ler_cabecalhos(
         current_dir = Path(__file__).resolve().parent
         project_root = current_dir.parent.parent.parent.parent.parent.parent
         sys.path.append(str(project_root))
-        
+
         try:
-            from proc.proc_importacao import safe_read_multisheet_file, read_file_with_header, is_multisheet_rede_file
+            from proc.proc_importacao import (
+                is_multisheet_rede_file,
+                read_file_with_header,
+                safe_read_multisheet_file,
+            )
         except ImportError:
             # Fallback para caminho hardcoded se a relatividade falhar (ambiente de dev vs prod)
             sys.path.append(r"d:/Financial  base/Financial_P")
-            from proc.proc_importacao import safe_read_multisheet_file, read_file_with_header, is_multisheet_rede_file
+            from proc.proc_importacao import (
+                is_multisheet_rede_file,
+                read_file_with_header,
+                safe_read_multisheet_file,
+            )
 
         # Salvar arquivo temporário
         suffix = Path(filename).suffix
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             shutil.copyfileobj(file.file, tmp)
             temp_path = tmp.name
-            
+
         # 1. Verificar se é multisheet Rede
         is_multisheet = is_multisheet_rede_file(temp_path)
-        
+
         headers = []
         debug_info = {
             "filename": filename,
@@ -130,7 +140,7 @@ async def ler_cabecalhos(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Erro ao ler arquivo (Legacy Engine): {str(e)}")
-    
+
     finally:
         # Limpar arquivo temporário
         if temp_path and os.path.exists(temp_path):
@@ -147,7 +157,7 @@ def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 100) -> tuple[int, int]
     # Palavras que indicam cabeçalho
     header_keywords = {
         # Financeiro
-        "nsu", "bandeira", "autorização", "ec", "cnpj", "cpf", "valor", 
+        "nsu", "bandeira", "autorização", "ec", "cnpj", "cpf", "valor",
         "transação", "valor líquido", "valor bruto", "data da transação",
         "quantidade de parcelas", "taxa", "desconto", "liquido", "bruto",
         "pagamento", "recebimento",
@@ -163,10 +173,10 @@ def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 100) -> tuple[int, int]
         "estabelecimento", "pv", "rv", "resumo de vendas", "comprovante", "terminal", "loja",
         "red", "rede", "cielo", "getnet", "stone", "bin", "safra", "pagseguro"
     }
-    
+
     # Texto de resumo/relatório que deve ser EVITADO (Indicam que NÃO é a linha de cabeçalho principal)
     negative_keywords = [
-        "período:", "data de emissão:", "usuário:", "página:", "filtros:", 
+        "período:", "data de emissão:", "usuário:", "página:", "filtros:",
         "total", "subtotal", "a receber", "liquidado", "resumo financeiro",
         "extrato para simples conferência"
     ]
@@ -175,7 +185,7 @@ def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 100) -> tuple[int, int]
 
     # Limitar scan
     scan_limit = min(max_scan, len(df))
-    
+
     for i in range(scan_limit):
         row = df.iloc[i]
         vals = row.astype(str).fillna("").str.strip()
@@ -191,7 +201,7 @@ def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 100) -> tuple[int, int]
 
         # Bonus por palavras-chave
         header_text = " ".join(non_empty_vals).lower()
-        
+
         # Penalizar linhas de resumo/relatório
         is_summary_line = False
         for neg in negative_keywords:
@@ -199,7 +209,7 @@ def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 100) -> tuple[int, int]
                 score -= 10
                 is_summary_line = True
                 break
-        
+
         if is_summary_line:
             continue
 
@@ -213,7 +223,7 @@ def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 100) -> tuple[int, int]
             score += 5
         elif keyword_matches >= 2:
             score += 2
-            
+
         # Penalidade se parece com dados (números, datas)
         data_penalty = 0
         for val in non_empty_vals[:5]:
@@ -226,7 +236,7 @@ def detectar_cabecalho(df: pd.DataFrame, max_scan: int = 100) -> tuple[int, int]
                 parts = val.split("/")
                 if len(parts) == 3 and all(p.isdigit() for p in parts):
                     data_penalty += 2
-        
+
         score -= data_penalty
 
         if score > best[0]:
@@ -244,8 +254,8 @@ def listar_colunas_sistema(
     """
     Lista as colunas de destino do sistema baseadas no tipo (V=Venda, R=Recebível, L=Lançamento)
     """
-    from sqlalchemy import text, inspect
-    
+    from sqlalchemy import inspect, text
+
     try:
         if tipo == "R":
             # Para Recebíveis, retorna colunas da tabela fisica
@@ -259,7 +269,7 @@ def listar_colunas_sistema(
                 "SELECT nome_coluna FROM depara_controle WHERE mapeavel = 'mapeavel' ORDER BY id"
             ))
             return [row[0] for row in result]
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar colunas do sistema: {str(e)}")
 

@@ -1,15 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
-from sqlalchemy.orm import Session
-from app.core.database import get_db
 from typing import List
+
+from fastapi import APIRouter, Body, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
 from app.repositories.correcao_repository import CorrecaoRepository
 from app.schemas.correcao import (
-    ResumoResponse, 
-    AtualizarRequest, 
-    RemoverRequest, 
-    HistoricoItem,
+    AplicarTaxaBCRequest,
+    AtualizarRequest,
     FiltrosBCResponse,
-    AplicarTaxaBCRequest
+    HistoricoItem,
+    RemoverRequest,
+    ResumoResponse,
 )
 
 router = APIRouter()

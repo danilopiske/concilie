@@ -2,11 +2,13 @@
 Database Session Management
 """
 
-from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker, Session
-from typing import Generator
 import logging
+from typing import Generator
 from urllib.parse import quote_plus
+
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
+
 from app.core.config import settings
 
 # Logger para SQL queries
@@ -107,7 +109,7 @@ def receive_before_cursor_execute(
     """
     if hasattr(settings, "DEBUG_SQL") and settings.DEBUG_SQL:
         logger.info(f"\n{'='*80}")
-        logger.info(f"SQL Query:")
+        logger.info("SQL Query:")
         logger.info(f"{statement}")
         if params:
             logger.info(f"Parameters: {params}")

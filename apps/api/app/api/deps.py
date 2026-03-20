@@ -1,14 +1,16 @@
 import logging
 from typing import Optional
+
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
+from jose import JWTError, jwt
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.usuario import Usuario
+
 # from app.core.security import ALGORITHM
 
 logger = logging.getLogger("app.api.deps")
@@ -28,7 +30,7 @@ def _resolve_token(request: Request, bearer: Optional[str]) -> str:
     if cookie:
         logger.info("Token encontrado no Cookie 'access_token'")
         return cookie
-    
+
     logger.warning("Token não encontrado no header nem no cookie")
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
@@ -43,7 +45,7 @@ def get_current_user(
     """
     # This is a placeholder implementation if needed by other modules
     # You might need to import TokenPayload or similar
-    
+
     token = _resolve_token(request, bearer)
     try:
         payload = jwt.decode(
@@ -62,10 +64,10 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
-    
+
     from app.repositories.usuario_repository import UsuarioRepository
     repo = UsuarioRepository(db)
-    
+
     try:
         user_id = int(token_data)
         user = repo.get(user_id)
@@ -77,5 +79,5 @@ def get_current_user(
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     return user

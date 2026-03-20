@@ -2,10 +2,11 @@
 Pydantic schemas para Taxas
 """
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 from datetime import date
 from decimal import Decimal
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TaxaBase(BaseModel):

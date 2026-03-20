@@ -2,8 +2,9 @@
 Termo Filtravel Schemas
 """
 
-from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TermoFiltravelBase(BaseModel):

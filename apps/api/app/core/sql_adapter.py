@@ -7,6 +7,7 @@ automaticamente as queries SQL para o dialeto correto.
 """
 
 from typing import List, Tuple
+
 from sqlalchemy.engine import Engine
 
 
@@ -187,9 +188,9 @@ def get_table_columns_sql(engine: Engine, table_name: str) -> str:
     else:
         # MySQL: INFORMATION_SCHEMA
         return f"""
-            SELECT COLUMN_NAME AS coluna 
+            SELECT COLUMN_NAME AS coluna
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = DATABASE() 
+            WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = '{table_name}'
             ORDER BY ORDINAL_POSITION
         """
@@ -222,7 +223,7 @@ def upsert_sql(
         # Assume que a primeira coluna ou 'id' é a chave primária
         # Você pode ajustar isso conforme necessário
         return f"""
-            INSERT INTO {table} ({cols_str}) 
+            INSERT INTO {table} ({cols_str})
             VALUES ({placeholders})
             ON CONFLICT DO UPDATE SET {updates}
         """
@@ -230,8 +231,8 @@ def upsert_sql(
         # MySQL: INSERT ... ON DUPLICATE KEY UPDATE
         updates = ", ".join([f"{col}=VALUES({col})" for col in update_columns])
         return f"""
-            INSERT INTO {table} ({cols_str}) 
-            VALUES ({placeholders}) 
+            INSERT INTO {table} ({cols_str})
+            VALUES ({placeholders})
             ON DUPLICATE KEY UPDATE {updates}
         """
 

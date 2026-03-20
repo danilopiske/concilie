@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Boolean, Column, Integer, String
+
 from app.models.base import Base
+
 
 class DeParaColunasLegacy(Base):
     __tablename__ = "depara_colunas"

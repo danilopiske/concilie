@@ -1,7 +1,10 @@
-from sqlalchemy import Column, String, Integer, DateTime, JSON, ForeignKey
-from sqlalchemy.sql import func
-from .base import Base
 import uuid
+
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.sql import func
+
+from .base import Base
+
 
 class RelatorioTask(Base):
     __tablename__ = "relatorio_tasks"
@@ -18,6 +21,6 @@ class RelatorioTask(Base):
     sintetico_path = Column(String(500))
     excel_path = Column(String(500))
     metadata_json = Column(JSON)
-    
+
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

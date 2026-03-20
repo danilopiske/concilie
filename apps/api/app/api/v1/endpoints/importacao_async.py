@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
+from typing import List, Optional
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
+
 from app.core.database import get_db
-from app.services.import_service import ImportService
 from app.schemas.importacao import ImportacaoConfirmar
-from typing import Optional, List
+from app.services.import_service import ImportService
 
 router = APIRouter()
 
@@ -27,10 +29,10 @@ async def confirmar_importacao_async(
         ec_id=dados.ec_id,
         processamentoid=dados.processamentoid
     )
-    
+
     # Adiciona a tarefa ao background do FastAPI
     background_tasks.add_task(service.run_async_import, task.id)
-    
+
     return {
         "status": "processing",
         "task_id": task.id,
@@ -49,7 +51,7 @@ async def get_task_status(
     task = service.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
-    
+
     return {
         "id": task.id,
         "status": task.status,

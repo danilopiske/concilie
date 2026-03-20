@@ -2,15 +2,17 @@
 Gestao Service - Consolidated service for all management operations
 """
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 from sqlalchemy.orm import Session
-from app.repositories.contexto_repository import ContextoRepository
+
 from app.repositories.bandeira_repository import (
-    BandeiraDisponivelRepository,
     BandeiraClienteRepository,
+    BandeiraDisponivelRepository,
 )
-from app.repositories.termo_repository import TermoFiltravelRepository
+from app.repositories.contexto_repository import ContextoRepository
 from app.repositories.taxa_repository import TaxaRepository
+from app.repositories.termo_repository import TermoFiltravelRepository
 
 
 class GestaoService:

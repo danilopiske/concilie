@@ -2,19 +2,20 @@
 Gestao Endpoints - Management operations
 """
 
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas.contexto import ContextoCreate, ContextoResponse
 from app.schemas.bandeira import (
+    BandeiraClienteUpdate,
     BandeiraDisponivelCreate,
     BandeiraDisponivelResponse,
-    BandeiraClienteUpdate,
 )
-from app.schemas.termo import TermoFiltravelCreate, TermoFiltravelResponse
+from app.schemas.contexto import ContextoCreate, ContextoResponse
 from app.schemas.taxa import TaxaCreate, TaxaResponse
+from app.schemas.termo import TermoFiltravelCreate, TermoFiltravelResponse
 from app.services.gestao_service import GestaoService
 
 router = APIRouter()

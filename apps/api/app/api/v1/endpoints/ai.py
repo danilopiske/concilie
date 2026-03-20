@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
 from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.schemas.ai import AIAnalysisRequest, AIAnalysisResponse
 from app.services.ai_service import AIService
 

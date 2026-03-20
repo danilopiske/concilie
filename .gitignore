@@ -210,6 +210,11 @@ local_settings.py
 .env
 .env.local
 .env.*.local
+.env.mysql
+.env.sqlite
+.env.active
+.env.production
+.env.staging
 conf/local_*.py
 
 # Mas manter exemplos de configuração

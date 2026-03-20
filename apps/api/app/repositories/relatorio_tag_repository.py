@@ -3,7 +3,9 @@ Repository para RelatorioTag
 """
 
 from typing import List, Optional
+
 from sqlalchemy.orm import Session
+
 from app.models.relatorio_tag import RelatorioTag
 from app.schemas.relatorio_tag import RelatorioTagCreate, RelatorioTagUpdate
 

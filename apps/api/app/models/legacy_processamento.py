@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, DateTime, Integer, String
+
 from app.models.base import Base
+
 
 class LegacyProcessamento(Base):
     __tablename__ = "controle_processamentos"

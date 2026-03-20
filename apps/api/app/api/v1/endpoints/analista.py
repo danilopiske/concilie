@@ -1,14 +1,16 @@
 from typing import List
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+
 from app.core.database import get_db
 from app.repositories.analista_repository import AnalistaRepository
 from app.schemas.analista import (
     AgregacaoBandeira,
     AgregacaoFormaPagamento,
+    AgregacaoFormaPagamentoAno,
     AgregacaoPeriodo,
     AgregacaoRecebivel,
-    AgregacaoFormaPagamentoAno
 )
 
 router = APIRouter()
@@ -25,7 +27,7 @@ def get_formas_pagamento(processamento_id: str, db: Session = Depends(get_db)):
 
 @router.get("/{processamento_id:path}/periodos", response_model=List[AgregacaoPeriodo])
 def get_periodos(
-    processamento_id: str, 
+    processamento_id: str,
     tipo: str = Query(..., pattern="^(mes|trimestre|semestre|ano)$"),
     db: Session = Depends(get_db)
 ):

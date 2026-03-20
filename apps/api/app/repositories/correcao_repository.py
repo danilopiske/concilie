@@ -1,18 +1,21 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func, insert, delete, select
-from app.models.vendas import Venda, VendaFiltrada
-from app.models.recebiveis import Recebivel, RecebivelFiltrado
-from app.models.vendas_calculos import VendasCalculos
-from app.models.log import LogCorrecao
-from app.schemas.correcao import ResumoResponse, ResumoItem, HistoricoItem
 from typing import List, Optional
+
+from sqlalchemy import delete, func, insert, select
+from sqlalchemy.orm import Session
+
+from app.models.log import LogCorrecao
+from app.models.recebiveis import Recebivel, RecebivelFiltrado
+from app.models.vendas import Venda, VendaFiltrada
+from app.models.vendas_calculos import VendasCalculos
+from app.schemas.correcao import HistoricoItem, ResumoItem, ResumoResponse
+
 
 class CorrecaoRepository:
     def __init__(self, db: Session):
         self.db = db
 
     def listar_resumo(self, processamento_id: str) -> ResumoResponse:
-        
+
         def get_summary(model, column, value_col):
             return self.db.query(
                 column.label("valor"),
@@ -25,7 +28,7 @@ class CorrecaoRepository:
         formas = get_summary(Venda, Venda.forma_pagamento, Venda.valor_venda)
         bandeiras = get_summary(Venda, Venda.bandeira, Venda.valor_venda)
         status = get_summary(Venda, Venda.status, Venda.valor_venda)
-        
+
         recebiveis = get_summary(Recebivel, Recebivel.lancamento, Recebivel.valor_recebivel)
 
         def map_items(rows):
@@ -48,7 +51,7 @@ class CorrecaoRepository:
         logs = self.db.query(LogCorrecao).filter(
             LogCorrecao.processamentoid == processamento_id
         ).order_by(LogCorrecao.data_correcao.desc()).all()
-        
+
         return [
             HistoricoItem(
                 id=log.id,
@@ -80,12 +83,12 @@ class CorrecaoRepository:
                 Recebivel.processamentoid == processamento_id,
                 Recebivel.lancamento.in_(valores_antigos)
             ).update({Recebivel.lancamento: valor_novo}, synchronize_session=False)
-            
+
             self._registrar_log(
-                processamento_id, 
-                'atualizacao_lancamento_recebiveis', 
-                ", ".join(valores_antigos), 
-                valor_novo, 
+                processamento_id,
+                'atualizacao_lancamento_recebiveis',
+                ", ".join(valores_antigos),
+                valor_novo,
                 result,
                 usuario
             )
@@ -96,7 +99,7 @@ class CorrecaoRepository:
                 "bandeira": Venda.bandeira,
                 "status": Venda.status
             }
-            
+
             target_col = column_map.get(campo)
             if not target_col:
                 raise ValueError(f"Campo inválido: {campo}")
@@ -105,16 +108,16 @@ class CorrecaoRepository:
                 Venda.processamentoid == processamento_id,
                 target_col.in_(valores_antigos)
             ).update({target_col: valor_novo}, synchronize_session=False)
-            
+
             self._registrar_log(
-                processamento_id, 
-                f'atualizacao_{campo}', 
-                ", ".join(valores_antigos), 
-                valor_novo, 
+                processamento_id,
+                f'atualizacao_{campo}',
+                ", ".join(valores_antigos),
+                valor_novo,
                 result,
                 usuario
             )
-        
+
         self.db.commit()
         return result
 
@@ -125,7 +128,7 @@ class CorrecaoRepository:
                 stmt = insert(RecebivelFiltrado).from_select(
                     [
                         "processamentoid", "lancamento", "valor_recebivel", "valor_liquido",
-                        "data_pagamento", "data_recebivel", "recebivel_id", "adquirente", 
+                        "data_pagamento", "data_recebivel", "recebivel_id", "adquirente",
                         "descricao", "banco", "agencia", "conta", "cliente_id", "ec_id",
                         "data_processamento", "usuario_processamento", "arquivo_origem"
                     ],
@@ -150,14 +153,14 @@ class CorrecaoRepository:
                 ).delete(synchronize_session=False)
 
                 self._registrar_log(
-                    processamento_id, 
-                    'remocao_lancamento_recebiveis', 
-                    ", ".join(valores), 
-                    None, 
+                    processamento_id,
+                    'remocao_lancamento_recebiveis',
+                    ", ".join(valores),
+                    None,
                     result,
                     usuario
                 )
-                
+
                 self.db.commit()
                 return result
 
@@ -168,7 +171,7 @@ class CorrecaoRepository:
                     "bandeira": Venda.bandeira,
                     "status": Venda.status
                 }
-                
+
                 target_col = column_map.get(campo)
                 if not target_col:
                     raise ValueError(f"Campo inválido: {campo}")
@@ -176,10 +179,10 @@ class CorrecaoRepository:
                 # 1. INSERT ... SELECT para Vendas
                 stmt = insert(VendaFiltrada).from_select(
                     [
-                        VendaFiltrada.processamentoid, VendaFiltrada.cliente_id, VendaFiltrada.ec_id, 
-                        VendaFiltrada.data_venda, VendaFiltrada.valor_venda, VendaFiltrada.valor_liquido, 
-                        VendaFiltrada.nsu, VendaFiltrada.autorizacao, VendaFiltrada.bandeira, 
-                        VendaFiltrada.forma_pagamento, VendaFiltrada.status, VendaFiltrada.adquirente, 
+                        VendaFiltrada.processamentoid, VendaFiltrada.cliente_id, VendaFiltrada.ec_id,
+                        VendaFiltrada.data_venda, VendaFiltrada.valor_venda, VendaFiltrada.valor_liquido,
+                        VendaFiltrada.nsu, VendaFiltrada.autorizacao, VendaFiltrada.bandeira,
+                        VendaFiltrada.forma_pagamento, VendaFiltrada.status, VendaFiltrada.adquirente,
                         VendaFiltrada.data_processamento
                     ],
                     self.db.query(
@@ -213,16 +216,16 @@ class CorrecaoRepository:
                     ).delete(synchronize_session=False)
 
                     self._registrar_log(
-                        processamento_id, 
-                        f'remocao_{campo}', 
-                        ", ".join(valores), 
-                        None, 
+                        processamento_id,
+                        f'remocao_{campo}',
+                        ", ".join(valores),
+                        None,
                         result,
                         usuario
                     )
                 else:
                     result = 0
-            
+
                 self.db.commit()
                 return result
 
@@ -246,14 +249,14 @@ class CorrecaoRepository:
                 ).delete(synchronize_session=False)
 
                 self._registrar_log(
-                    processamento_id, 
-                    'exclusao_permanente_recebiveis_filtrados', 
-                    ", ".join(valores), 
-                    None, 
+                    processamento_id,
+                    'exclusao_permanente_recebiveis_filtrados',
+                    ", ".join(valores),
+                    None,
                     result,
                     usuario
                 )
-                
+
                 self.db.commit()
                 return result
 
@@ -264,7 +267,7 @@ class CorrecaoRepository:
                     "bandeira": VendaFiltrada.bandeira,
                     "status": VendaFiltrada.status
                 }
-                
+
                 target_col = column_map.get(campo)
                 if not target_col:
                     raise ValueError(f"Campo inválido: {campo}")
@@ -275,14 +278,14 @@ class CorrecaoRepository:
                 ).delete(synchronize_session=False)
 
                 self._registrar_log(
-                    processamento_id, 
-                    f'exclusao_permanente_{campo}_filtradas', 
-                    ", ".join(valores), 
-                    None, 
+                    processamento_id,
+                    f'exclusao_permanente_{campo}_filtradas',
+                    ", ".join(valores),
+                    None,
                     result,
                     usuario
                 )
-            
+
                 self.db.commit()
                 return result
 
@@ -299,23 +302,23 @@ class CorrecaoRepository:
         formas = self.db.query(VendasCalculos.forma_pagamento).filter(
             VendasCalculos.calc_id == processamento_id
         ).distinct().all()
-        
+
         bandeiras = self.db.query(VendasCalculos.bandeira).filter(
             VendasCalculos.calc_id == processamento_id
         ).distinct().all()
-        
+
         return {
             "formas": [r[0] for r in formas if r[0]],
             "bandeiras": [r[0] for r in bandeiras if r[0]]
         }
 
     def aplicar_taxa_bc(
-        self, 
-        processamento_id: str, 
-        forma_pagamento: str, 
-        bandeira: str, 
-        data_ini: Optional[str], 
-        data_fim: Optional[str], 
+        self,
+        processamento_id: str,
+        forma_pagamento: str,
+        bandeira: str,
+        data_ini: Optional[str],
+        data_fim: Optional[str],
         nova_taxa: float,
         usuario: str = "sistema"
     ) -> int:
@@ -323,19 +326,19 @@ class CorrecaoRepository:
         Aplica nova taxa BC e recalcula campos financeiros.
         """
         query = self.db.query(VendasCalculos).filter(VendasCalculos.calc_id == processamento_id)
-        
+
         if forma_pagamento and forma_pagamento != "TODOS":
             query = query.filter(VendasCalculos.forma_pagamento == forma_pagamento)
-            
+
         if bandeira and bandeira != "TODOS":
             query = query.filter(VendasCalculos.bandeira == bandeira)
-            
+
         if data_ini:
             query = query.filter(VendasCalculos.data_venda >= data_ini)
-            
+
         if data_fim:
             query = query.filter(VendasCalculos.data_venda <= data_fim)
-            
+
         # SQLAlchemy update with expressions
         result = query.update({
             VendasCalculos.tx_calc: nova_taxa,
@@ -343,7 +346,7 @@ class CorrecaoRepository:
             VendasCalculos.vl_liq_calc: VendasCalculos.vl_venda - (VendasCalculos.vl_venda * nova_taxa / 100),
             VendasCalculos.perda: VendasCalculos.vl_liq_venda - (VendasCalculos.vl_venda - (VendasCalculos.vl_venda * nova_taxa / 100))
         }, synchronize_session=False)
-        
+
         self._registrar_log(
             processamento_id,
             'taxa_bc',
@@ -352,6 +355,6 @@ class CorrecaoRepository:
             result,
             usuario
         )
-        
+
         self.db.commit()
         return result

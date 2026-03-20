@@ -1,6 +1,7 @@
 import logging
 from datetime import timedelta
 from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -25,11 +26,11 @@ def login_access_token(
     """
     repo = UsuarioRepository(db)
     user = repo.obter_por_usuario(form_data.username)
-    
+
     if not user:
         # Avoid timing attacks / generic message
         raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
-    
+
     # Check password (assuming user.senha is hashed, or plaintext if legacy - verify logic)
     # Ideally should be hashed. Let's assume verify_password checks hash.
     # If legacy is plaintext, we might need a migration or check.
@@ -43,7 +44,7 @@ def login_access_token(
     except Exception as e:
         # If verify crashes (e.g. unknown hash format), fall through to legacy checks
         logger.warning("bcrypt verify falhou para usuário %s: %s", form_data.username, e)
-        
+
     if not password_valid:
         # Try Plain Text
         if user.senha == form_data.password:
@@ -57,7 +58,7 @@ def login_access_token(
 
     if not password_valid:
         raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
-         
+
     # Check if active
     # if not user.is_active: ... (Model doesn't seem to have is_active, maybe 'ativo'?)
 

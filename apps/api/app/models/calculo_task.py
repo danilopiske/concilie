@@ -1,7 +1,10 @@
-from sqlalchemy import Column, String, Integer, DateTime, JSON, ForeignKey
-from sqlalchemy.sql import func
-from .base import Base
 import uuid
+
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.sql import func
+
+from .base import Base
+
 
 class CalculoTask(Base):
     __tablename__ = "calculo_tasks"
@@ -14,6 +17,6 @@ class CalculoTask(Base):
     tipo_taxa = Column(String(20))
     usuario = Column(String(50))
     metadata_json = Column(JSON)
-    
+
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

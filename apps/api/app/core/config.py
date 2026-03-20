@@ -2,9 +2,10 @@
 Application Configuration
 """
 
-from typing import List
-from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
+from typing import List
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Calculate absolute path for SQLite here (outside class)
 _current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -31,15 +32,15 @@ class Settings(BaseSettings):
         Dynamic CORS origins based on environment
         """
         origins = self.ALLOWED_ORIGINS.copy()
-        
+
         # Add Railway/Production URL from env
         if os.getenv("FRONTEND_URL"):
             origins.append(os.getenv("FRONTEND_URL"))
-            
+
         # Add Render/Heroku URLs if needed
         if os.getenv("RAILWAY_PUBLIC_DOMAIN"):
              origins.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
-             
+
         return origins
 
     # Database
@@ -49,7 +50,7 @@ class Settings(BaseSettings):
     MYSQL_USER: str = "root"
     MYSQL_PASSWORD: str = ""
     MYSQL_DB: str = "bd_conciliacao"
-    
+
     # SQLite Path calculated outside class to avoid Pydantic annotation errors
     SQLITE_DB_PATH: str = SQLITE_DB_PATH_CALCULATED
 
@@ -63,7 +64,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production-only-for-local")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+
     # AI
     OPENAI_API_KEY: str = ""
     OPENAI_API_BASE: str = "https://api.openai.com/v1"
@@ -71,10 +72,10 @@ class Settings(BaseSettings):
 
 
     # CORS (alias para ALLOWED_ORIGINS)
-    # CORS (alias for property in Pydantic v2 might need computed_field, 
+    # CORS (alias for property in Pydantic v2 might need computed_field,
     # but for v1 or simple usage we use the property above directly in main.py)
-    # Removing static CORS_ORIGINS to rely on the dynamic property logic or 
-    # we can use a validator if strictly needed by Pydantic. 
+    # Removing static CORS_ORIGINS to rely on the dynamic property logic or
+    # we can use a validator if strictly needed by Pydantic.
     # For now, we will access settings.CORS_ORIGINS as a property where needed.
 
     model_config = SettingsConfigDict(

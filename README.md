@@ -90,6 +90,27 @@ pnpm dev
 
 ---
 
+## 🧪 Testing
+
+```bash
+# Backend — pytest
+cd apps/api
+poetry run pytest tests/ -v
+
+# Frontend — E2E Playwright (requer stack rodando)
+cd apps/web
+pnpm test:e2e
+```
+
+## ✅ CI/CD
+
+O projeto usa GitHub Actions com dois workflows:
+
+- **`ci.yml`** — Executa em todo PR e push para `main`: lint (ruff + eslint), typecheck, pytest, build Next.js
+- **`e2e.yml`** — Executa após CI passar: smoke tests E2E com Playwright
+
+---
+
 ## 📚 Documentation
 
 - **[Evaluation Report](docs/EVALUATION_REPORT.md)**: Current state assessment and code quality analysis.

@@ -1,12 +1,15 @@
-from sqlalchemy import Column, Integer, String, DateTime, DECIMAL, ForeignKey, BigInteger
-from app.models.base import Base
 from datetime import datetime
+
+from sqlalchemy import DECIMAL, BigInteger, Column, DateTime, ForeignKey, Integer, String
+
+from app.models.base import Base
+
 
 class VendasCalculos(Base):
     __tablename__ = "vendas_calculos"
 
     id = Column(Integer, primary_key=True, index=True)
-    
+
     # FK e Identificadores do Processamento
     id_venda = Column(Integer, index=True) # Referência lógica à vendas_processadas.id
     calc_id = Column(String(50), index=True) # ID do processamento
@@ -29,7 +32,7 @@ class VendasCalculos(Base):
     tx_venda = Column(DECIMAL(18, 4))
     desc_venda = Column(DECIMAL(18, 2))
     vl_liq_venda = Column(DECIMAL(18, 2))
-    
+
     tx_rr_venda = Column(DECIMAL(18, 4))
     vl_rr_venda = Column(DECIMAL(18, 2))
 
@@ -37,10 +40,10 @@ class VendasCalculos(Base):
     tx_calc = Column(DECIMAL(18, 4), nullable=True)
     desc_calc = Column(DECIMAL(18, 2), nullable=True)
     vl_liq_calc = Column(DECIMAL(18, 2), nullable=True)
-    
+
     tx_rr_calc = Column(DECIMAL(18, 4), nullable=True)
     vl_rr_calc = Column(DECIMAL(18, 2), nullable=True)
-    
+
     # Diferença / Perda
     perda = Column(DECIMAL(18, 2), nullable=True)
     perda_rr = Column(DECIMAL(18, 2), nullable=True)

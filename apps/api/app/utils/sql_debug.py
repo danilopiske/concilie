@@ -5,9 +5,9 @@ Utilitário para debug de queries SQL
 
 import logging
 from typing import Any, Dict
+
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
-
 
 # Logger dedicado para SQL debug
 sql_logger = logging.getLogger("sql_debug")

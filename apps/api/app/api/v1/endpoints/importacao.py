@@ -1,10 +1,12 @@
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Body, BackgroundTasks
+from typing import List, Optional
+
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
+
 from app.core.database import get_db
-from app.services.import_service import ImportService
 from app.schemas.importacao import ImportacaoConfirmar
-from typing import Optional, List
+from app.services.import_service import ImportService
 
 router = APIRouter()
 
@@ -15,7 +17,7 @@ async def upload_arquivo_preview(
     ec_id: str = Form(...),
     contexto: str = Form(...),
     tipo: str = Form(...),
-    usuario: str = Form("api_user"), 
+    usuario: str = Form("api_user"),
     db: Session = Depends(get_db)
 ):
     """

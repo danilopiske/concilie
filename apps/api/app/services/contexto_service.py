@@ -2,12 +2,14 @@
 Service de Contextos - Lógica de negócio
 """
 
+from typing import List, Optional
+
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
+
+from app.models.contexto import Contexto
 from app.repositories.contexto_repository import ContextoRepository
 from app.schemas.contexto import ContextoCreate, ContextoUpdate
-from app.models.contexto import Contexto
-from typing import List, Optional
-from fastapi import HTTPException
 
 
 class ContextoService:

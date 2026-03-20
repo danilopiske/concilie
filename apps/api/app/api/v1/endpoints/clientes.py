@@ -3,11 +3,12 @@ Clientes Endpoints
 """
 
 from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schemas.cliente import ClienteCreate, ClienteUpdate, ClienteResponse
+from app.schemas.cliente import ClienteCreate, ClienteResponse, ClienteUpdate
 from app.services.cliente_service import ClienteService
 
 router = APIRouter()

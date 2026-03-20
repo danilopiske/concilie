@@ -2,8 +2,9 @@
 Contexto Model
 """
 
-from sqlalchemy import Column, Integer, String, Text, Boolean, TIMESTAMP
+from sqlalchemy import TIMESTAMP, Boolean, Column, Integer, String, Text
 from sqlalchemy.sql import func
+
 from app.models.base import Base
 
 
