@@ -57,6 +57,7 @@ function RelatorioEditorContent() {
 
   const fullHtmlRef = useRef<string>('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const blobUrlRef = useRef<string | null>(null);
   const [editableContent, setEditableContent] = useState('');
   const [tags, setTags] = useState<RelatorioTag[]>([]);
   const [loadingContent, setLoadingContent] = useState(true);
@@ -82,7 +83,11 @@ function RelatorioEditorContent() {
       }
 
       const downloadUrl = relatorioApi.downloadUrl(task.result_path);
-      const res = await fetch(downloadUrl);
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      const res = await fetch(downloadUrl, {
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error('Erro ao baixar arquivo do relatório');
       const html = await res.text();
 
@@ -90,7 +95,12 @@ function RelatorioEditorContent() {
       // TipTap só edita o .editor-appendix (conteúdo adicionado pelo usuário)
       setEditableContent(extractEditableContent(html));
       setSavedPath(task.result_path);
-      setPreviewUrl(downloadUrl);
+
+      // Blob URL para o iframe (não requer auth headers)
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+      const blob = new Blob([html], { type: 'text/html' });
+      blobUrlRef.current = URL.createObjectURL(blob);
+      setPreviewUrl(blobUrlRef.current);
 
       const tagsData = await relatorioTagsApi.listar('true');
       setTags(tagsData);
@@ -113,7 +123,12 @@ function RelatorioEditorContent() {
       // Atualiza fullHtmlRef e previewUrl com o novo HTML salvo
       fullHtmlRef.current = fullHtml;
       setSavedPath(result.path);
-      setPreviewUrl(relatorioApi.downloadUrl(result.path) + '&t=' + Date.now());
+
+      // Atualiza blob URL do iframe com o novo HTML salvo
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+      const blob = new Blob([fullHtml], { type: 'text/html' });
+      blobUrlRef.current = URL.createObjectURL(blob);
+      setPreviewUrl(blobUrlRef.current);
       setSuccessMsg('Relatório salvo com sucesso!');
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (err: unknown) {

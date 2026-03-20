@@ -2798,6 +2798,20 @@ def gerar_relatorio_html(
     tabela_contagem_taxas_html = gerar_tabela_html(df_contagem_sumarizado, "Contagem de Transações por Ano-Semestre, Bandeira e Modalidade")
     log_tempo_execucao("Polars: calcular_contagem_taxas_agrupado", inicio_contagem)
 
+    # 6b. Sumário de Recebíveis com Descontos Contestáveis por Semestre
+    df_sumario_recebiveis = calcular_sumario_recebiveis(engine, processamento_id, data_inicio, data_fim)
+    if not df_sumario_recebiveis.empty:
+        tabela_sumario_recebiveis_html = gerar_tabela_html(
+            df_sumario_recebiveis, "Sumário de Registros com Descontos Contestáveis/ por Semestre"
+        )
+
+    # 6c. Dados Bancários Distintos nos Recebíveis
+    df_dados_bancarios = obter_dados_bancarios_distintos(engine, processamento_id, data_inicio, data_fim)
+    if df_dados_bancarios is not None and not df_dados_bancarios.empty:
+        tabela_dados_bancarios_html = gerar_tabela_html(
+            df_dados_bancarios, "Dados Bancários Distintos nos Recebíveis"
+        )
+
     # 7. Evidências de Transações (ZERO SQL!)
     inicio_evidencias = time.time()
     # PASSA DIRETAMENTE O POLARS DATAFRAME para evitar conversão pesada para Pandas
@@ -3464,13 +3478,15 @@ def gerar_tabela_html(df: pd.DataFrame, titulo: str) -> str:
         return f'<div class="report-section"><h3>{titulo}</h3><p>Sem dados suficientes para esta análise.</p></div>'
 
     html = f'<div class="report-section"><h3>{titulo}</h3><table class="report-table">'
-    html += "<tr>" + "".join(f"<th>{col}</th>" for col in df.columns) + "</tr>"
+    html += "<tr>" + "".join(f'<th class="header-blue">{col}</th>' for col in df.columns) + "</tr>"
 
     for _, row in df.iterrows():
         html += "<tr>"
 
-        # Verificar se é linha de total
-        is_total_row = "** TOTAL GERAL **" in str(row.iloc[0])
+        # Verificar tipo de linha
+        first_val = str(row.iloc[0])
+        is_total_row = "** TOTAL GERAL **" in first_val
+        is_subtotal_row = first_val.startswith("Subtotal")
 
         for col in df.columns:
             valor = row[col]
@@ -3506,8 +3522,9 @@ def gerar_tabela_html(df: pd.DataFrame, titulo: str) -> str:
 
             # Aplicar formatação
             if is_total_row:
-                # Toda linha de total: vermelha e negrito
-                html += f"<td style='color: #9c1313; font-weight: bold;'>{valor_str}</td>"
+                html += f"<td style='color: #9c1313; font-weight: bold; background-color: #fff0f0;'>{valor_str}</td>"
+            elif is_subtotal_row:
+                html += f"<td style='font-weight: bold; background-color: #f0f4ff; color: #223a6b;'>{valor_str}</td>"
             else:
                 html += f"<td>{valor_str}</td>"
         
