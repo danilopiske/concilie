@@ -19,7 +19,7 @@
 | B-01 | `relatorio_service.py` — função `calcular_reconciliacao` com >150 linhas, múltiplas responsabilidades, difícil de testar em isolamento | H | G | @dev | open | Story 2.1 |
 | B-02 | `reconciliation_core.py` — acoplamento direto com módulo legado `proc/`, importa `sys.path.append` hardcoded | H | G | @dev | open | Story 2.1 |
 | B-03 | `app/models/depara.py` — arquivo estava corrompido (class body ausente), reconstruído em 2.4 como modelo não utilizado. Avaliar se deve ser removido ou expandido | M | P | @dev | open | Story 2.4 |
-| B-04 | CORS `allow_origins` — em desenvolvimento usa `["*"]` potencialmente. Confirmar configuração para produção via variável de ambiente | H | P | @dev | open | Story 2.1 |
+| B-04 | CORS `allow_origins` — em desenvolvimento usa `["*"]` potencialmente. Confirmar configuração para produção via variável de ambiente | H | P | @dev | resolved | Story 2.1, Story 3.2 |
 | B-05 | Ausência de testes unitários para camada de serviços (`services/`) — apenas integração via pytest | M | G | @dev | open | Story 2.3 |
 | B-06 | `depara.py` endpoint `/ler-cabecalhos` usa `sys.path.append` com path hardcoded como fallback (`d:/Financial  base/...`) | M | P | @dev | open | Story 2.1 |
 | B-07 | `alembic` instalado mas sem migrations criadas — schema gerenciado manualmente | M | M | @dev | open | Story 2.1 |
@@ -37,7 +37,7 @@
 
 | # | Item | Impacto | Esforço | Owner | Status | Referência |
 |---|------|---------|---------|-------|--------|------------|
-| C-01 | GitHub Secrets `DATABASE_URL`, `SECRET_KEY` não configurados no repositório remoto — CI usa valores hardcoded para SQLite | H | P | @devops | open | Story 2.4 |
+| C-01 | GitHub Secrets `DATABASE_URL`, `SECRET_KEY` não configurados no repositório remoto — CI usa valores hardcoded para SQLite | H | P | @devops | resolved | Story 2.4, Story 3.2 |
 | C-02 | Pipeline E2E (`e2e.yml`) não tem banco de dados persistente entre testes — cada run parte de SQLite vazio sem seed de dados | M | M | @devops | open | Story 2.3 |
 | C-03 | Sem pipeline de deploy automatizado (CD) — deploy é manual via bat scripts | M | G | @devops | open | — |
 
@@ -69,6 +69,8 @@ Os itens de impacto alto abaixo devem ter story de follow-up criada antes do Spr
 
 | Data | Item | Descrição | Story |
 |------|------|-----------|-------|
+| 2026-03-20 | B-04 — CORS produção | `ALLOWED_ORIGINS_STR` env var adicionada ao config.py | 3.2 |
+| 2026-03-20 | C-01 — GitHub Secrets | `ci.yml` migrado para `${{ secrets.SECRET_KEY_CI }}`, guia criado | 3.2 |
 | 2026-03-20 | `.env.mysql` exposto | Removido do git tracking via `git rm --cached` | 2.4 |
 | 2026-03-20 | ruff 538 erros | Reduzido para 0 com `--fix`, `--unsafe-fixes` e config de ignores | 2.4 |
 | 2026-03-20 | `depara.py` corrompido | Reconstruído como modelo SQLAlchemy válido | 2.4 |

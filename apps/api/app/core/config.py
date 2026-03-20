@@ -2,8 +2,9 @@
 Application Configuration
 """
 
+import json
 import os
-from typing import List
+from typing import List, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,12 +26,20 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://127.0.0.1:8000",
     ]
+    # Set this env var to override the full CORS list in staging/prod
+    # Example: ALLOWED_ORIGINS_STR='["https://app.concilie.com.br"]'
+    ALLOWED_ORIGINS_STR: Optional[str] = None
 
     @property
     def CORS_ORIGINS(self) -> List[str]:
         """
-        Dynamic CORS origins based on environment
+        Dynamic CORS origins based on environment.
+        If ALLOWED_ORIGINS_STR is set, it takes full precedence (staging/prod).
+        Otherwise falls back to ALLOWED_ORIGINS + optional FRONTEND_URL.
         """
+        if self.ALLOWED_ORIGINS_STR:
+            return json.loads(self.ALLOWED_ORIGINS_STR)
+
         origins = self.ALLOWED_ORIGINS.copy()
 
         # Add Railway/Production URL from env
@@ -39,7 +48,7 @@ class Settings(BaseSettings):
 
         # Add Render/Heroku URLs if needed
         if os.getenv("RAILWAY_PUBLIC_DOMAIN"):
-             origins.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
+            origins.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
 
         return origins
 

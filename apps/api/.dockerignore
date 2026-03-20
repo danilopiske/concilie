@@ -1,0 +1,34 @@
+# Variáveis de ambiente — nunca incluir no container
+.env
+.env.*
+!.env.example
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtualenv
+.venv/
+venv/
+
+# Testes
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Git
+.git/
+.gitignore
+
+# Outros
+*.log
+.ai/
