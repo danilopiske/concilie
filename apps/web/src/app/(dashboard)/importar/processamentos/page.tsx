@@ -11,15 +11,19 @@ import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { importacaoApi } from '@/lib/api/importacao';
 import { Processamento } from '@/lib/types/importacao';
 import { Modal } from '@/components/ui/Modal';
-import { 
-  Trash2, 
-  RefreshCw, 
-  FileCheck, 
-  Files, 
-  AlertCircle, 
-  Clock, 
+import { clientesApi, Cliente } from '@/lib/api/clientes';
+import { processamentosApi } from '@/lib/api/processamentos';
+import Link from 'next/link';
+import {
+  Trash2,
+  RefreshCw,
+  FileCheck,
+  Files,
+  AlertCircle,
+  Clock,
   Database,
-  ArrowRight
+  ArrowRight,
+  Download
 } from 'lucide-react';
 
 interface ActiveTask {
@@ -32,18 +36,31 @@ interface ActiveTask {
   contexto: string;
 }
 
+const PERIOD_OPTIONS = [
+  { label: '7 dias', value: 7 },
+  { label: '30 dias', value: 30 },
+  { label: '90 dias', value: 90 },
+  { label: '1 ano', value: 365 },
+];
+
 export default function ProcessamentosPage() {
   const [processamentos, setProcessamentos] = useState<Processamento[]>([]);
   const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [periodo, setPeriodo] = useState<number>(90);
+  const [clienteId, setClienteId] = useState<number | undefined>(undefined);
+
+  // Load clientes once
+  useEffect(() => {
+    clientesApi.listar().then(setClientes).catch(() => setClientes([]));
+  }, []);
 
   // Poll for active tasks
   const fetchActiveTasks = useCallback(async () => {
     try {
-      // For now, using a fixed cliente_id 1 or getting it from context/URL if available
-      // In a real app, this would come from the auth/session context
       const data = await importacaoApi.getActiveTasks(1);
       setActiveTasks(data);
     } catch (err) {
@@ -54,7 +71,7 @@ export default function ProcessamentosPage() {
   const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await importacaoApi.processamentos.listar();
+      const data = await importacaoApi.processamentos.listar({ periodo, cliente_id: clienteId });
       setProcessamentos(data);
     } catch (err) {
       setError('Erro ao carregar histórico de processamentos');
@@ -62,7 +79,7 @@ export default function ProcessamentosPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [periodo, clienteId]);
 
   const refreshAll = useCallback(() => {
     fetchActiveTasks();
@@ -176,22 +193,31 @@ export default function ProcessamentosPage() {
     {
       key: 'actions',
       label: 'Ações',
-      width: '80px',
+      width: '120px',
       render: (_, row) => (
-        <Button
-          variant="secondary"
-          size="sm"
-          className="text-red-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-none shadow-none"
-          onClick={() => handleDelete(row.id)}
-          disabled={!!deletingId}
-          title="Excluir tudo deste processamento"
-        >
-          {deletingId === String(row.id) ? (
-            <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-red-600"></div>
-          ) : (
-            <Trash2 size={18} />
-          )}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Link
+            href={`/importar/processamentos/${row.id}`}
+            className="inline-flex items-center justify-center h-8 w-8 rounded text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+            title="Ver detalhes"
+          >
+            <ArrowRight size={16} />
+          </Link>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="text-red-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-none shadow-none"
+            onClick={() => handleDelete(row.id)}
+            disabled={!!deletingId}
+            title="Excluir tudo deste processamento"
+          >
+            {deletingId === String(row.id) ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-red-600"></div>
+            ) : (
+              <Trash2 size={18} />
+            )}
+          </Button>
+        </div>
       )
     }
   ];
@@ -206,7 +232,7 @@ export default function ProcessamentosPage() {
       />
 
       {/* Header */}
-      <div className="mb-8 flex justify-between items-end">
+      <div className="mb-6 flex justify-between items-end">
         <div>
           <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight mb-2">
             Dashboard de Processamentos
@@ -216,16 +242,16 @@ export default function ProcessamentosPage() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Button 
-            variant="secondary" 
+          <Button
+            variant="secondary"
             onClick={refreshAll}
             className="flex gap-2 items-center"
           >
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
             Sincronizar
           </Button>
-          <Button 
-            variant="primary" 
+          <Button
+            variant="primary"
             onClick={() => window.location.href = '/importar/vendas'}
             className="flex gap-2 items-center"
           >
@@ -233,6 +259,55 @@ export default function ProcessamentosPage() {
             <ArrowRight size={18} />
           </Button>
         </div>
+      </div>
+
+      {/* Filters */}
+      <div className="mb-8 flex flex-wrap gap-3 items-center">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-600">Período:</label>
+          <div className="flex gap-1">
+            {PERIOD_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setPeriodo(opt.value)}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  periodo === opt.value
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {clientes.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-600">Cliente:</label>
+            <select
+              value={clienteId ?? ''}
+              onChange={e => setClienteId(e.target.value ? Number(e.target.value) : undefined)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              <option value="">Todos</option>
+              {clientes.map(c => (
+                <option key={c.cliente_id} value={c.cliente_id}>
+                  {c.nome_fantasia || c.razao_social}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <a
+          href={processamentosApi.exportarCsvUrl({ cliente_id: clienteId, periodo })}
+          download
+          className="ml-auto inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+        >
+          <Download size={16} />
+          Exportar CSV
+        </a>
       </div>
 
       {/* Stats Cards */}
@@ -285,6 +360,12 @@ export default function ProcessamentosPage() {
       {/* History Table */}
       <div className="flex items-center gap-2 mb-4">
         <h2 className="text-xl font-bold text-gray-800">Histórico Recente</h2>
+        <span className="text-sm text-gray-400">
+          — últimos {periodo} dias
+          {clienteId && clientes.find(c => c.cliente_id === clienteId)
+            ? ` · ${clientes.find(c => c.cliente_id === clienteId)!.nome_fantasia || clientes.find(c => c.cliente_id === clienteId)!.razao_social}`
+            : ''}
+        </span>
       </div>
       <Card className="overflow-hidden border-gray-100 shadow-sm hover:shadow-md transition-shadow">
         {loading ? (

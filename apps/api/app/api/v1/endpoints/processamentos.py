@@ -1,6 +1,10 @@
+import csv
+import io
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,18 +13,84 @@ from app.schemas.processamento import ProcessamentoFilter, ProcessamentoResponse
 
 router = APIRouter()
 
+
+@router.get("/exportar-csv")
+def exportar_processamentos_csv(
+    cliente_id: Optional[int] = Query(None),
+    periodo: int = Query(90, ge=1, le=3650),
+    db: Session = Depends(get_db),
+):
+    """Exporta processamentos filtrados como CSV."""
+    data_limite = datetime.now(timezone.utc) - timedelta(days=periodo)
+    data_ini_str = data_limite.strftime("%Y-%m-%d")
+
+    repo = ProcessamentoRepository(db)
+    filtro = ProcessamentoFilter(
+        cliente_id=cliente_id,
+        data_ini=data_ini_str,
+    )
+    items = repo.listar(skip=0, limit=10000, filtros=filtro, simple=True)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "id",
+        "cliente_id",
+        "tipo_arquivo",
+        "nome_arquivo",
+        "status",
+        "data_inicio",
+        "data_fim",
+        "linhas_processadas",
+        "linhas_sucesso",
+        "linhas_erro",
+        "criado_por",
+    ])
+    for item in items:
+        writer.writerow([
+            item.id,
+            item.cliente_id,
+            item.tipo_arquivo,
+            item.nome_arquivo,
+            item.status,
+            item.data_inicio.isoformat() if item.data_inicio else "",
+            item.data_fim.isoformat() if item.data_fim else "",
+            item.linhas_processadas,
+            item.linhas_sucesso,
+            item.linhas_erro,
+            item.criado_por or "",
+        ])
+
+    output.seek(0)
+    filename = f"processamentos_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @router.get("/", response_model=List[ProcessamentoResponse])
 def listar_processamentos(
-    cliente_id: int = None,
-    status: str = None,
+    cliente_id: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
+    periodo: int = Query(90, ge=1, le=3650),
     simple: bool = False,
     skip: int = 0,
     limit: int = 20,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
+    data_limite = datetime.now(timezone.utc) - timedelta(days=periodo)
+    data_ini_str = data_limite.strftime("%Y-%m-%d")
+
     repo = ProcessamentoRepository(db)
-    filtro = ProcessamentoFilter(cliente_id=cliente_id, status=status)
+    filtro = ProcessamentoFilter(
+        cliente_id=cliente_id,
+        status=status,
+        data_ini=data_ini_str,
+    )
     return repo.listar(skip=skip, limit=limit, filtros=filtro, simple=simple)
+
 
 @router.post("/batch-delete")
 def deletar_processamentos(

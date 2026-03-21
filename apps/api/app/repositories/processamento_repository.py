@@ -58,6 +58,12 @@ class ProcessamentoRepository:
         if filtros:
             if filtros.cliente_id:
                query = query.filter(LegacyProcessamento.cliente_id == str(filtros.cliente_id))
+            if filtros.data_ini:
+                try:
+                    data_limite = datetime.fromisoformat(filtros.data_ini)
+                    query = query.filter(LegacyProcessamento.data_processamento >= data_limite)
+                except ValueError:
+                    pass
 
         query = query.order_by(LegacyProcessamento.data_processamento.desc())
         items = query.offset(skip).limit(limit).all()
