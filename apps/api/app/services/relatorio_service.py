@@ -118,6 +118,8 @@ class RelatorioService:
                 # Force GC before heavy report generation to free memory from prior calculation
                 gc.collect()
 
+                modelo = metadata.get('modelo', 'completo')
+
                 if task.tipo_relatorio == "mensal":
                     html_path, _, sintetico_path = gerar_relatorio_mensal_html(
                         engine,
@@ -130,7 +132,8 @@ class RelatorioService:
                         data_inicio=data_inicio,
                         data_fim=data_fim,
                         apenas_com_perdas=apenas_com_perdas,
-                        progress_callback=progress_callback
+                        progress_callback=progress_callback,
+                        modelo=modelo,
                     )
                 else:
                     # Retroativo / Geral
@@ -144,7 +147,8 @@ class RelatorioService:
                         data_inicio=data_inicio,
                         data_fim=data_fim,
                         apenas_com_perdas=apenas_com_perdas,
-                        progress_callback=progress_callback
+                        progress_callback=progress_callback,
+                        modelo=modelo,
                     )
 
                 # Gerar Abusividade se solicitado no background

@@ -19,6 +19,7 @@ export interface RelatorioRequest {
   incluir_filtradas: boolean;
   incluir_recebiveis_filtrados: boolean;
   apenas_com_perdas: boolean;
+  modelo?: 'completo' | 'sem_capa';
 }
 
 export interface RelatorioResponse {

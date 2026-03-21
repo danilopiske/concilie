@@ -38,6 +38,7 @@ export default function RelatoriosPage() {
   
   const [tipoRelatorio, setTipoRelatorio] = useState<'retroativo' | 'mensal'>('retroativo');
   const [calcTipo, setCalcTipo] = useState('log_mensal');
+  const [modelo, setModelo] = useState<'completo' | 'sem_capa'>('completo');
   
   // Checkboxes
   const [incluirFiltradas, setIncluirFiltradas] = useState(false);
@@ -110,7 +111,8 @@ export default function RelatoriosPage() {
       data_fim: dataFim || undefined,
       incluir_filtradas: incluirFiltradas,
       incluir_recebiveis_filtrados: incluirRecebiveis,
-      apenas_com_perdas: apenasPerdas
+      apenas_com_perdas: apenasPerdas,
+      modelo,
     });
   };
 
@@ -220,6 +222,36 @@ export default function RelatoriosPage() {
                           />
                           <span className="text-sm text-gray-700">Mensal</span>
                         </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Modelo</label>
+                    <div className="flex gap-4 mt-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="modelo"
+                          value="completo"
+                          checked={modelo === 'completo'}
+                          onChange={() => setModelo('completo')}
+                          className="text-blue-600 focus:ring-blue-500"
+                          disabled={loadingAsync}
+                        />
+                        <span className="text-sm text-gray-700">Completo (com capa)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="modelo"
+                          value="sem_capa"
+                          checked={modelo === 'sem_capa'}
+                          onChange={() => setModelo('sem_capa')}
+                          className="text-blue-600 focus:ring-blue-500"
+                          disabled={loadingAsync}
+                        />
+                        <span className="text-sm text-gray-700">Sem capa e 2ª página</span>
+                      </label>
                     </div>
                   </div>
                 </div>

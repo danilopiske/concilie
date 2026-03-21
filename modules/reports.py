@@ -2336,6 +2336,7 @@ def gerar_relatorio_html(
     incluir_recebiveis_filtrados: bool = False,
     apenas_com_perdas: bool = False,
     progress_callback: Optional[Any] = None,
+    modelo: str = "completo",
 ) -> Tuple[str, Optional["pd.DataFrame"]]:
     """
     Versão otimizada com Polars para máxima performance.
@@ -2960,7 +2961,8 @@ def gerar_relatorio_html(
     # Carregar e renderizar
     dir_path_relatorios = criar_diretorio_relatorios()
     env = Environment(loader=FileSystemLoader(os.path.join(os.path.dirname(os.path.dirname(__file__)), "relatorios")))
-    template = env.get_template("template_relatorio.html")
+    template_name = "template_relatorio_sem_capa.html" if modelo == "sem_capa" else "template_relatorio.html"
+    template = env.get_template(template_name)
     html_content = template.render(**context)
     
     # Salvar
@@ -3632,6 +3634,7 @@ def gerar_relatorio_mensal_html(
     incluir_recebiveis_filtrados: bool = False,
     apenas_com_perdas: bool = False,
     progress_callback: Optional[Any] = None,
+    modelo: str = "completo",
 ) -> Tuple[str, Optional["pd.DataFrame"], Optional[str]]:
     """
     Versão otimizada com Polars para o relatório mensal.
@@ -3848,7 +3851,8 @@ def gerar_relatorio_mensal_html(
 
     # Render e Salvar
     env = Environment(loader=FileSystemLoader(os.path.join(os.path.dirname(os.path.dirname(__file__)), "relatorios")))
-    html_content = env.get_template("template_relatorio_mensal.html").render(**context)
+    template_name = "template_relatorio_mensal_sem_capa.html" if modelo == "sem_capa" else "template_relatorio_mensal.html"
+    html_content = env.get_template(template_name).render(**context)
     
     dir_path = criar_diretorio_relatorios()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

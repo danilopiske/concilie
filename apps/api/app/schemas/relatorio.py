@@ -11,7 +11,8 @@ class RelatorioOptions(BaseModel):
 class RelatorioRequest(BaseModel):
     processamento_id: str
     calc_tipo: Optional[str] = "log_mensal"
-    tipo_relatorio: str = "retroativo" # 'mensal' | 'retroativo'
+    tipo_relatorio: str = "retroativo"  # 'mensal' | 'retroativo'
+    modelo: str = "completo"  # 'completo' | 'sem_capa'
 
     # Filtros
     data_inicio: Optional[date] = None
