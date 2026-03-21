@@ -3,6 +3,7 @@ Models Package
 """
 
 from app.models.abusividade_task import AbusividadeTask
+from app.models.alerta_config import AlertaConfig
 from app.models.audit_log import AuditLog
 from app.models.bandeira import BandeiraCliente, BandeiraDisponivel
 from app.models.base import Base
@@ -52,4 +53,5 @@ __all__ = [
     "RelatorioTask",
     "RelatorioTag",
     "ExtratoCliente",
+    "AlertaConfig",
 ]

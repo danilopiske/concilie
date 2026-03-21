@@ -110,6 +110,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
       { label: 'Usuários', href: '/configuracoes/usuarios', icon: Users },
       { label: 'Meu Perfil', href: '/configuracoes/perfil', icon: User },
       { label: 'Auditoria', href: '/configuracoes/auditoria', icon: Shield },
+      { label: 'Alertas', href: '/configuracoes/alertas', icon: Bell },
     ],
   },
   {

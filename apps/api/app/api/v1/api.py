@@ -8,6 +8,7 @@ from app.api import deps
 from app.api.v1.endpoints import (
     abusividade,
     ai,
+    alertas_config,
     analista,
     auditoria,
     calculos,
@@ -71,3 +72,4 @@ api_router.include_router(perfil.router, prefix="/perfil", tags=["perfil"], depe
 api_router.include_router(sistema.router, prefix="/sistema", tags=["sistema"], dependencies=_auth)
 api_router.include_router(tarefas.router, prefix="/tarefas", tags=["tarefas"], dependencies=_auth)
 api_router.include_router(auditoria.router, prefix="/auditoria", tags=["auditoria"], dependencies=_auth)
+api_router.include_router(alertas_config.router, prefix="/alertas-config", tags=["alertas-config"], dependencies=_auth)
