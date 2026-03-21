@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -136,4 +137,41 @@ class AbusividadeRelatorioService:
             print(f"❌ Erro ao gerar relatório de abusividade: {str(e)}")
             traceback.print_exc()
             return None
+
+    def gerar_relatorio_async(self, task_id: str, processamento_id: str, db: Session) -> None:
+        """Gera HTML de abusividade com editor-appendix e salva em relatorios_cache/abusividade/."""
+        from app.models.abusividade_task import AbusividadeTask
+
+        task = db.query(AbusividadeTask).filter(AbusividadeTask.id == task_id).first()
+        if not task:
+            return
+
+        try:
+            html_path = self.gerar_html(processamento_id)
+            if not html_path:
+                task.status = "error"
+                task.error_message = "Nenhuma variação de taxa encontrada para este processamento."
+                db.commit()
+                return
+
+            with open(html_path, "r", encoding="utf-8") as f:
+                html_content = f.read()
+
+            editor_section = '<section class="editor-appendix"></section>'
+            html_content = html_content.replace("</body>", f"{editor_section}\n</body>")
+
+            cache_dir = Path("relatorios_cache/abusividade")
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            dest = cache_dir / f"{task_id}.html"
+            with open(dest, "w", encoding="utf-8") as f:
+                f.write(html_content)
+
+            task.status = "ready"
+            task.result_path = str(dest)
+            db.commit()
+
+        except Exception as e:
+            task.status = "error"
+            task.error_message = str(e)[:500]
+            db.commit()
 

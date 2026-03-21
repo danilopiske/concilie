@@ -1,11 +1,18 @@
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 import polars as pl
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.vendas_calculos import VendasCalculos
+from app.schemas.abusividade import (
+    AbusividadeDetalhadaResponse,
+    BandeiraFormaPagamento,
+    GranularidadeItem,
+)
+
+DIAS_SEMANA = {0: "Segunda", 1: "Terça", 2: "Quarta", 3: "Quinta", 4: "Sexta", 5: "Sábado", 6: "Domingo"}
 
 
 class AbusividadeService:
@@ -154,3 +161,89 @@ class AbusividadeService:
             })
 
         return rows
+
+    def analisar_detalhado(self, processamento_id: str) -> AbusividadeDetalhadaResponse:
+        """Análise detalhada por bandeira/forma_pagamento com granularidade temporal."""
+        engine = self.db.get_bind()
+        sql = (
+            "SELECT bandeira, forma_pagamento, tx_venda, data_venda "
+            "FROM vendas_calculos WHERE calc_id = :calc_id"
+        )
+        try:
+            df = pl.read_database(sql, connection=engine, params={"calc_id": str(processamento_id)})
+        except Exception:
+            return AbusividadeDetalhadaResponse(
+                processamento_id=processamento_id, total_transacoes=0, grupos=[]
+            )
+
+        if df.is_empty():
+            return AbusividadeDetalhadaResponse(
+                processamento_id=processamento_id, total_transacoes=0, grupos=[]
+            )
+
+        df = df.with_columns([
+            pl.col("data_venda").cast(pl.Datetime).alias("dt"),
+            pl.col("tx_venda").cast(pl.Float64).fill_null(0.0).alias("taxa"),
+        ])
+
+        grupos = []
+        for (bandeira, forma), grupo_df in df.group_by(["bandeira", "forma_pagamento"]):
+            taxa_media_geral = grupo_df["taxa"].mean() or 0.0
+
+            por_dia = self._agrupar_granularidade(
+                grupo_df,
+                grupo_df.with_columns(pl.col("dt").dt.weekday().alias("_g"))["_g"],
+                taxa_media_geral,
+                label_fn=lambda v: DIAS_SEMANA.get(v, str(v)),
+            )
+            por_hora = self._agrupar_granularidade(
+                grupo_df,
+                grupo_df.with_columns(pl.col("dt").dt.hour().alias("_g"))["_g"],
+                taxa_media_geral,
+                label_fn=lambda v: f"{v}h",
+            )
+            por_semana = self._agrupar_granularidade(
+                grupo_df,
+                grupo_df.with_columns(
+                    ((pl.col("dt").dt.day() - 1) // 7 + 1).alias("_g")
+                )["_g"],
+                taxa_media_geral,
+                label_fn=lambda v: f"Semana {v}",
+            )
+
+            grupos.append(BandeiraFormaPagamento(
+                bandeira=bandeira or "",
+                forma_pagamento=forma or "",
+                taxa_media_geral=round(taxa_media_geral, 4),
+                por_dia_semana=por_dia,
+                por_hora=por_hora,
+                por_semana_mes=por_semana,
+            ))
+
+        return AbusividadeDetalhadaResponse(
+            processamento_id=processamento_id,
+            total_transacoes=len(df),
+            grupos=grupos,
+        )
+
+    def _agrupar_granularidade(self, df: pl.DataFrame, chave: pl.Series, media_geral: float, label_fn) -> List[GranularidadeItem]:
+        tmp = df.with_columns(chave.alias("_g"))
+        agr = (
+            tmp.group_by("_g")
+            .agg([pl.col("taxa").mean().alias("taxa_media"), pl.len().alias("qtd")])
+            .sort("_g")
+        )
+        items = []
+        for row in agr.iter_rows(named=True):
+            variacao = ((row["taxa_media"] - media_geral) / media_geral * 100) if media_geral else 0.0
+            status: Literal["normal", "atencao", "critico"] = (
+                "critico" if variacao > 25 else "atencao" if variacao > 10 else "normal"
+            )
+            items.append(GranularidadeItem(
+                label=label_fn(row["_g"]),
+                taxa_media=round(row["taxa_media"], 4),
+                quantidade=row["qtd"],
+                variacao_vs_media=round(variacao, 2),
+                status=status,
+            ))
+        return items

@@ -323,4 +323,6 @@ venvs.txt
 
 # package-lock.json (projeto usa pnpm)
 package-lock.json
-]
+
+# Cache de relatórios de abusividade
+apps/api/relatorios_cache/abusividade/

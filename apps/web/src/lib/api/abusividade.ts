@@ -13,6 +13,38 @@ export interface AbusividadeItem {
   chave_agrupamento: string;
 }
 
+export interface GranularidadeItem {
+  label: string;
+  taxa_media: number;
+  quantidade: number;
+  variacao_vs_media: number;
+  status: 'normal' | 'atencao' | 'critico';
+}
+
+export interface BandeiraFormaPagamento {
+  bandeira: string;
+  forma_pagamento: string;
+  taxa_media_geral: number;
+  por_dia_semana: GranularidadeItem[];
+  por_hora: GranularidadeItem[];
+  por_semana_mes: GranularidadeItem[];
+}
+
+export interface AbusividadeDetalhadaResponse {
+  processamento_id: string;
+  total_transacoes: number;
+  grupos: BandeiraFormaPagamento[];
+}
+
+export interface AbusividadeTaskResponse {
+  id: string;
+  processamento_id: string;
+  status: 'pending' | 'ready' | 'error';
+  result_path?: string;
+  error_message?: string;
+  created_at: string;
+}
+
 export const abusividadeApi = {
   getAnalise: async (processamentoId: string, agrupamento: string = 'dia', tolerancia: number = 0) => {
     const { data } = await apiClient.get<AbusividadeItem[]>(`abusividade/analise/${encodeURIComponent(processamentoId)}?agrupamento=${agrupamento}&tolerancia=${tolerancia}`);
@@ -37,5 +69,35 @@ export const abusividadeApi = {
 
     const { data } = await apiClient.get<AbusividadeItem[]>(`abusividade/relatorio?${query.toString()}`);
     return data;
-  }
+  },
+
+  analisarDetalhado: async (processamentoId: string): Promise<AbusividadeDetalhadaResponse> => {
+    const { data } = await apiClient.get<AbusividadeDetalhadaResponse>(
+      `abusividade/analise-detalhada/${encodeURIComponent(processamentoId)}`
+    );
+    return data;
+  },
+
+  gerarRelatorio: async (processamentoId: string): Promise<{ task_id: string; status: string }> => {
+    const { data } = await apiClient.post(`abusividade/gerar-relatorio`, {
+      processamento_id: processamentoId,
+      incluir_editor: true,
+    });
+    return data;
+  },
+
+  getTask: async (taskId: string): Promise<AbusividadeTaskResponse> => {
+    const { data } = await apiClient.get<AbusividadeTaskResponse>(`abusividade/tasks/${taskId}`);
+    return data;
+  },
+
+  saveEdit: async (taskId: string, htmlContent: string): Promise<{ success: boolean; path: string }> => {
+    const { data } = await apiClient.post(`abusividade/tasks/${taskId}/save-edit`, { html_content: htmlContent });
+    return data;
+  },
+
+  downloadUrl: (taskId: string): string => {
+    const base = apiClient.defaults.baseURL ?? '';
+    return `${base}/abusividade/tasks/${taskId}/download`;
+  },
 };

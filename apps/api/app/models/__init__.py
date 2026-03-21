@@ -2,6 +2,7 @@
 Models Package
 """
 
+from app.models.abusividade_task import AbusividadeTask
 from app.models.bandeira import BandeiraCliente, BandeiraDisponivel
 from app.models.base import Base
 from app.models.calculo_task import CalculoTask
@@ -21,6 +22,7 @@ from app.models.vendas import Venda, VendaFiltrada
 
 __all__ = [
     "Base",
+    "AbusividadeTask",
     "Cliente",
     "Endereco",
     "Contato",

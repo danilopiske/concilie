@@ -9,7 +9,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  ChevronLeft, 
+  ChevronLeft,
   ChevronRight,
   Users,
   Filter,
@@ -23,6 +23,7 @@ import {
   Calculator,
   Settings,
   FileBarChart,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -65,6 +66,13 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [
       { label: 'Análise', href: '/analise-correcoes/analise', icon: BarChart3 },
       { label: 'Correção', href: '/analise-correcoes/correcao', icon: Edit },
+    ],
+  },
+  {
+    title: 'Abusividade',
+    modulePrefix: '/abusividade',
+    items: [
+      { label: 'Abusividade', href: '/abusividade', icon: AlertTriangle },
     ],
   },
   {
