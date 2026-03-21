@@ -88,6 +88,10 @@ class Settings(BaseSettings):
     OPENAI_API_BASE: str = "https://api.openai.com/v1"
     AI_MODEL: str = "gpt-4o"
 
+    # Gemini
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+
 
     # CORS (alias para ALLOWED_ORIGINS)
     # CORS (alias for property in Pydantic v2 might need computed_field,

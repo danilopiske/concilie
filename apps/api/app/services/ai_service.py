@@ -1,9 +1,39 @@
+import json
+import logging
+import re
+from collections import defaultdict
+from datetime import datetime, timedelta
+from typing import List, Optional
+
 from langchain_community.agent_toolkits import create_sql_agent
 from langchain_community.utilities import SQLDatabase
 from langchain_openai import ChatOpenAI
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import engine
+
+logger = logging.getLogger(__name__)
+
+SYSTEM_PROMPT = """Você é um assistente especialista em conciliação financeira de cartões de crédito e débito no Brasil.
+Você analisa dados de transações de adquirentes (Cielo, Rede, Stone, GetNet, etc.) e identifica cobranças abusivas de MDR (taxa de desconto).
+Responda sempre em português brasileiro, de forma clara e objetiva.
+Use os dados fornecidos no contexto para responder. Não invente dados.
+Ao final de cada resposta, sugira 2-3 perguntas de follow-up relevantes no seguinte formato JSON (após o texto da resposta):
+{"sugestoes": ["pergunta 1", "pergunta 2", "pergunta 3"]}"""
+
+# Rate limiting em memória
+_rate_limit: dict = defaultdict(list)
+
+
+def check_rate_limit(user_id: str, max_per_minute: int = 10) -> bool:
+    now = datetime.utcnow()
+    window_start = now - timedelta(minutes=1)
+    _rate_limit[user_id] = [t for t in _rate_limit[user_id] if t > window_start]
+    if len(_rate_limit[user_id]) >= max_per_minute:
+        return False
+    _rate_limit[user_id].append(now)
+    return True
 
 
 class AIService:
@@ -106,3 +136,113 @@ class AIService:
             return {
                 "answer": f"Desculpe, não consegui processar sua pergunta corretamente. Tente ser mais específico. (Erro técnico: {str(e)[:100]}...)"
             }
+
+    def montar_contexto(self, processamento_id: str, db: Session) -> tuple[str, dict]:
+        """Monta sumário estruturado do processamento para o contexto do LLM."""
+        from app.models.vendas_calculos import VendasCalculos
+
+        try:
+            rows = (
+                db.query(VendasCalculos)
+                .filter(VendasCalculos.calc_id == processamento_id)
+                .all()
+            )
+        except Exception as e:
+            logger.warning("Erro ao buscar VendasCalculos para contexto: %s", e)
+            rows = []
+
+        if not rows:
+            contexto = f"Processamento ID: {processamento_id}\nNenhum dado encontrado para este processamento."
+            return contexto, {}
+
+        total_tx = len(rows)
+        total_valor = sum(float(r.vl_venda or 0) for r in rows)
+        total_perda = sum(float(r.perda or 0) for r in rows)
+
+        # Agrupamento por bandeira
+        grupos: dict = defaultdict(lambda: {"tx": 0, "valor": 0.0, "soma_taxa": 0.0, "perda": 0.0, "n_taxa": 0})
+        for r in rows:
+            chave = f"{r.bandeira or 'Desconhecida'} {r.forma_pagamento or ''}".strip()
+            g = grupos[chave]
+            g["tx"] += 1
+            g["valor"] += float(r.vl_venda or 0)
+            g["perda"] += float(r.perda or 0)
+            if r.tx_venda:
+                g["soma_taxa"] += float(r.tx_venda)
+                g["n_taxa"] += 1
+
+        linhas_grupos = []
+        for nome, g in sorted(grupos.items(), key=lambda x: -x[1]["tx"])[:10]:
+            taxa_media = g["soma_taxa"] / g["n_taxa"] if g["n_taxa"] else 0
+            perda_str = f", perda R$ {g['perda']:,.2f}" if g["perda"] > 0.01 else ""
+            linhas_grupos.append(
+                f"  - {nome}: {g['tx']} transações, R$ {g['valor']:,.2f}, taxa média {taxa_media:.2f}%{perda_str}"
+            )
+
+        dados_contexto = {
+            "total_transacoes": total_tx,
+            "valor_total": round(total_valor, 2),
+            "perda_total": round(total_perda, 2),
+        }
+
+        contexto = (
+            f"Processamento ID: {processamento_id}\n"
+            f"Total transações: {total_tx:,}\n"
+            f"Valor total: R$ {total_valor:,.2f}\n"
+            f"Perda/excesso total: R$ {total_perda:,.2f}\n"
+            f"Por bandeira/modalidade (top 10):\n"
+            + "\n".join(linhas_grupos)
+        )
+        return contexto, dados_contexto
+
+    def chat(
+        self,
+        mensagem: str,
+        contexto: str,
+        historico: Optional[List[dict]] = None,
+    ) -> tuple[str, List[str]]:
+        """Envia mensagem ao Gemini com contexto do processamento."""
+        if not settings.GEMINI_API_KEY:
+            return (
+                "A chave GEMINI_API_KEY não está configurada. Adicione ao arquivo .env.",
+                [],
+            )
+
+        try:
+            import google.generativeai as genai  # lazy import — opcional
+
+            genai.configure(api_key=settings.GEMINI_API_KEY)
+            model = genai.GenerativeModel(
+                model_name=settings.GEMINI_MODEL,
+                system_instruction=SYSTEM_PROMPT,
+            )
+
+            gemini_history = []
+            for msg in (historico or []):
+                role = msg.get("role", "user")
+                gemini_history.append({
+                    "role": role if role == "user" else "model",
+                    "parts": [msg.get("content", "")],
+                })
+
+            chat_session = model.start_chat(history=gemini_history)
+            prompt = f"Contexto dos dados:\n{contexto}\n\nPergunta: {mensagem}" if contexto else mensagem
+            response = chat_session.send_message(prompt)
+            texto = response.text
+
+            # Extrair sugestões do JSON no final da resposta
+            sugestoes: List[str] = []
+            match = re.search(r'\{[^{}]*"sugestoes"[^{}]*\}', texto, re.DOTALL)
+            if match:
+                try:
+                    parsed = json.loads(match.group())
+                    sugestoes = parsed.get("sugestoes", [])
+                    texto = texto[: match.start()].strip()
+                except json.JSONDecodeError:
+                    pass
+
+            return texto, sugestoes
+
+        except Exception as e:
+            logger.error("Erro no chat Gemini: %s", e)
+            return f"Erro ao processar resposta: {str(e)[:200]}", []
