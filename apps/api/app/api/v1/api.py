@@ -28,6 +28,7 @@ from app.api.v1.endpoints import (
     notificacoes,
     perfil,
     processamentos,
+    recuperacao,
     relatorio_tags,
     relatorios,
     sistema,
@@ -75,3 +76,4 @@ api_router.include_router(tarefas.router, prefix="/tarefas", tags=["tarefas"], d
 api_router.include_router(auditoria.router, prefix="/auditoria", tags=["auditoria"], dependencies=_auth)
 api_router.include_router(alertas_config.router, prefix="/alertas-config", tags=["alertas-config"], dependencies=_auth)
 api_router.include_router(divergencias.router, prefix="/divergencias", tags=["divergencias"], dependencies=_auth)
+api_router.include_router(recuperacao.router, prefix="/recuperacao", tags=["recuperacao"], dependencies=_auth)
