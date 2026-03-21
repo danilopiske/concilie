@@ -124,6 +124,13 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
       { label: 'Progresso de Tarefas', href: '/tarefas', icon: Activity },
     ],
   },
+  {
+    title: 'Sistema',
+    modulePrefix: '/status',
+    items: [
+      { label: 'Status do Sistema', href: '/status', icon: Activity },
+    ],
+  },
 ];
 
 const STORAGE_KEY = 'sidebar-collapsed';
