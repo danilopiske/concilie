@@ -10,10 +10,9 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # sys.path needed for remaining legacy imports:
-#   - apps/api/app/api/v1/endpoints/depara.py        → proc.proc_importacao (lazy import)
 #   - apps/api/app/api/v1/endpoints/relatorios.py    → modules.reports
 #   - apps/api/app/services/relatorio_service.py     → modules.reports
-#   - apps/api/app/services/import_service.py        → proc.proc_importacao
+# NOTE: proc.proc_importacao now isolated via app.adapters.proc_importacao_adapter (Story 3.5)
 # NOTE: modules.reconciliation_core migrated → app.services.reconciliation_core (Sprint 2)
 # TODO: migrate modules/reports.py and proc/proc_importacao.py (Sprint 4 - ~8K LOC)
 root_dir = Path(__file__).resolve().parent.parent.parent.parent

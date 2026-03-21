@@ -4,6 +4,11 @@ import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.adapters.proc_importacao_adapter import (
+    is_multisheet_rede_file,
+    read_file_with_header,
+    safe_read_multisheet_file,
+)
 from app.core.database import get_db
 from app.repositories.depara_repository import DeParaRepository
 from app.schemas.depara import DeParaCreate, DeParaResponse, DeParaUpdate
@@ -73,24 +78,8 @@ async def ler_cabecalhos(
     try:
         import os
         import shutil
-        import sys
         import tempfile
         from pathlib import Path
-
-        # Adicionar raiz do projeto ao path para importar proc
-        # Base: d:/Financial  base/Financial_P/apps/api/app/api/v1/endpoints/depara.py
-        # Target: d:/Financial  base/Financial_P
-        # Subindo 6 níveis a partir deste arquivo ou usando caminho absoluto fixo se necessário
-        # Vamos tentar relativo primeiro para ser robusto
-        current_dir = Path(__file__).resolve().parent
-        project_root = current_dir.parent.parent.parent.parent.parent.parent
-        sys.path.append(str(project_root))
-
-        from proc.proc_importacao import (
-            is_multisheet_rede_file,
-            read_file_with_header,
-            safe_read_multisheet_file,
-        )
 
         # Salvar arquivo temporário
         suffix = Path(filename).suffix

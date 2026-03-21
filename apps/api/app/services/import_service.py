@@ -10,16 +10,16 @@ from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 from fastapi import BackgroundTasks, HTTPException, UploadFile
-
-# Legacy logic imports
-from proc.proc_importacao import (
-    classificar_e_gravar_recebiveis,
-    # normalizar functions are called internally by classificar_e_gravar
-    classificar_e_gravar_vendas,
-    preparar_dataframe_de_arquivo,
-)
 from sqlalchemy.orm import Session
 
+# Legacy logic imports — via adapter (L-01 isolation)
+from app.adapters.proc_importacao_adapter import (
+    classificar_e_gravar_recebiveis,
+    classificar_e_gravar_vendas,
+    normalizar_dataframe_recebiveis,
+    normalizar_dataframe_vendas,
+    preparar_dataframe_de_arquivo,
+)
 from app.core.config import settings
 from app.models.import_task import ImportTask
 from app.repositories.processamento_repository import gerar_novo_id as processamento_gerar_novo_id
@@ -172,12 +172,10 @@ class ImportService:
 
         # Normalize based on type
         if tipo == "R":
-            from proc.proc_importacao import normalizar_dataframe_recebiveis
             df_norm = normalizar_dataframe_recebiveis(
                 df_mapeado, engine, ec_id, contexto, usuario
             )
         else:
-            from proc.proc_importacao import normalizar_dataframe_vendas
             df_proc, df_filt = normalizar_dataframe_vendas(
                 df_mapeado, engine, ec_id, contexto, usuario, tipo_arquivo=tipo
             )

@@ -17,7 +17,7 @@
 | # | Item | Impacto | Esforço | Owner | Status | Referência |
 |---|------|---------|---------|-------|--------|------------|
 | B-01 | `relatorio_service.py` — SessionFactory injetada via `SessionLocal()`, closure `update_progress` extraída para `_update_progress(session, task, pct, msg)` | H | G | @dev | resolved | Story 2.1, Story 3.4 |
-| B-02 | `reconciliation_core.py` — acoplamento direto com módulo legado `proc/`, importa `sys.path.append` hardcoded | H | G | @dev | open | Story 2.1 |
+| B-02 | `reconciliation_core.py` — acoplamento direto com módulo legado `proc/`, importa `sys.path.append` hardcoded | H | G | @dev | resolved | Story 2.1, Story 3.5 |
 | B-03 | `app/models/depara.py` — arquivo sem referências em endpoints/repositories confirmado via grep; arquivo removido. Modelo real é `legacy_depara.py` | M | P | @dev | resolved | Story 2.4, Story 3.4 |
 | B-04 | CORS `allow_origins` — em desenvolvimento usa `["*"]` potencialmente. Confirmar configuração para produção via variável de ambiente | H | P | @dev | resolved | Story 2.1, Story 3.2 |
 | B-05 | Ausência de testes unitários para camada de serviços (`services/`) — apenas integração via pytest | M | G | @dev | open | Story 2.3 |
