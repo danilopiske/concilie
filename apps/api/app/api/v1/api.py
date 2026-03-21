@@ -23,6 +23,7 @@ from app.api.v1.endpoints import (
     importacao_async,
     login,
     notificacoes,
+    perfil,
     processamentos,
     relatorio_tags,
     relatorios,
@@ -64,4 +65,5 @@ api_router.include_router(abusividade.router, prefix="/abusividade", tags=["abus
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"], dependencies=_auth)
 api_router.include_router(contestacoes.router, prefix="/contestacoes", tags=["contestacoes"], dependencies=_auth)
 api_router.include_router(notificacoes.router, prefix="/notificacoes", tags=["notificacoes"], dependencies=_auth)
+api_router.include_router(perfil.router, prefix="/perfil", tags=["perfil"], dependencies=_auth)
 api_router.include_router(tarefas.router, prefix="/tarefas", tags=["tarefas"], dependencies=_auth)

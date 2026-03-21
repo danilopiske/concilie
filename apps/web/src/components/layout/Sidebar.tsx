@@ -11,6 +11,7 @@ import { usePathname } from 'next/navigation';
 import {
   ChevronLeft,
   ChevronRight,
+  User,
   Users,
   Filter,
   CreditCard,
@@ -106,6 +107,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     modulePrefix: '/configuracoes',
     items: [
       { label: 'Usuários', href: '/configuracoes/usuarios', icon: Users },
+      { label: 'Meu Perfil', href: '/configuracoes/perfil', icon: User },
     ],
   },
   {
