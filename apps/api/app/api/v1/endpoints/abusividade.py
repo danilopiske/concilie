@@ -4,13 +4,17 @@ from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
+from sqlalchemy import Integer as SAInteger
+from sqlalchemy import cast
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.abusividade_task import AbusividadeTask
+from app.models.processamento import Processamento
 from app.schemas.abusividade import (
     AbusividadeDetalhadaResponse,
+    AbusividadeHistoricoItem,
     AbusividadeRelatorioRequest,
     AbusividadeTaskResponse,
 )
@@ -155,3 +159,35 @@ def download_relatorio(
         filename=f"abusividade_{task.processamento_id}.html",
         media_type="text/html",
     )
+
+
+@router.get("/historico/{cliente_id}", response_model=List[AbusividadeHistoricoItem])
+def get_historico_cliente(
+    cliente_id: int,
+    db: Session = Depends(get_db),
+):
+    """Retorna histórico de tasks de abusividade para um cliente, ordenado por data decrescente."""
+    rows = (
+        db.query(AbusividadeTask, Processamento.nome_arquivo)
+        .join(
+            Processamento,
+            cast(AbusividadeTask.processamento_id, SAInteger) == Processamento.id,
+        )
+        .filter(Processamento.cliente_id == cliente_id)
+        .order_by(AbusividadeTask.created_at.desc())
+        .all()
+    )
+    result = []
+    for task, nome_arquivo in rows:
+        result.append(
+            AbusividadeHistoricoItem(
+                id=task.id,
+                processamento_id=task.processamento_id,
+                status=task.status,
+                result_path=task.result_path,
+                error_message=task.error_message,
+                created_at=task.created_at.isoformat() if task.created_at else "",
+                nome_arquivo=nome_arquivo,
+            )
+        )
+    return result

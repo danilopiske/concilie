@@ -1,6 +1,6 @@
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class GranularidadeItem(BaseModel):
@@ -40,3 +40,15 @@ class AbusividadeTaskResponse(BaseModel):
     created_at: str
 
     model_config = {"from_attributes": True}
+
+
+class AbusividadeHistoricoItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    processamento_id: str
+    status: str
+    result_path: Optional[str] = None
+    error_message: Optional[str] = None
+    created_at: str
+    nome_arquivo: Optional[str] = None

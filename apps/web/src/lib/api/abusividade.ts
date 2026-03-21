@@ -45,6 +45,16 @@ export interface AbusividadeTaskResponse {
   created_at: string;
 }
 
+export interface AbusividadeHistoricoItem {
+  id: string;
+  processamento_id: string;
+  status: 'pending' | 'ready' | 'error';
+  result_path?: string;
+  error_message?: string;
+  created_at: string;
+  nome_arquivo?: string;
+}
+
 export const abusividadeApi = {
   getAnalise: async (processamentoId: string, agrupamento: string = 'dia', tolerancia: number = 0) => {
     const { data } = await apiClient.get<AbusividadeItem[]>(`abusividade/analise/${encodeURIComponent(processamentoId)}?agrupamento=${agrupamento}&tolerancia=${tolerancia}`);
@@ -99,5 +109,10 @@ export const abusividadeApi = {
   downloadUrl: (taskId: string): string => {
     const base = apiClient.defaults.baseURL ?? '';
     return `${base}/abusividade/tasks/${taskId}/download`;
+  },
+
+  getHistorico: async (clienteId: number): Promise<AbusividadeHistoricoItem[]> => {
+    const { data } = await apiClient.get<AbusividadeHistoricoItem[]>(`abusividade/historico/${clienteId}`);
+    return data;
   },
 };
