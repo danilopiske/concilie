@@ -22,9 +22,17 @@ import {
 export const gestaoApi = {
   // ============ CLIENTES ============
   clientes: {
-    async listar(): Promise<Cliente[]> {
-      const { data } = await apiClient.get<Cliente[]>('/clientes');
+    async listar(q?: string): Promise<Cliente[]> {
+      const { data } = await apiClient.get<Cliente[]>('/clientes', {
+        params: q ? { q } : undefined,
+      });
       return data;
+    },
+
+    exportarCsvUrl(q?: string): string {
+      const base = (apiClient.defaults.baseURL ?? '').replace(/\/$/, '');
+      const params = q ? `?q=${encodeURIComponent(q)}` : '';
+      return `${base}/clientes/exportar-csv${params}`;
     },
 
     async obter(clienteId: number): Promise<ClienteDetalhado> {

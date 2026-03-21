@@ -4,8 +4,9 @@
  */
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useClientes } from '@/lib/hooks/useClientes';
+import { gestaoApi } from '@/lib/api/gestao';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -18,7 +19,19 @@ import { ECsModal } from '@/components/gestao/ECsModal';
 import { Cliente } from '@/lib/types/gestao';
 
 export default function ClientesPage() {
-  const { clientes, loading, error, deletarCliente, refetch } = useClientes();
+  const [busca, setBusca] = useState('');
+  const [buscaDebounced, setBuscaDebounced] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setBuscaDebounced(busca), 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [busca]);
+
+  const { clientes, loading, error, deletarCliente, refetch } = useClientes(buscaDebounced);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isECsModalOpen, setIsECsModalOpen] = useState(false);
@@ -113,9 +126,24 @@ export default function ClientesPage() {
       <Card
         title="Clientes Cadastrados"
         actions={
-          <Button onClick={handleNovoCliente}>
-            + Novo Cliente
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Buscar por nome ou CNPJ..."
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+            />
+            <Button
+              variant="secondary"
+              onClick={() => window.open(gestaoApi.clientes.exportarCsvUrl(buscaDebounced || undefined), '_blank')}
+            >
+              Exportar CSV
+            </Button>
+            <Button onClick={handleNovoCliente}>
+              + Novo Cliente
+            </Button>
+          </div>
         }
       >
         {loading ? (

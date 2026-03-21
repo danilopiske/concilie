@@ -2,21 +2,82 @@
 Clientes Endpoints
 """
 
-from typing import List
+import csv
+import io
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.models.cliente import Cliente
 from app.schemas.cliente import ClienteCreate, ClienteResponse, ClienteUpdate
 from app.services.cliente_service import ClienteService
 
 router = APIRouter()
 
 
+@router.get("/exportar-csv")
+async def exportar_clientes_csv(
+    q: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Exporta lista de clientes como CSV, com filtro opcional por nome/CNPJ."""
+    query = db.query(Cliente)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            (Cliente.nome_fantasia.ilike(like))
+            | (Cliente.razao_social.ilike(like))
+            | (Cliente.cnpj.ilike(like))
+        )
+    clientes = query.all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Nome Fantasia", "Razão Social", "CNPJ"])
+    for c in clientes:
+        writer.writerow([c.cliente_id, c.nome_fantasia or "", c.razao_social or "", c.cnpj or ""])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=clientes.csv"},
+    )
+
+
 @router.get("/", response_model=List[dict])
-async def listar_clientes(db: Session = Depends(get_db)):
-    """List all clientes"""
+async def listar_clientes(
+    q: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    """List all clientes, with optional search by nome/CNPJ."""
+    if q:
+        like = f"%{q}%"
+        clientes = (
+            db.query(Cliente)
+            .filter(
+                (Cliente.nome_fantasia.ilike(like))
+                | (Cliente.razao_social.ilike(like))
+                | (Cliente.cnpj.ilike(like))
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "cliente_id": c.cliente_id,
+                "nome_fantasia": c.nome_fantasia,
+                "razao_social": c.razao_social,
+                "cnpj": c.cnpj,
+            }
+            for c in clientes
+        ]
     service = ClienteService(db)
     return service.listar_clientes()
 

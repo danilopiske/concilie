@@ -10,7 +10,7 @@ import { Cliente, ClienteDetalhado, ClienteCreate } from '@/lib/types/gestao';
 
 type ApiErr = { response?: { data?: { detail?: string } }; message?: string };
 
-export function useClientes() {
+export function useClientes(busca?: string) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +19,7 @@ export function useClientes() {
     try {
       setLoading(true);
       setError(null);
-      const data = await gestaoApi.clientes.listar();
+      const data = await gestaoApi.clientes.listar(busca || undefined);
       setClientes(data);
     } catch (err: unknown) {
       setError((err as ApiErr)?.response?.data?.detail || 'Erro ao carregar clientes');
@@ -31,7 +31,8 @@ export function useClientes() {
 
   useEffect(() => {
     fetchClientes();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca]);
 
   const criarCliente = async (cliente: ClienteCreate) => {
     try {
