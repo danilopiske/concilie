@@ -25,6 +25,18 @@ export interface ProcessamentoDetalhes {
   abusividades: ProcessamentoTaskItem[];
 }
 
+export interface SumarioFinanceiro {
+  processamento_id: string;
+  count_transacoes: number;
+  total_vendas_rs: number;
+  total_taxa_cobrada_rs: number;
+  total_taxa_contratada_rs: number;
+  diferenca_rs: number;
+  taxa_media_cobrada_pct: number;
+  taxa_media_contratada_pct: number;
+  tem_dados: boolean;
+}
+
 export interface ProcessamentoListParams {
   cliente_id?: number;
   periodo?: number;
@@ -38,6 +50,13 @@ export const processamentosApi = {
   getDetalhes: async (processamentoId: string): Promise<ProcessamentoDetalhes> => {
     const response = await apiClient.get<ProcessamentoDetalhes>(
       `/processamentos/${processamentoId}/detalhes`
+    );
+    return response.data;
+  },
+
+  getSumarioFinanceiro: async (processamentoId: string): Promise<SumarioFinanceiro> => {
+    const response = await apiClient.get<SumarioFinanceiro>(
+      `/processamentos/${processamentoId}/financeiro`
     );
     return response.data;
   },

@@ -13,7 +13,7 @@ import {
   Clock,
   Loader2,
 } from 'lucide-react';
-import { processamentosApi, type ProcessamentoDetalhes, type ProcessamentoTaskItem } from '@/lib/api/processamentos';
+import { processamentosApi, type ProcessamentoDetalhes, type ProcessamentoTaskItem, type SumarioFinanceiro } from '@/lib/api/processamentos';
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; className: string }> = {
@@ -127,6 +127,7 @@ function TaskSection({ title, items, icon: Icon, emptyMsg }: TaskSectionProps) {
 export default function ProcessamentoDetalhesPage() {
   const { id } = useParams<{ id: string }>();
   const [detalhes, setDetalhes] = useState<ProcessamentoDetalhes | null>(null);
+  const [financeiro, setFinanceiro] = useState<SumarioFinanceiro | null>(null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState(false);
 
@@ -137,6 +138,10 @@ export default function ProcessamentoDetalhesPage() {
       .then(setDetalhes)
       .catch(() => setErro(true))
       .finally(() => setLoading(false));
+    processamentosApi
+      .getSumarioFinanceiro(id)
+      .then(setFinanceiro)
+      .catch(() => {}); // não-bloqueante: sumário financeiro é opcional
   }, [id]);
 
   return (
@@ -179,6 +184,44 @@ export default function ProcessamentoDetalhesPage() {
               </div>
             ))}
           </div>
+
+          {/* Sumário Financeiro */}
+          {financeiro && financeiro.tem_dados && (
+            <div className="bg-gradient-to-r from-[#1e3a8a] to-[#1e40af] rounded-xl p-5 text-white">
+              <h2 className="text-sm font-semibold opacity-80 mb-4">Sumário Financeiro</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-xs opacity-70">Total de Vendas</p>
+                  <p className="text-xl font-bold">
+                    {financeiro.total_vendas_rs.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-70">Taxas Cobradas</p>
+                  <p className="text-xl font-bold text-amber-300">
+                    {financeiro.total_taxa_cobrada_rs.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-70">Taxas Contratadas</p>
+                  <p className="text-xl font-bold text-green-300">
+                    {financeiro.total_taxa_contratada_rs.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-70">Diferença (Contestável)</p>
+                  <p className={`text-xl font-bold ${financeiro.diferenca_rs > 0 ? 'text-red-300' : 'text-green-300'}`}>
+                    {financeiro.diferenca_rs.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-white/20 flex flex-wrap gap-4 text-xs opacity-70">
+                <span>{financeiro.count_transacoes.toLocaleString('pt-BR')} transações processadas</span>
+                <span>Taxa média cobrada: {financeiro.taxa_media_cobrada_pct.toFixed(4)}%</span>
+                <span>Taxa média contratada: {financeiro.taxa_media_contratada_pct.toFixed(4)}%</span>
+              </div>
+            </div>
+          )}
 
           {/* Seções de tasks */}
           <TaskSection

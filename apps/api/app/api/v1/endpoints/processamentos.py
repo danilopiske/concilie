@@ -101,6 +101,55 @@ def deletar_processamentos(
     return {"success": repo.deletar_lista(ids), "count": len(ids)}
 
 
+@router.get("/{processamento_id}/financeiro")
+def sumario_financeiro(
+    processamento_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Sumário financeiro de um processamento.
+
+    Retorna totais agregados de vendas, taxas cobradas, taxas contratadas
+    e a diferença financeira (valor potencial a contestar).
+    """
+    from sqlalchemy import func
+
+    from app.models.vendas_calculos import VendasCalculos
+
+    resultado = db.query(
+        func.count(VendasCalculos.id).label("count_transacoes"),
+        func.sum(VendasCalculos.vl_venda).label("total_vendas"),
+        func.sum(VendasCalculos.desc_venda).label("total_taxa_cobrada"),
+        func.sum(VendasCalculos.desc_calc).label("total_taxa_contratada"),
+        func.sum(VendasCalculos.perda).label("total_diferenca"),
+    ).filter(VendasCalculos.calc_id == processamento_id).one()
+
+    count_transacoes = int(resultado.count_transacoes or 0)
+    total_vendas = float(resultado.total_vendas or 0.0)
+    total_taxa_cobrada = float(resultado.total_taxa_cobrada or 0.0)
+    total_taxa_contratada = float(resultado.total_taxa_contratada or 0.0)
+    total_diferenca = float(resultado.total_diferenca or 0.0)
+
+    taxa_media_cobrada_pct = (
+        round(total_taxa_cobrada / total_vendas * 100, 4) if total_vendas > 0 else 0.0
+    )
+    taxa_media_contratada_pct = (
+        round(total_taxa_contratada / total_vendas * 100, 4) if total_vendas > 0 else 0.0
+    )
+
+    return {
+        "processamento_id": processamento_id,
+        "count_transacoes": count_transacoes,
+        "total_vendas_rs": round(total_vendas, 2),
+        "total_taxa_cobrada_rs": round(total_taxa_cobrada, 2),
+        "total_taxa_contratada_rs": round(total_taxa_contratada, 2),
+        "diferenca_rs": round(total_diferenca, 2),
+        "taxa_media_cobrada_pct": taxa_media_cobrada_pct,
+        "taxa_media_contratada_pct": taxa_media_contratada_pct,
+        "tem_dados": count_transacoes > 0,
+    }
+
+
 @router.get("/{processamento_id}/detalhes")
 def detalhes_processamento(
     processamento_id: str,
