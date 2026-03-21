@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, text
@@ -7,14 +7,101 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.models.abusividade_task import AbusividadeTask
 from app.models.calculo_task import CalculoTask
+from app.models.cliente import Cliente
+from app.models.contestacao import Contestacao
 from app.models.extrato_cliente import ExtratoCliente
 from app.models.import_task import ImportTask
 from app.models.processamento import Processamento
 from app.models.relatorio_task import RelatorioTask
-from app.schemas.dashboard import AtividadeRecenteResponse, DashboardResumo, EventoAtividade
+from app.models.vendas import Venda
+from app.schemas.dashboard import (
+    AtividadeRecenteResponse,
+    DashboardKpis,
+    DashboardResumo,
+    EventoAtividade,
+)
 
 router = APIRouter()
+
+
+@router.get("/kpis", response_model=DashboardKpis)
+def get_dashboard_kpis(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Retorna KPIs executivos consolidados do sistema."""
+    now = datetime.utcnow()
+    inicio_mes = datetime(now.year, now.month, 1)
+
+    # Total de clientes
+    total_clientes = db.query(func.count(Cliente.cliente_id)).scalar() or 0
+
+    # Vendas no mês atual
+    total_vendas_mes = (
+        db.query(func.count(Venda.id))
+        .filter(Venda.data_processamento >= inicio_mes)
+        .scalar()
+        or 0
+    )
+
+    # Valor total de vendas no mês
+    valor_total_vendas_mes_row = (
+        db.query(func.coalesce(func.sum(Venda.valor_venda), 0))
+        .filter(Venda.data_processamento >= inicio_mes)
+        .scalar()
+    )
+    valor_total_vendas_mes = float(valor_total_vendas_mes_row or 0)
+
+    # Contestações abertas (não resolvido, fechado ou improcedente)
+    total_contestacoes_abertas = (
+        db.query(func.count(Contestacao.id))
+        .filter(Contestacao.status.notin_(["resolvido", "fechado", "improcedente"]))
+        .scalar()
+        or 0
+    )
+
+    # Taxa de recuperação média (média de tx_venda em vendas_calculos)
+    taxa_row = db.execute(
+        text("SELECT COALESCE(AVG(CAST(tx_venda AS FLOAT)), 0) FROM vendas_calculos")
+    ).fetchone()
+    taxa_recuperacao_media = round(float(taxa_row[0]) if taxa_row else 0.0, 4)
+
+    # Divergências abertas
+    total_divergencias_abertas = (
+        db.query(func.count(ExtratoCliente.id))
+        .filter(ExtratoCliente.status == "divergente")
+        .scalar()
+        or 0
+    )
+
+    # Abusividades críticas (status='error')
+    total_abusividades_criticas = (
+        db.query(func.count(AbusividadeTask.id))
+        .filter(AbusividadeTask.status == "error")
+        .scalar()
+        or 0
+    )
+
+    # Processamentos (ImportTask) no mês atual
+    processamentos_mes = (
+        db.query(func.count(ImportTask.id))
+        .filter(ImportTask.created_at >= inicio_mes)
+        .scalar()
+        or 0
+    )
+
+    return DashboardKpis(
+        total_clientes=total_clientes,
+        total_vendas_mes=total_vendas_mes,
+        valor_total_vendas_mes=round(valor_total_vendas_mes, 2),
+        total_contestacoes_abertas=total_contestacoes_abertas,
+        taxa_recuperacao_media=taxa_recuperacao_media,
+        total_divergencias_abertas=total_divergencias_abertas,
+        total_abusividades_criticas=total_abusividades_criticas,
+        processamentos_mes=processamentos_mes,
+    )
 
 
 @router.get("/resumo", response_model=DashboardResumo)

@@ -1,5 +1,16 @@
 import { apiClient } from './client';
 
+export interface DashboardKpis {
+  total_clientes: number;
+  total_vendas_mes: number;
+  valor_total_vendas_mes: number;
+  total_contestacoes_abertas: number;
+  taxa_recuperacao_media: number;
+  total_divergencias_abertas: number;
+  total_abusividades_criticas: number;
+  processamentos_mes: number;
+}
+
 export interface DashboardResumo {
   total_processamentos: number;
   processamentos_mes_atual: number;
@@ -46,4 +57,7 @@ export const dashboardApi = {
 
   getAtividadeSemanal: (): Promise<AtividadeSemanalResponse> =>
     apiClient.get('/dashboard/atividade-semanal').then((r) => r.data),
+
+  getKpis: (): Promise<DashboardKpis> =>
+    apiClient.get('/dashboard/kpis').then((r) => r.data),
 };

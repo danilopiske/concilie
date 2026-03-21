@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, BarChart3, FileText, RefreshCw, TrendingUp } from 'lucide-react';
 import { AtividadeItem } from '@/components/dashboard/AtividadeItem';
 import { KpiCard } from '@/components/dashboard/KpiCard';
+import { KpiPanel } from '@/components/dashboard/KpiPanel';
 import { MiniBarChart } from '@/components/dashboard/MiniBarChart';
 import {
   AtividadeRecenteResponse,
@@ -55,6 +56,9 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto pb-10 space-y-6">
+      {/* KPIs Executivos */}
+      <KpiPanel />
+
       {/* Header */}
       <div className="flex items-center justify-between border-b pb-4">
         <div>
