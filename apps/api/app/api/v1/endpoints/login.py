@@ -75,6 +75,18 @@ def login_access_token(
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 
+    try:
+        from app.services.audit_service import AuditService
+        AuditService.registrar(
+            db,
+            acao="login",
+            usuario_id=getattr(user, "id", None),
+            usuario=getattr(user, "usuario", None),
+            detalhes="Login bem-sucedido",
+        )
+    except Exception:
+        pass
+
     return {"access_token": access_token, "token_type": "bearer"}
 
 

@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     abusividade,
     ai,
     analista,
+    auditoria,
     calculos,
     clientes,
     clientes_resumo,
@@ -69,3 +70,4 @@ api_router.include_router(notificacoes.router, prefix="/notificacoes", tags=["no
 api_router.include_router(perfil.router, prefix="/perfil", tags=["perfil"], dependencies=_auth)
 api_router.include_router(sistema.router, prefix="/sistema", tags=["sistema"], dependencies=_auth)
 api_router.include_router(tarefas.router, prefix="/tarefas", tags=["tarefas"], dependencies=_auth)
+api_router.include_router(auditoria.router, prefix="/auditoria", tags=["auditoria"], dependencies=_auth)

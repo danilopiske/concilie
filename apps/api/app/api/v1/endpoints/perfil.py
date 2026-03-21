@@ -61,4 +61,16 @@ def alterar_senha(
     db.add(current_user)
     db.commit()
 
+    try:
+        from app.services.audit_service import AuditService
+        AuditService.registrar(
+            db,
+            acao="alterar_senha",
+            usuario_id=getattr(current_user, "id", None),
+            usuario=getattr(current_user, "usuario", None),
+            detalhes="Senha alterada",
+        )
+    except Exception:
+        pass
+
     return {"message": "Senha alterada com sucesso."}

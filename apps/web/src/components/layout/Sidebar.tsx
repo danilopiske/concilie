@@ -28,6 +28,7 @@ import {
   LayoutDashboard,
   Bell,
   Activity,
+  Shield,
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -108,6 +109,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [
       { label: 'Usuários', href: '/configuracoes/usuarios', icon: Users },
       { label: 'Meu Perfil', href: '/configuracoes/perfil', icon: User },
+      { label: 'Auditoria', href: '/configuracoes/auditoria', icon: Shield },
     ],
   },
   {
