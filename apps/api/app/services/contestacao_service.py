@@ -1,4 +1,3 @@
-import os
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -18,7 +17,7 @@ CONTESTACOES_DIR = Path("contestacoes")
 CONTESTACOES_DIR.mkdir(exist_ok=True)
 
 # Diretório dos templates Jinja2
-_TEMPLATES_DIR = Path(__file__).parent.parent.parent.parent / "relatorios"
+_TEMPLATES_DIR = Path(__file__).parent.parent.parent / "relatorios"
 
 
 def _render_template(context: dict) -> str:
