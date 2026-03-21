@@ -8,9 +8,8 @@ Comparação por bandeira + modalidade/forma_pagamento.
 
 import csv
 import io
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -102,6 +101,57 @@ def _calcular_divergencias(cliente_id: int, db: Session) -> dict:
         ),
         "divergencias": divergencias,
     }
+
+
+@router.get("")
+def divergencias_consolidado(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Painel consolidado: lista todos os clientes que possuem divergências.
+    Retorna cliente_id, nome_cliente, total_divergencias, valor_total_divergente,
+    ultima_divergencia. Ordenado por total_divergencias DESC. Paginado.
+    """
+    # Carregar todos os clientes que têm taxas contratadas
+    clientes_ids = (
+        db.query(TaxaContratada.cliente_id)
+        .distinct()
+        .all()
+    )
+    todos_ids = [row.cliente_id for row in clientes_ids]
+
+    resultados = []
+    for cid in todos_ids:
+        try:
+            dados = _calcular_divergencias(cid, db)
+        except HTTPException:
+            continue
+        if dados["total_divergencias"] == 0:
+            continue
+
+        divergencias = dados["divergencias"]
+        valor_total = round(sum(d["diferenca_pct"] for d in divergencias), 4)
+
+        resultados.append(
+            {
+                "cliente_id": cid,
+                "nome_cliente": dados["nome"],
+                "total_divergencias": dados["total_divergencias"],
+                "valor_total_divergente": valor_total,
+                "ultima_divergencia": None,
+            }
+        )
+
+    # Ordenar por total_divergencias DESC
+    resultados.sort(key=lambda x: x["total_divergencias"], reverse=True)
+
+    total = len(resultados)
+    pagina = resultados[offset: offset + limit]
+
+    return {"items": pagina, "total": total}
 
 
 @router.get("/{cliente_id}")

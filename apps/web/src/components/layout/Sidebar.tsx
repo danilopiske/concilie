@@ -56,6 +56,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
       { label: 'Bandeiras por EC', href: '/gestao/bandeiras-ec', icon: CreditCard },
       { label: 'Taxas', href: '/gestao/taxas', icon: DollarSign },
       { label: 'Recuperação Financeira', href: '/gestao/recuperacao', icon: TrendingUp },
+      { label: 'Divergências', href: '/gestao/divergencias', icon: AlertTriangle },
     ],
   },
   {
