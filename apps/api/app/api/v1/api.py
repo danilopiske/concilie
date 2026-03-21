@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     clientes,
     clientes_resumo,
     contestacoes,
+    contestacoes_metricas,
     contextos,
     correcao,
     dashboard,
@@ -69,6 +70,7 @@ api_router.include_router(contextos.router, prefix="/contextos", tags=["contexto
 api_router.include_router(abusividade.router, prefix="/abusividade", tags=["abusividade"], dependencies=_auth)
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"], dependencies=_auth)
 api_router.include_router(contestacoes.router, prefix="/contestacoes", tags=["contestacoes"], dependencies=_auth)
+api_router.include_router(contestacoes_metricas.router, prefix="/contestacoes-metricas", tags=["contestacoes-metricas"], dependencies=_auth)
 api_router.include_router(notificacoes.router, prefix="/notificacoes", tags=["notificacoes"], dependencies=_auth)
 api_router.include_router(perfil.router, prefix="/perfil", tags=["perfil"], dependencies=_auth)
 api_router.include_router(sistema.router, prefix="/sistema", tags=["sistema"], dependencies=_auth)

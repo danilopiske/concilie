@@ -87,6 +87,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     modulePrefix: '/contestacoes',
     items: [
       { label: 'Contestações', href: '/contestacoes', icon: FileText },
+      { label: 'Métricas', href: '/gestao/contestacoes-metricas', icon: BarChart3 },
     ],
   },
   {
