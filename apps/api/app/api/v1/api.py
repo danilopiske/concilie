@@ -24,6 +24,7 @@ from app.api.v1.endpoints import (
     relatorio_tags,
     relatorios,
     taxas,
+    taxas_contratadas,
     termos,
     usuarios,
 )
@@ -39,6 +40,7 @@ _auth = [Depends(deps.get_current_user)]
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"], dependencies=_auth)
 api_router.include_router(clientes.router, prefix="/clientes", tags=["clientes"], dependencies=_auth)
 api_router.include_router(extratos_cliente.router, prefix="/clientes", tags=["extratos-cliente"], dependencies=_auth)
+api_router.include_router(taxas_contratadas.router, prefix="/clientes", tags=["taxas-contratadas"], dependencies=_auth)
 api_router.include_router(gestao.router, prefix="/gestao", tags=["gestao"], dependencies=_auth)
 api_router.include_router(termos.router, prefix="/termos", tags=["termos"], dependencies=_auth)
 api_router.include_router(taxas.router, prefix="/taxas", tags=["taxas"], dependencies=_auth)

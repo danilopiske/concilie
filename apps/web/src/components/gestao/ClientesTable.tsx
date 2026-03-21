@@ -4,6 +4,7 @@
  */
 'use client';
 
+import Link from 'next/link';
 import { Cliente } from '@/lib/types/gestao';
 import { formatCPFCNPJ } from '@/lib/utils/formatters';
 import { Button } from '@/components/ui/Button';
@@ -54,6 +55,12 @@ export function ClientesTable({ clientes, onEdit, onDelete, onViewECs }: Cliente
       width: '250px',
       render: (_, cliente) => (
         <div className="flex justify-end gap-2">
+          <Link
+            href={`/gestao/clientes/${cliente.cliente_id}/taxas-contratadas`}
+            className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+          >
+            Taxas
+          </Link>
           <Button
             size="sm"
             variant="secondary"

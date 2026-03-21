@@ -5,6 +5,7 @@ import polars as pl
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.models.processamento import Processamento
 from app.models.vendas_calculos import VendasCalculos
 from app.schemas.abusividade import (
     AbusividadeDetalhadaResponse,
@@ -19,14 +20,45 @@ class AbusividadeService:
     def __init__(self, db: Session):
         self.db = db
 
-    def analisar_processamento(self, processamento_id: str, agrupamento: str = 'hierarquico', tolerancia: float = 0.0) -> List[Dict[str, Any]]:
+    def analisar_processamento(
+        self,
+        processamento_id: str,
+        agrupamento: str = 'hierarquico',
+        tolerancia: float = 0.0,
+        cliente_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Analisa um processamento específico em busca de variações de taxa usando Polars para alta performance.
+        Se cliente_id informado (ou obtido via processamento), inclui desvio_contratual por bandeira/modalidade.
         """
         if agrupamento == 'hierarquico':
-            return self._analisar_hierarquia(processamento_id, tolerancia=tolerancia)
+            resultados = self._analisar_hierarquia(processamento_id, tolerancia=tolerancia)
+        else:
+            resultados = self._detectar_variacoes_polars(
+                processamento_id=processamento_id, agrupamento=agrupamento, tolerancia=tolerancia
+            )
 
-        return self._detectar_variacoes_polars(processamento_id=processamento_id, agrupamento=agrupamento, tolerancia=tolerancia)
+        # Enriquecer com desvio contratual se disponível
+        _cid = cliente_id
+        if _cid is None:
+            proc = self.db.query(Processamento).filter(Processamento.id == int(processamento_id)).first()
+            _cid = proc.cliente_id if proc else None
+
+        if _cid:
+            try:
+                from app.services.taxa_contratada_service import comparar_contratado_vs_cobrado
+                comparacao = comparar_contratado_vs_cobrado(_cid, processamento_id, self.db)
+                desvio_map = {
+                    (d.bandeira, d.modalidade): d.model_dump()
+                    for d in comparacao.desvios
+                }
+                for item in resultados:
+                    chave = (item.get("bandeira"), item.get("forma_pagamento"))
+                    item["desvio_contratual"] = desvio_map.get(chave)
+            except Exception:
+                pass  # taxa contratada indisponível — comportamento original mantido
+
+        return resultados
 
     def _analisar_hierarquia(self, processamento_id: str, tolerancia: float = 0.0) -> List[Dict[str, Any]]:
         """

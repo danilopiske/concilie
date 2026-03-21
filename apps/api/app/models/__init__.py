@@ -15,6 +15,7 @@ from app.models.recebiveis import Recebivel, RecebivelFiltrado
 from app.models.relatorio_tag import RelatorioTag
 from app.models.relatorio_task import RelatorioTask
 from app.models.taxa import Taxa
+from app.models.taxa_contratada import TaxaContratada
 from app.models.termo import TermoFiltravel
 
 ## Removido: formas de pagamento
@@ -34,6 +35,7 @@ __all__ = [
     "BandeiraCliente",
     "TermoFiltravel",
     "Taxa",
+    "TaxaContratada",
     "Venda",
     "VendaFiltrada",
     "Recebivel",
