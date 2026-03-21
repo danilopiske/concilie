@@ -7,6 +7,7 @@ from app.models.bandeira import BandeiraCliente, BandeiraDisponivel
 from app.models.base import Base
 from app.models.calculo_task import CalculoTask
 from app.models.cliente import EC, Cliente, Contato, DadoBancario, ECCliente, Endereco
+from app.models.contestacao import Contestacao
 from app.models.contexto import Contexto
 from app.models.extrato_cliente import ExtratoCliente
 from app.models.import_task import ImportTask
@@ -24,6 +25,7 @@ from app.models.vendas import Venda, VendaFiltrada
 __all__ = [
     "Base",
     "AbusividadeTask",
+    "Contestacao",
     "Cliente",
     "Endereco",
     "Contato",

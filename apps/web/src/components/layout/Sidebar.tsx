@@ -77,6 +77,13 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     ],
   },
   {
+    title: 'Contestação',
+    modulePrefix: '/contestacoes',
+    items: [
+      { label: 'Contestações', href: '/contestacoes', icon: FileText },
+    ],
+  },
+  {
     title: 'Cálculos',
     modulePrefix: '/calculos',
     items: [

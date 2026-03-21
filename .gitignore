@@ -326,3 +326,6 @@ package-lock.json
 
 # Cache de relatórios de abusividade
 apps/api/relatorios_cache/abusividade/
+
+# Cartas de contestação geradas
+apps/api/contestacoes/
