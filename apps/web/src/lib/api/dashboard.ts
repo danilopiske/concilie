@@ -28,10 +28,22 @@ export interface AtividadeRecenteResponse {
   eventos: EventoAtividade[];
 }
 
+export interface AtividadeSemanal {
+  label: string;
+  count: number;
+}
+
+export interface AtividadeSemanalResponse {
+  semanas: AtividadeSemanal[];
+}
+
 export const dashboardApi = {
-  getResumo: (): Promise<DashboardResumo> =>
-    apiClient.get('/dashboard/resumo').then((r) => r.data),
+  getResumo: (periodo: number = 30): Promise<DashboardResumo> =>
+    apiClient.get('/dashboard/resumo', { params: { periodo } }).then((r) => r.data),
 
   getAtividadeRecente: (): Promise<AtividadeRecenteResponse> =>
     apiClient.get('/dashboard/atividade-recente').then((r) => r.data),
+
+  getAtividadeSemanal: (): Promise<AtividadeSemanalResponse> =>
+    apiClient.get('/dashboard/atividade-semanal').then((r) => r.data),
 };

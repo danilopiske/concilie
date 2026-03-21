@@ -4,24 +4,40 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, BarChart3, FileText, RefreshCw, TrendingUp } from 'lucide-react';
 import { AtividadeItem } from '@/components/dashboard/AtividadeItem';
 import { KpiCard } from '@/components/dashboard/KpiCard';
-import { AtividadeRecenteResponse, DashboardResumo, dashboardApi } from '@/lib/api/dashboard';
+import { MiniBarChart } from '@/components/dashboard/MiniBarChart';
+import {
+  AtividadeRecenteResponse,
+  AtividadeSemanalResponse,
+  DashboardResumo,
+  dashboardApi,
+} from '@/lib/api/dashboard';
+
+const PERIODOS = [
+  { label: '7 dias', value: 7 },
+  { label: '30 dias', value: 30 },
+  { label: '90 dias', value: 90 },
+];
 
 export default function DashboardPage() {
   const [resumo, setResumo] = useState<DashboardResumo | null>(null);
   const [atividade, setAtividade] = useState<AtividadeRecenteResponse | null>(null);
+  const [atividadeSemanal, setAtividadeSemanal] = useState<AtividadeSemanalResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [periodo, setPeriodo] = useState(30);
 
-  const carregar = async () => {
+  const carregar = async (p: number = periodo) => {
     setLoading(true);
     setError(null);
     try {
-      const [r, a] = await Promise.all([
-        dashboardApi.getResumo(),
+      const [r, a, s] = await Promise.all([
+        dashboardApi.getResumo(p),
         dashboardApi.getAtividadeRecente(),
+        dashboardApi.getAtividadeSemanal(),
       ]);
       setResumo(r);
       setAtividade(a);
+      setAtividadeSemanal(s);
     } catch {
       setError('Erro ao carregar dados do dashboard.');
     } finally {
@@ -30,8 +46,9 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    carregar();
-  }, []);
+    carregar(periodo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo]);
 
   const formatCurrency = (v: number) =>
     v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -44,14 +61,32 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-800">Dashboard Executivo</h1>
           <p className="text-sm text-gray-500 mt-1">Visão geral do sistema Concilie</p>
         </div>
-        <button
-          onClick={carregar}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 border rounded hover:bg-gray-50 disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Atualizar
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Seletor de período */}
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            {PERIODOS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => setPeriodo(p.value)}
+                className={`px-3 py-1.5 text-sm transition-colors ${
+                  periodo === p.value
+                    ? 'bg-[#1e3a8a] text-white'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => carregar(periodo)}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 border rounded hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -68,7 +103,7 @@ export default function DashboardPage() {
       ) : resumo ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
-            title="Processamentos (mês)"
+            title={`Processamentos (${PERIODOS.find((p) => p.value === periodo)?.label ?? 'período'})`}
             value={resumo.processamentos_mes_atual}
             icon={BarChart3}
             color="blue"
@@ -123,8 +158,17 @@ export default function DashboardPage() {
       {/* Relatórios do mês */}
       {resumo && (
         <div className="text-sm text-gray-500">
-          Relatórios gerados este mês: <span className="font-semibold text-gray-700">{resumo.relatorios_gerados_mes}</span>
+          Relatórios gerados este mês:{' '}
+          <span className="font-semibold text-gray-700">{resumo.relatorios_gerados_mes}</span>
         </div>
+      )}
+
+      {/* Mini gráfico de atividade semanal */}
+      {atividadeSemanal && atividadeSemanal.semanas.length > 0 && (
+        <MiniBarChart
+          title="Importações por semana (últimas 4 semanas)"
+          data={atividadeSemanal.semanas.map((s) => ({ label: s.label, value: s.count }))}
+        />
       )}
 
       {/* Atividade Recente */}

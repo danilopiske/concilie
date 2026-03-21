@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends
@@ -19,18 +19,20 @@ router = APIRouter()
 
 @router.get("/resumo", response_model=DashboardResumo)
 def get_dashboard_resumo(
+    periodo: int = 30,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     """Retorna KPIs consolidados do sistema para o dashboard executivo."""
     now = datetime.utcnow()
     mes_atual = now.strftime("%Y-%m")
+    data_limite = now - timedelta(days=periodo)
 
     # Total e mês atual de processamentos
     total_proc = db.query(func.count(Processamento.id)).scalar() or 0
     proc_mes = (
         db.query(func.count(Processamento.id))
-        .filter(func.strftime("%Y-%m", Processamento.data_inicio) == mes_atual)
+        .filter(Processamento.data_inicio >= data_limite)
         .scalar()
         or 0
     )
@@ -189,3 +191,30 @@ def get_atividade_recente(
     # Ordenar todos por data desc e retornar top 20
     eventos.sort(key=lambda x: x.created_at, reverse=True)
     return AtividadeRecenteResponse(eventos=eventos[:20])
+
+
+@router.get("/atividade-semanal")
+def get_atividade_semanal(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Retorna contagem de importações por semana nas últimas 4 semanas."""
+    agora = datetime.utcnow()
+    semanas = []
+    for i in range(4):
+        fim = agora - timedelta(weeks=i)
+        inicio = fim - timedelta(weeks=1)
+        count = (
+            db.query(func.count(ImportTask.id))
+            .filter(
+                ImportTask.created_at >= inicio,
+                ImportTask.created_at < fim,
+            )
+            .scalar()
+            or 0
+        )
+        semanas.append({
+            "label": "Esta" if i == 0 else f"S-{i}",
+            "count": count,
+        })
+    return {"semanas": list(reversed(semanas))}
