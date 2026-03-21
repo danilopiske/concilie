@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, BarChart3, FileText } from 'lucide-react';
+import { ArrowLeft, BarChart3, FileText, GitCompare } from 'lucide-react';
 import { ClienteResumoPanel } from '@/components/gestao/ClienteResumoPanel';
 
 export default function ClienteDetalhePage() {
@@ -30,6 +30,13 @@ export default function ClienteDetalhePage() {
         >
           <BarChart3 className="w-4 h-4 text-blue-500" />
           Taxas Contratadas
+        </Link>
+        <Link
+          href={`/gestao/clientes/${clienteId}/taxas-comparativo`}
+          className="flex items-center gap-2 px-4 py-2 text-sm border rounded-lg hover:bg-gray-50 text-gray-700"
+        >
+          <GitCompare className="w-4 h-4 text-purple-500" />
+          Comparativo de Taxas
         </Link>
         <Link
           href={`/clientes/${clienteId}/extratos`}

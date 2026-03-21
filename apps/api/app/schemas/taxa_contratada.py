@@ -65,3 +65,21 @@ class HistoricoDesvioItem(BaseModel):
 class HistoricoDesviosResponse(BaseModel):
     cliente_id: int
     historico: List[HistoricoDesvioItem]
+
+
+class ComparativoItem(BaseModel):
+    bandeira: str
+    modalidade: str
+    taxa_contratada: float
+    taxa_media_cobrada: float
+    diferenca: float
+    status: Literal["ok", "divergente", "critico"]
+    quantidade_transacoes: int
+
+
+class ComparativoResponse(BaseModel):
+    cliente_id: int
+    itens: List[ComparativoItem]
+    total_critico: int
+    total_divergente: int
+    total_ok: int

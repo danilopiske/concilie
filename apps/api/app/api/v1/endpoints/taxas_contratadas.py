@@ -7,6 +7,7 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.schemas.taxa_contratada import (
     ComparacaoResponse,
+    ComparativoResponse,
     HistoricoDesviosResponse,
     TaxaContratadaCreate,
     TaxaContratadaResponse,
@@ -79,3 +80,13 @@ def historico_desvios(
     current_user=Depends(get_current_user),
 ):
     return svc.historico_desvios(cliente_id, db)
+
+
+@router.get("/{cliente_id}/taxas-comparativo", response_model=ComparativoResponse)
+def taxas_comparativo(
+    cliente_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Comparativo geral: taxa contratada vs média cobrada em todos os processamentos."""
+    return svc.comparativo_geral(cliente_id, db)

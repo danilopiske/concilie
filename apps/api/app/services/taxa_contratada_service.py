@@ -1,13 +1,15 @@
 from datetime import date, timedelta
 from typing import List, Optional
 
-from sqlalchemy import func, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.processamento import Processamento
 from app.models.taxa_contratada import TaxaContratada
 from app.schemas.taxa_contratada import (
     ComparacaoResponse,
+    ComparativoItem,
+    ComparativoResponse,
     DesvioTaxa,
     HistoricoDesvioItem,
     HistoricoDesviosResponse,
@@ -159,6 +161,74 @@ def comparar_contratado_vs_cobrado(
         processamento_id=processamento_id,
         desvios=desvios,
         valor_excesso_total=excesso_total,
+    )
+
+
+def comparativo_geral(cliente_id: int, db: Session) -> ComparativoResponse:
+    """Compara taxas contratadas vs média cobrada em todos os processamentos do cliente."""
+    sql = text("""
+        SELECT
+            vc.bandeira,
+            vc.forma_pagamento,
+            AVG(CAST(vc.tx_venda AS FLOAT)) AS taxa_media,
+            COUNT(*)                         AS quantidade
+        FROM vendas_calculos vc
+        JOIN processamentos p ON p.id = CAST(vc.calc_id AS INTEGER)
+        WHERE p.cliente_id = :cliente_id
+          AND vc.tx_venda IS NOT NULL
+          AND vc.bandeira IS NOT NULL
+          AND vc.forma_pagamento IS NOT NULL
+        GROUP BY vc.bandeira, vc.forma_pagamento
+    """)
+    rows = db.execute(sql, {"cliente_id": cliente_id}).fetchall()
+
+    itens: List[ComparativoItem] = []
+    for row in rows:
+        bandeira, forma_pag, taxa_media, quantidade = row
+        taxa_media = float(taxa_media or 0)
+
+        taxa_obj = (
+            db.query(TaxaContratada)
+            .filter(
+                TaxaContratada.cliente_id == cliente_id,
+                TaxaContratada.bandeira == bandeira,
+                TaxaContratada.modalidade == forma_pag,
+                TaxaContratada.vigencia_fim.is_(None),
+            )
+            .first()
+        )
+        if taxa_obj is None:
+            continue
+
+        contratada = taxa_obj.taxa_contratada
+        diferenca = round(taxa_media - contratada, 4)
+
+        if diferenca > 0.5:
+            status = "critico"
+        elif diferenca > 0:
+            status = "divergente"
+        else:
+            status = "ok"
+
+        itens.append(
+            ComparativoItem(
+                bandeira=bandeira,
+                modalidade=forma_pag,
+                taxa_contratada=round(contratada, 4),
+                taxa_media_cobrada=round(taxa_media, 4),
+                diferenca=diferenca,
+                status=status,
+                quantidade_transacoes=int(quantidade),
+            )
+        )
+
+    itens.sort(key=lambda x: (x.status == "ok", x.status == "divergente"))
+    return ComparativoResponse(
+        cliente_id=cliente_id,
+        itens=itens,
+        total_critico=sum(1 for i in itens if i.status == "critico"),
+        total_divergente=sum(1 for i in itens if i.status == "divergente"),
+        total_ok=sum(1 for i in itens if i.status == "ok"),
     )
 
 
