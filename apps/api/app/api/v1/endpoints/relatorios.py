@@ -362,13 +362,22 @@ async def save_edit_relatorio(
 @router.get("/historico")
 async def get_historico(
     processamento_id: str = None,
+    status: str = None,
+    tipo: str = None,
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
     """
     Retorna o histórico de relatórios gerados.
+    Filtros opcionais: status (PENDING|PROCESSING|SUCCESS|FAILED), tipo (mensal|retroativo|abusividade).
     """
     service = RelatorioService(db)
-    tasks = service.list_tasks(skip=skip, limit=limit, processamento_id=processamento_id)
+    tasks = service.list_tasks(
+        skip=skip,
+        limit=limit,
+        processamento_id=processamento_id,
+        status=status,
+        tipo=tipo,
+    )
     return tasks

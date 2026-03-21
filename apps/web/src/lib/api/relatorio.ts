@@ -48,8 +48,11 @@ export interface RelatorioTask {
 }
 
 export const relatorioApi = {
-  getHistorico: async (processamentoId?: string, skip: number = 0, limit: number = 50): Promise<RelatorioTask[]> => {
-    const params = { processamento_id: processamentoId, skip, limit };
+  getHistorico: async (processamentoId?: string, skip: number = 0, limit: number = 50, status?: string, tipo?: string): Promise<RelatorioTask[]> => {
+    const params: Record<string, unknown> = { skip, limit };
+    if (processamentoId) params.processamento_id = processamentoId;
+    if (status) params.status = status;
+    if (tipo) params.tipo = tipo;
     const response = await apiClient.get<RelatorioTask[]>('/relatorios/historico', { params });
     return response.data;
   },

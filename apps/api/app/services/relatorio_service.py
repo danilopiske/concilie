@@ -35,10 +35,21 @@ class RelatorioService:
     def get_task(self, task_id: str) -> RelatorioTask:
         return self.db.query(RelatorioTask).filter(RelatorioTask.id == task_id).first()
 
-    def list_tasks(self, skip: int = 0, limit: int = 100, processamento_id: str = None) -> list[RelatorioTask]:
+    def list_tasks(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        processamento_id: str = None,
+        status: str = None,
+        tipo: str = None,
+    ) -> list[RelatorioTask]:
         query = self.db.query(RelatorioTask)
         if processamento_id:
             query = query.filter(RelatorioTask.processamento_id == processamento_id)
+        if status:
+            query = query.filter(RelatorioTask.status == status.upper())
+        if tipo:
+            query = query.filter(RelatorioTask.tipo_relatorio == tipo)
         return query.order_by(RelatorioTask.created_at.desc()).offset(skip).limit(limit).all()
 
     def _update_progress(self, session, task, pct: int, msg: str):
@@ -173,6 +184,19 @@ class RelatorioService:
                     task.excel_path = html_path.replace(".html", ".xlsx")
                 session.commit()
 
+                # Notificação de relatório concluído (não-bloqueante)
+                try:
+                    from app.services.notificacao_service import NotificacaoService
+                    NotificacaoService.criar(
+                        session,
+                        tipo="relatorio_ok",
+                        titulo="Relatório gerado com sucesso",
+                        mensagem=f"O relatório do processamento {task.processamento_id} foi concluído.",
+                        link="/relatorios/gestao",
+                    )
+                except Exception:
+                    pass
+
             except Exception as e:
                 import traceback
                 error_trace = traceback.format_exc()
@@ -185,5 +209,17 @@ class RelatorioService:
                         task.status = "FAILED"
                         task.message = f"Erro: {str(e)}"
                         session.commit()
+                        # Notificação de falha (não-bloqueante)
+                        try:
+                            from app.services.notificacao_service import NotificacaoService
+                            NotificacaoService.criar(
+                                session,
+                                tipo="relatorio_erro",
+                                titulo="Erro ao gerar relatório",
+                                mensagem=f"Falha no processamento {task.processamento_id}: {str(e)[:200]}",
+                                link="/relatorios/gestao",
+                            )
+                        except Exception:
+                            pass
                 except Exception:
                     pass  # Já logamos o erro principal acima

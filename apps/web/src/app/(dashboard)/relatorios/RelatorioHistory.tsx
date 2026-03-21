@@ -1,10 +1,13 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Table, TableColumn } from "@/components/ui/Table";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Download, RefreshCw, FileText, AlertCircle, Loader2, Clock, Pencil } from 'lucide-react';
 import { relatorioApi, RelatorioTask } from '@/lib/api/relatorio';
+
+const AUTO_REFRESH_INTERVAL_MS = 15000;
+const ACTIVE_STATUSES = ['PENDING', 'PROCESSING'];
 
 interface RelatorioHistoryProps {
   processamentoId?: string;
@@ -15,20 +18,46 @@ export function RelatorioHistory({ processamentoId, refreshTrigger }: RelatorioH
   const [history, setHistory] = useState<RelatorioTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterTipo, setFilterTipo] = useState('');
+  const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
-      const data = await relatorioApi.getHistorico(processamentoId);
+      const data = await relatorioApi.getHistorico(processamentoId, 0, 50, filterStatus || undefined, filterTipo || undefined);
       setHistory(data);
     } catch (err) {
       console.error('Erro ao buscar histórico:', err);
       setError('Não foi possível carregar o histórico de relatórios.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [processamentoId]);
+  }, [processamentoId, filterStatus, filterTipo]);
+
+  // Start/stop auto-refresh based on active tasks
+  useEffect(() => {
+    const hasActiveTasks = history.some(t => ACTIVE_STATUSES.includes(t.status.toUpperCase()));
+
+    if (hasActiveTasks) {
+      autoRefreshRef.current = setInterval(() => {
+        fetchHistory(true);
+      }, AUTO_REFRESH_INTERVAL_MS);
+    } else {
+      if (autoRefreshRef.current) {
+        clearInterval(autoRefreshRef.current);
+        autoRefreshRef.current = null;
+      }
+    }
+
+    return () => {
+      if (autoRefreshRef.current) {
+        clearInterval(autoRefreshRef.current);
+        autoRefreshRef.current = null;
+      }
+    };
+  }, [history, fetchHistory]);
 
   useEffect(() => {
     fetchHistory();
@@ -47,8 +76,9 @@ export function RelatorioHistory({ processamentoId, refreshTrigger }: RelatorioH
       case 'COMPLETED':
         return <Badge variant="success">Concluído</Badge>;
       case 'PROCESSING':
-      case 'PENDING':
         return <Badge variant="info" className="animate-pulse">Processando</Badge>;
+      case 'PENDING':
+        return <Badge variant="info" className="animate-pulse">Pendente</Badge>;
       case 'FAILED':
         return <Badge variant="error">Erro</Badge>;
       default:
@@ -71,7 +101,18 @@ export function RelatorioHistory({ processamentoId, refreshTrigger }: RelatorioH
     }
   };
 
+  const hasActiveTasks = history.some(t => ACTIVE_STATUSES.includes(t.status.toUpperCase()));
+
   const columns: TableColumn<RelatorioTask>[] = [
+    {
+      key: 'id',
+      label: 'ID',
+      render: (val) => (
+        <span className="text-xs font-mono text-gray-400" title={val}>
+          {String(val).slice(0, 8)}…
+        </span>
+      )
+    },
     {
       key: 'updated_at',
       label: 'Data/Hora',
@@ -86,7 +127,7 @@ export function RelatorioHistory({ processamentoId, refreshTrigger }: RelatorioH
       label: 'Tipo',
       render: (val) => (
         <span className="text-sm text-gray-600 capitalize">
-          {val}
+          {val ?? '-'}
         </span>
       )
     },
@@ -100,14 +141,14 @@ export function RelatorioHistory({ processamentoId, refreshTrigger }: RelatorioH
       label: 'Adquirente',
       render: (val) => (
         <span className="text-sm text-gray-500 italic">
-          {val?.adquirente || 'Geral'}
+          {(val as Record<string, unknown>)?.adquirente as string || 'Geral'}
         </span>
       )
     },
     {
       key: 'actions',
-      label: '', // Empty label for actions
-      width: '100px',
+      label: '',
+      width: '180px',
       render: (_, row) => (
         <div className="flex justify-end gap-2">
           {row.status === 'SUCCESS' && (
@@ -160,7 +201,7 @@ export function RelatorioHistory({ processamentoId, refreshTrigger }: RelatorioH
       <div className="flex flex-col items-center justify-center p-12 space-y-4 border border-red-100 bg-red-50 rounded-2xl">
         <AlertCircle className="h-8 w-8 text-red-500" />
         <p className="text-red-700 font-bold">{error}</p>
-        <Button onClick={fetchHistory} variant="secondary" size="sm">
+        <Button onClick={() => fetchHistory()} variant="secondary" size="sm">
           Tentar novamente
         </Button>
       </div>
@@ -169,23 +210,57 @@ export function RelatorioHistory({ processamentoId, refreshTrigger }: RelatorioH
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-2">
-           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Clock className="w-4 h-4 text-primary" />
-           </div>
-           <h3 className="text-lg font-bold text-gray-800">Últimos Relatórios</h3>
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Clock className="w-4 h-4 text-primary" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-800">Últimos Relatórios</h3>
+          {hasActiveTasks && (
+            <span className="ml-2 inline-flex items-center gap-1 text-xs text-blue-600 font-medium">
+              <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+              Auto-atualizando…
+            </span>
+          )}
         </div>
-        <Button 
-          variant="secondary" 
-          size="sm" 
-          onClick={fetchHistory}
-          disabled={loading}
-          className="text-gray-500 hover:text-primary transition-colors font-semibold"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Sincronizar
-        </Button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Status filter */}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="">Todos os status</option>
+            <option value="PENDING">Pendente</option>
+            <option value="PROCESSING">Processando</option>
+            <option value="SUCCESS">Concluído</option>
+            <option value="FAILED">Erro</option>
+          </select>
+
+          {/* Tipo filter */}
+          <select
+            value={filterTipo}
+            onChange={(e) => setFilterTipo(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="">Todos os tipos</option>
+            <option value="mensal">Mensal</option>
+            <option value="retroativo">Retroativo</option>
+            <option value="abusividade">Abusividade</option>
+          </select>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => fetchHistory()}
+            disabled={loading}
+            className="text-gray-500 hover:text-primary transition-colors font-semibold"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Sincronizar
+          </Button>
+        </div>
       </div>
 
       {history.length === 0 ? (
@@ -194,9 +269,9 @@ export function RelatorioHistory({ processamentoId, refreshTrigger }: RelatorioH
           <p className="text-gray-400 font-medium">Nenhum relatório encontrado no histórico.</p>
         </div>
       ) : (
-        <Table 
-          data={history} 
-          columns={columns} 
+        <Table
+          data={history}
+          columns={columns}
           pagination={true}
           pageSize={10}
         />
