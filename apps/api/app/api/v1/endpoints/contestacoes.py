@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -81,6 +81,7 @@ def save_edit(
 @router.get("/{contestacao_id}/download")
 def download(
     contestacao_id: str,
+    format: str = "html",
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -90,6 +91,18 @@ def download(
     html_path = svc.get_html_path(contestacao_id)
     if not html_path:
         raise HTTPException(status_code=404, detail="Arquivo HTML não encontrado")
+
+    if format == "pdf":
+        from app.services.pdf_service import PdfService
+
+        html = html_path.read_text(encoding="utf-8")
+        pdf_bytes = PdfService.html_to_pdf(html)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="contestacao_{contestacao_id[:8]}.pdf"'},
+        )
+
     return FileResponse(
         str(html_path),
         media_type="text/html",

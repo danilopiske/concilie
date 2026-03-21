@@ -300,6 +300,48 @@ def download_relatorio(path: str):
     else:
         # Excel e demais: forçar download com nome correto
         return FileResponse(actual_path, filename=filename)
+@router.get("/tasks/{task_id}/download")
+def download_relatorio_task(
+    task_id: str,
+    format: str = "html",
+    db: Session = Depends(get_db),
+):
+    """Download do relatório por task_id. format=pdf|html"""
+    from pathlib import Path
+
+    from fastapi.responses import Response
+
+    from app.services.relatorio_service import RelatorioService
+
+    service = RelatorioService(db)
+    task = service.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task não encontrada")
+    if not task.result_path:
+        raise HTTPException(status_code=400, detail="Relatório não disponível")
+
+    file_path = Path(task.result_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado no servidor")
+
+    if format == "pdf":
+        from app.services.pdf_service import PdfService
+
+        html = file_path.read_text(encoding="utf-8")
+        pdf_bytes = PdfService.html_to_pdf(html)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="relatorio_{task_id}.pdf"'},
+        )
+
+    return FileResponse(
+        path=str(file_path),
+        filename=f"relatorio_{task_id}.html",
+        media_type="text/html",
+    )
+
+
 @router.post("/tasks/{task_id}/save-edit")
 async def save_edit_relatorio(
     task_id: str,

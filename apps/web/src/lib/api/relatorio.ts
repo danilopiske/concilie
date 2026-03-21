@@ -100,6 +100,11 @@ export const relatorioApi = {
     return `${baseUrl}/relatorios/download?path=${encodeURIComponent(path)}`;
   },
 
+  taskDownloadUrl: (taskId: string, format: 'html' | 'pdf' = 'html') => {
+    const baseUrl = apiClient.defaults.baseURL;
+    return `${baseUrl}/relatorios/tasks/${taskId}/download?format=${format}`;
+  },
+
   saveEdit: async (taskId: string, htmlContent: string): Promise<{ success: boolean; path: string }> => {
     const response = await apiClient.post<{ success: boolean; path: string }>(
       `/relatorios/tasks/${taskId}/save-edit`,

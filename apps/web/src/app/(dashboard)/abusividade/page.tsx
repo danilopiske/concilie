@@ -203,6 +203,16 @@ export default function AbusividadePage() {
                   <Download className="w-3.5 h-3.5" /> Baixar HTML
                 </a>
               )}
+              {taskId && (
+                <a
+                  href={`${abusividadeApi.downloadUrl(taskId)}?format=pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded text-sm hover:bg-red-100"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Baixar PDF
+                </a>
+              )}
             </div>
           </div>
           <div className="p-4">

@@ -129,6 +129,18 @@ export function RelatorioHistory({ processamentoId, refreshTrigger }: RelatorioH
               BAIXAR
             </Button>
           )}
+          {row.status === 'SUCCESS' && row.id && (
+            <a
+              href={relatorioApi.taskDownloadUrl(row.id, 'pdf')}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Button size="sm" variant="secondary" className="rounded-xl h-8 px-3 font-bold text-xs">
+                <FileText className="h-3 w-3 mr-1" />
+                PDF
+              </Button>
+            </a>
+          )}
         </div>
       )
     }

@@ -309,7 +309,16 @@ export default function ContestacaoPage() {
                           className="px-2 py-1 text-xs border rounded hover:bg-gray-50 flex items-center gap-1"
                         >
                           <Download className="w-3 h-3" />
-                          Download
+                          HTML
+                        </a>
+                        <a
+                          href={`${contestacaoApi.downloadUrl(c.id)}?format=pdf`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2 py-1 text-xs border rounded hover:bg-red-50 text-red-600 border-red-200 flex items-center gap-1"
+                        >
+                          <FileText className="w-3 h-3" />
+                          PDF
                         </a>
                         <StatusDropdown
                           current={c.status as ContestacaoStatus}

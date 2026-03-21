@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -125,9 +125,10 @@ def save_edit(
 @router.get("/tasks/{task_id}/download")
 def download_relatorio(
     task_id: str,
+    format: str = "html",
     db: Session = Depends(get_db),
 ):
-    """Retorna FileResponse com o HTML do relatório."""
+    """Retorna HTML ou PDF do relatório de abusividade. format=pdf|html"""
     task = db.query(AbusividadeTask).filter(AbusividadeTask.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task não encontrada")
@@ -137,6 +138,17 @@ def download_relatorio(
     file_path = Path(task.result_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Arquivo não encontrado no servidor")
+
+    if format == "pdf":
+        from app.services.pdf_service import PdfService
+
+        html = file_path.read_text(encoding="utf-8")
+        pdf_bytes = PdfService.html_to_pdf(html)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="abusividade_{task.processamento_id}.pdf"'},
+        )
 
     return FileResponse(
         path=str(file_path),
