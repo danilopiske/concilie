@@ -19,6 +19,7 @@ from app.api.v1.endpoints import (
     correcao,
     dashboard,
     depara,
+    divergencias,
     extratos_cliente,
     gestao,
     importacao,
@@ -73,3 +74,4 @@ api_router.include_router(sistema.router, prefix="/sistema", tags=["sistema"], d
 api_router.include_router(tarefas.router, prefix="/tarefas", tags=["tarefas"], dependencies=_auth)
 api_router.include_router(auditoria.router, prefix="/auditoria", tags=["auditoria"], dependencies=_auth)
 api_router.include_router(alertas_config.router, prefix="/alertas-config", tags=["alertas-config"], dependencies=_auth)
+api_router.include_router(divergencias.router, prefix="/divergencias", tags=["divergencias"], dependencies=_auth)
