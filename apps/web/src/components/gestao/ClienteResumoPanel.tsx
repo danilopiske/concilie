@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Activity, Bell, FileBarChart, Upload, Calculator, TrendingUp } from 'lucide-react';
+import { Activity, Bell, FileBarChart, Upload, Calculator, TrendingUp, FileText } from 'lucide-react';
 import { clienteResumoApi, type ClienteResumo } from '@/lib/api/clienteResumo';
 
 function StatusBadge({ status }: { status: string }) {
@@ -102,14 +102,21 @@ export function ClienteResumoPanel({ clienteId }: { clienteId: number }) {
             </div>
           ),
       )}
-      {/* Link para relatório de divergências */}
-      <div className="bg-white rounded-xl border border-gray-100 p-4">
+      {/* Links de navegação */}
+      <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-2">
         <Link
           href={`/gestao/clientes/${clienteId}/divergencias`}
           className="inline-flex items-center gap-1.5 text-xs text-[#1e3a8a] hover:text-[#f59e0b] transition-colors font-medium"
         >
           <TrendingUp className="w-3.5 h-3.5" />
           Ver relatório de divergências de taxas →
+        </Link>
+        <Link
+          href={`/gestao/clientes/${clienteId}/contestacoes`}
+          className="flex items-center gap-1.5 text-xs text-[#1e3a8a] hover:text-[#f59e0b] transition-colors font-medium"
+        >
+          <FileText className="w-3.5 h-3.5" />
+          Ver contestações →
         </Link>
       </div>
     </div>

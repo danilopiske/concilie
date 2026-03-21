@@ -2,6 +2,25 @@ import { apiClient } from './client';
 
 export type ContestacaoStatus = 'rascunho' | 'enviada' | 'em_analise' | 'deferida' | 'indeferida';
 
+export interface ContestacaoResumoItem {
+  id: string;
+  status: ContestacaoStatus | string;
+  adquirente: string;
+  processamento_id: number | null;
+  periodo_inicio: string | null;
+  periodo_fim: string | null;
+  valor_excesso_total: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ContestacoesPorCliente {
+  cliente_id: number;
+  nome: string;
+  total: number;
+  contestacoes: ContestacaoResumoItem[];
+}
+
 export interface ContestacaoResponse {
   id: string;
   cliente_id: number;
@@ -45,4 +64,7 @@ export const contestacaoApi = {
 
   remover: (id: string): Promise<void> =>
     apiClient.delete(`/contestacoes/${id}`).then(() => undefined),
+
+  porCliente: (clienteId: number): Promise<ContestacoesPorCliente> =>
+    apiClient.get<ContestacoesPorCliente>(`/contestacoes/cliente/${clienteId}`).then((r) => r.data),
 };

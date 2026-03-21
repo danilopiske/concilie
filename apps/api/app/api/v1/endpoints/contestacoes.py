@@ -40,6 +40,52 @@ def listar(
     return svc.listar(cliente_id, status, db)
 
 
+@router.get("/cliente/{cliente_id}")
+def contestacoes_por_cliente(
+    cliente_id: int,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Lista contestações de um cliente específico com dados resumidos."""
+    from app.models.cliente import Cliente
+    from app.models.contestacao import Contestacao
+
+    cliente = db.get(Cliente, cliente_id)
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+
+    contestacoes = (
+        db.query(Contestacao)
+        .filter(Contestacao.cliente_id == cliente_id)
+        .order_by(Contestacao.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "cliente_id": cliente_id,
+        "nome": cliente.nome_fantasia or cliente.razao_social or str(cliente_id),
+        "total": len(contestacoes),
+        "contestacoes": [
+            {
+                "id": c.id,
+                "status": c.status,
+                "adquirente": c.adquirente,
+                "processamento_id": c.processamento_id,
+                "periodo_inicio": c.periodo_inicio.isoformat() if c.periodo_inicio else None,
+                "periodo_fim": c.periodo_fim.isoformat() if c.periodo_fim else None,
+                "valor_excesso_total": c.valor_excesso_total,
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+                "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+            }
+            for c in contestacoes
+        ],
+    }
+
+
 @router.get("/{contestacao_id}", response_model=ContestacaoResponse)
 def detalhe(
     contestacao_id: str,
