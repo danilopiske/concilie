@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Download, Plus, RefreshCw } from 'lucide-react';
 import { abusividadeApi, AbusividadeHistoricoItem } from '@/lib/api/abusividade';
 
 const STATUS_BADGE: Record<string, string> = {
@@ -78,6 +78,18 @@ export default function AbusividadeHistoricoPage() {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
+          </button>
+          <button
+            onClick={() =>
+              window.open(
+                `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}/api/v1/abusividade/historico/${clienteId}/exportar-csv`,
+                '_blank',
+              )
+            }
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-green-600 text-green-700 rounded hover:bg-green-50"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Exportar CSV
           </button>
           <button
             onClick={() => router.push('/abusividade')}

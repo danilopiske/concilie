@@ -1,9 +1,11 @@
+import csv
+import io
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from sqlalchemy import Integer as SAInteger
 from sqlalchemy import cast
 from sqlalchemy.orm import Session
@@ -158,6 +160,44 @@ def download_relatorio(
         path=str(file_path),
         filename=f"abusividade_{task.processamento_id}.html",
         media_type="text/html",
+    )
+
+
+@router.get("/historico/{cliente_id}/exportar-csv")
+def exportar_historico_csv(
+    cliente_id: int,
+    db: Session = Depends(get_db),
+):
+    """Exporta histórico de análises de abusividade do cliente em CSV."""
+    rows = (
+        db.query(AbusividadeTask, Processamento.nome_arquivo)
+        .join(
+            Processamento,
+            cast(AbusividadeTask.processamento_id, SAInteger) == Processamento.id,
+        )
+        .filter(Processamento.cliente_id == cliente_id)
+        .order_by(AbusividadeTask.created_at.desc())
+        .all()
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["data_analise", "processamento_id", "nome_arquivo", "status", "variacao_percentual", "erro"])
+    for task, nome_arquivo in rows:
+        writer.writerow([
+            task.created_at.isoformat() if task.created_at else "",
+            task.processamento_id,
+            nome_arquivo or "",
+            task.status,
+            "",  # variacao_percentual não armazenada na task
+            task.error_message or "",
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="abusividade_{cliente_id}.csv"'},
     )
 
 
