@@ -101,6 +101,20 @@ class CalculoService:
                     task.status = "SUCCESS"
                     task.progress = 100
                     task.message = f"Cálculo concluído! {result.get('rows')} registros processados em {result.get('time'):.2f}s."
+
+                    # Notificação (não-bloqueante)
+                    try:
+                        from app.services.notificacao_service import NotificacaoService
+                        NotificacaoService.criar(
+                            db,
+                            tipo="calculo_ok",
+                            titulo="Cálculo concluído",
+                            mensagem=f"Reconciliação finalizada: {result.get('rows')} registros processados.",
+                            link="/calculos",
+                            usuario_id=None,
+                        )
+                    except Exception:
+                        pass
                 else:
                     task.status = "FAILED"
                     task.message = f"Erro: {result.get('error')}"

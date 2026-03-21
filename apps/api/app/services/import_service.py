@@ -392,6 +392,20 @@ class ImportService:
                 task.message = "Importação concluída com sucesso!"
                 db.commit()
 
+                # Notificação (não-bloqueante)
+                try:
+                    from app.services.notificacao_service import NotificacaoService
+                    NotificacaoService.criar(
+                        db,
+                        tipo="importacao_ok",
+                        titulo="Importação concluída",
+                        mensagem="Arquivo importado com sucesso.",
+                        link="/importar/processamentos",
+                        usuario_id=None,
+                    )
+                except Exception:
+                    pass
+
             except Exception as e:
                 db.rollback()
                 error_msg = str(e)
@@ -403,6 +417,20 @@ class ImportService:
                 db.commit()
                 print(f"Async Task Error: {error_msg}")
                 traceback.print_exc()
+
+                # Notificação (não-bloqueante)
+                try:
+                    from app.services.notificacao_service import NotificacaoService
+                    NotificacaoService.criar(
+                        db,
+                        tipo="importacao_erro",
+                        titulo="Erro na importação",
+                        mensagem=f"Ocorreu um erro durante a importação: {error_msg[:200]}",
+                        link="/importar/processamentos",
+                        usuario_id=None,
+                    )
+                except Exception:
+                    pass
 
     def confirm_import_v2(
         self,

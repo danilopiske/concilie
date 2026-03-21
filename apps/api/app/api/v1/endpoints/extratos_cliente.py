@@ -118,6 +118,19 @@ def validar_extratos(
                 extrato.status = "importado"
             else:
                 extrato.status = "divergente"
+                # Notificação (não-bloqueante)
+                try:
+                    from app.services.notificacao_service import NotificacaoService
+                    NotificacaoService.criar(
+                        db,
+                        tipo="extrato_divergente",
+                        titulo="Extrato divergente detectado",
+                        mensagem=f"O extrato '{extrato.nome_arquivo}' apresenta divergência de tipo.",
+                        link=f"/clientes/{cliente_id}/extratos",
+                        usuario_id=None,
+                    )
+                except Exception:
+                    pass
             atualizados += 1
 
     db.commit()
