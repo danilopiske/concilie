@@ -1,11 +1,19 @@
+import statistics
 import time
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import text
+from dateutil.relativedelta import relativedelta
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.models.vendas_calculos import VendasCalculos
-from app.schemas.calculo import CalculoPreviewRequest, CalculoRequest, CalculoStats
+from app.schemas.calculo import (
+    AnalisePeriodosResponse,
+    CalculoPreviewRequest,
+    CalculoRequest,
+    CalculoStats,
+    PeriodoAnalise,
+)
 
 
 class CalculoRepository:
@@ -222,6 +230,97 @@ class CalculoRepository:
             LIMIT :limit OFFSET :offset
         """)
         return self.db.execute(sql, {"limit": limit, "offset": skip}).fetchall()
+
+    def analisar_periodos(
+        self, processamento_id: str, threshold: float = 0.5
+    ) -> AnalisePeriodosResponse:
+        from app.models.vendas import Venda
+
+        # Escolhe tabela: vendas_calculos se houver dados, senão vendas_processadas
+        has_calc = (
+            self.db.query(VendasCalculos)
+            .filter(VendasCalculos.calc_id == processamento_id)
+            .first()
+        ) is not None
+        model = VendasCalculos if has_calc else Venda
+        pid_col = VendasCalculos.calc_id if has_calc else Venda.processamentoid
+        date_col = VendasCalculos.data_venda if has_calc else Venda.data_venda
+        value_col = VendasCalculos.vl_venda if has_calc else Venda.valor_venda
+
+        # Agrupamento por mês — SQLite usa strftime
+        if self.dialect == "sqlite":
+            periodo_expr = func.strftime("%Y-%m", date_col).label("periodo")
+        else:
+            periodo_expr = func.date_format(date_col, "%Y-%m").label("periodo")
+
+        rows = (
+            self.db.query(
+                periodo_expr,
+                func.count().label("quantidade"),
+                func.sum(value_col).label("valor_total"),
+            )
+            .filter(pid_col == processamento_id)
+            .group_by(periodo_expr)
+            .order_by(periodo_expr)
+            .all()
+        )
+
+        if not rows:
+            return AnalisePeriodosResponse(
+                processamento_id=processamento_id,
+                total_periodos=0,
+                periodos_ausentes=0,
+                periodos_reduzidos=0,
+                mediana_quantidade=0.0,
+                periodos=[],
+            )
+
+        dados_map = {r.periodo: r for r in rows if r.periodo}
+        quantidades = [r.quantidade for r in rows if r.quantidade and r.quantidade > 0]
+        mediana = statistics.median(quantidades) if quantidades else 0.0
+
+        min_periodo = min(dados_map.keys())
+        max_periodo = max(dados_map.keys())
+
+        # Gera todos os meses do intervalo sem lacunas
+        def _gerar_meses(start_str: str, end_str: str) -> list:
+            cur = date.fromisoformat(start_str + "-01")
+            end = date.fromisoformat(end_str + "-01")
+            meses = []
+            while cur <= end:
+                meses.append(cur.strftime("%Y-%m"))
+                cur += relativedelta(months=1)
+            return meses
+
+        todos_meses = _gerar_meses(min_periodo, max_periodo)
+        resultado = []
+        for mes in todos_meses:
+            if mes not in dados_map:
+                status = "ausente"
+                qtd, total = 0, 0.0
+            else:
+                r = dados_map[mes]
+                qtd = r.quantidade or 0
+                total = float(r.valor_total or 0)
+                if qtd < mediana * threshold:
+                    status = "reduzido"
+                else:
+                    status = "ok"
+            resultado.append(
+                PeriodoAnalise(periodo=mes, quantidade=qtd, valor_total=total, status=status)
+            )
+
+        ausentes = sum(1 for p in resultado if p.status == "ausente")
+        reduzidos = sum(1 for p in resultado if p.status == "reduzido")
+
+        return AnalisePeriodosResponse(
+            processamento_id=processamento_id,
+            total_periodos=len(resultado),
+            periodos_ausentes=ausentes,
+            periodos_reduzidos=reduzidos,
+            mediana_quantidade=float(mediana),
+            periodos=resultado,
+        )
 
     def deletar_calculo(self, calc_id: str):
         self.db.query(VendasCalculos).filter(VendasCalculos.calc_id == calc_id).delete(synchronize_session=False)

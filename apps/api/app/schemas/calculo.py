@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -39,6 +39,22 @@ class CalculoResultado(BaseModel):
     perda: Optional[Decimal]
 
     model_config = ConfigDict(from_attributes=True)
+
+class PeriodoAnalise(BaseModel):
+    periodo: str
+    quantidade: int
+    valor_total: float
+    status: Literal["ok", "reduzido", "ausente"]
+
+
+class AnalisePeriodosResponse(BaseModel):
+    processamento_id: str
+    total_periodos: int
+    periodos_ausentes: int
+    periodos_reduzidos: int
+    mediana_quantidade: float
+    periodos: List[PeriodoAnalise]
+
 
 class CalculoHistoryItem(BaseModel):
     calc_id: str

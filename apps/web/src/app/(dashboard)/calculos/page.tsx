@@ -8,7 +8,7 @@ import { Select } from '@/components/ui/Select';
 import { Loading } from '@/components/shared/Loading';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
 import { importacaoApi } from '@/lib/api/importacao';
-import { calculoApi, CalculoStats, CalculoResultado } from '@/lib/api/calculo';
+import { calculoApi, CalculoStats, CalculoResultado, AnalisePeriodosResponse } from '@/lib/api/calculo';
 import { useCalculo } from '@/hooks/useCalculo';
 import { Processamento } from '@/lib/types/importacao';
 import { formatCurrency } from '@/lib/utils/formatters';
@@ -16,11 +16,10 @@ import {
   Calculator,
   Search,
   Play,
-  TrendingDown,
   AlertTriangle,
   Settings,
   BarChart2,
-  RefreshCw,
+  Activity,
   FileSpreadsheet
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
@@ -42,6 +41,9 @@ export default function CalculosToolPage() {
   const [error, setError] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<CalculoStats | null>(null);
   const [resultsData, setResultsData] = useState<CalculoResultado[]>([]);
+
+  const [analiseData, setAnaliseData] = useState<AnalisePeriodosResponse | null>(null);
+  const [loadingAnalise, setLoadingAnalise] = useState(false);
 
   const { task, loading: loadingAsync, error: errorAsync, startCalculo, resetTask } = useCalculo();
 
@@ -192,6 +194,7 @@ export default function CalculosToolPage() {
                                 setSelectedProcessamento(e.target.value);
                                 setPreviewData(null);
                                 setResultsData([]);
+                                setAnaliseData(null);
                                 setSuccessMsg(null);
                             }}
                             disabled={anyLoading}
@@ -269,8 +272,30 @@ export default function CalculosToolPage() {
               </div>
 
               <div className="flex gap-3 mt-6 pt-4 border-t justify-end">
-                  <Button 
-                    onClick={handlePreview} 
+                  <Button
+                    onClick={async () => {
+                      if (!selectedProcessamento) return;
+                      setLoadingAnalise(true);
+                      setAnaliseData(null);
+                      try {
+                        const data = await calculoApi.analisePeriodos(selectedProcessamento);
+                        setAnaliseData(data);
+                      } catch (err) {
+                        console.error('Erro ao analisar períodos', err);
+                      } finally {
+                        setLoadingAnalise(false);
+                      }
+                    }}
+                    disabled={!selectedProcessamento || anyLoading || loadingAnalise}
+                    loading={loadingAnalise}
+                    variant="secondary"
+                    className="w-48"
+                  >
+                    {!loadingAnalise && <><Activity className="w-4 h-4 mr-2" /> Analisar Períodos</>}
+                  </Button>
+
+                  <Button
+                    onClick={handlePreview}
                     disabled={!selectedProcessamento || anyLoading}
                     loading={loadingPreview}
                     variant="secondary"
@@ -278,9 +303,9 @@ export default function CalculosToolPage() {
                   >
                     {!loadingPreview && <><Search className="w-4 h-4 mr-2" /> Preview</>}
                   </Button>
-                  
-                   <Button 
-                    onClick={handleProcessar} 
+
+                   <Button
+                    onClick={handleProcessar}
                     disabled={!selectedProcessamento || loadingPreview}
                     loading={loadingAsync}
                     variant="primary"
@@ -353,7 +378,58 @@ export default function CalculosToolPage() {
           </div>
       )}
 
-      {/* 3. Resultados */}
+      {/* 3. Análise de Períodos */}
+      {analiseData && (
+        <Panel>
+          <PanelHeader icon={Activity}>Análise de Períodos</PanelHeader>
+          <PanelBody>
+            {(analiseData.periodos_ausentes > 0 || analiseData.periodos_reduzidos > 0) && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-300 rounded-lg flex items-start gap-2 text-yellow-800 text-sm">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>
+                  {analiseData.periodos_ausentes > 0 && `${analiseData.periodos_ausentes} período(s) ausente(s)`}
+                  {analiseData.periodos_ausentes > 0 && analiseData.periodos_reduzidos > 0 && ' e '}
+                  {analiseData.periodos_reduzidos > 0 && `${analiseData.periodos_reduzidos} período(s) com volume reduzido`}
+                  {' detectado(s). Verifique os dados antes de interpretar o resultado.'}
+                </span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <Card className="p-3 text-center">
+                <div className="text-2xl font-bold text-gray-700">{analiseData.total_periodos}</div>
+                <div className="text-xs text-gray-500">Total de períodos</div>
+              </Card>
+              <Card className="p-3 text-center">
+                <div className="text-2xl font-bold text-red-600">{analiseData.periodos_ausentes}</div>
+                <div className="text-xs text-gray-500">Ausentes</div>
+              </Card>
+              <Card className="p-3 text-center">
+                <div className="text-2xl font-bold text-yellow-600">{analiseData.periodos_reduzidos}</div>
+                <div className="text-xs text-gray-500">Volume reduzido</div>
+              </Card>
+            </div>
+
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              {analiseData.periodos.map((p) => (
+                <div key={p.periodo} className="flex items-center justify-between text-sm py-1 px-2 rounded hover:bg-gray-50">
+                  <span className="font-mono text-gray-700">{p.periodo}</span>
+                  <span className="text-gray-500">{p.quantidade.toLocaleString()} transações</span>
+                  <span className={
+                    p.status === 'ok' ? 'text-green-600 font-medium' :
+                    p.status === 'reduzido' ? 'text-yellow-600 font-medium' :
+                    'text-red-600 font-medium'
+                  }>
+                    {p.status === 'ok' ? '🟢 ok' : p.status === 'reduzido' ? '🟡 reduzido' : '🔴 ausente'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </PanelBody>
+        </Panel>
+      )}
+
+      {/* 4. Resultados */}
       {resultsData.length > 0 && (
           <Panel>
               <PanelHeader icon={BarChart2}>

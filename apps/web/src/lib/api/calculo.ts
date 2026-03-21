@@ -54,6 +54,22 @@ export interface CalculoTask {
   tipo_taxa: string;
 }
 
+export interface PeriodoAnalise {
+  periodo: string;
+  quantidade: number;
+  valor_total: number;
+  status: 'ok' | 'reduzido' | 'ausente';
+}
+
+export interface AnalisePeriodosResponse {
+  processamento_id: string;
+  total_periodos: number;
+  periodos_ausentes: number;
+  periodos_reduzidos: number;
+  mediana_quantidade: number;
+  periodos: PeriodoAnalise[];
+}
+
 export const calculoApi = {
   preview: async (req: CalculoPreviewRequest): Promise<CalculoStats> => {
     const response = await apiClient.post<CalculoStats>('calculos/preview', req);
@@ -90,6 +106,14 @@ export const calculoApi = {
 
   deleteCalculo: async (calcId: string): Promise<void> => {
     await apiClient.delete(`calculos/${calcId}`);
+  },
+
+  analisePeriodos: async (processamentoId: string, threshold = 0.5): Promise<AnalisePeriodosResponse> => {
+    const response = await apiClient.get<AnalisePeriodosResponse>(
+      `calculos/analise-periodos/${processamentoId}`,
+      { params: { threshold } }
+    );
+    return response.data;
   },
 
   exportExcel: (calcId: string): void => {
