@@ -25,6 +25,8 @@ import {
   FileBarChart,
   AlertTriangle,
   LayoutDashboard,
+  Bell,
+  Activity,
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -104,6 +106,20 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     modulePrefix: '/configuracoes',
     items: [
       { label: 'Usuários', href: '/configuracoes/usuarios', icon: Users },
+    ],
+  },
+  {
+    title: 'Notificações',
+    modulePrefix: '/notificacoes',
+    items: [
+      { label: 'Centro de Alertas', href: '/notificacoes', icon: Bell },
+    ],
+  },
+  {
+    title: 'Centro de Tarefas',
+    modulePrefix: '/tarefas',
+    items: [
+      { label: 'Progresso de Tarefas', href: '/tarefas', icon: Activity },
     ],
   },
 ];
