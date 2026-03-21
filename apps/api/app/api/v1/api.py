@@ -13,6 +13,7 @@ from app.api.v1.endpoints import (
     clientes,
     contextos,
     correcao,
+    dashboard,
     depara,
     extratos_cliente,
     gestao,
@@ -53,4 +54,4 @@ api_router.include_router(relatorio_tags.router, prefix="/relatorio-tags", tags=
 api_router.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"], dependencies=_auth)
 api_router.include_router(contextos.router, prefix="/contextos", tags=["contextos"], dependencies=_auth)
 api_router.include_router(abusividade.router, prefix="/abusividade", tags=["abusividade"], dependencies=_auth)
-
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"], dependencies=_auth)

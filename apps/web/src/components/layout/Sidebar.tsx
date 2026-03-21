@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
+import {
   ChevronLeft,
   ChevronRight,
   Users,
@@ -24,6 +24,7 @@ import {
   Settings,
   FileBarChart,
   AlertTriangle,
+  LayoutDashboard,
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -148,6 +149,29 @@ export function Sidebar() {
           <ChevronLeft className="w-5 h-5 text-[#1e3a8a] group-hover:text-[#f59e0b] transition-colors" />
         )}
       </button>
+
+      {/* Dashboard Link — always visible */}
+      <div className="px-2 pt-3 pb-1 border-b border-gray-100">
+        <Link
+          href="/dashboard"
+          className={`
+            relative flex items-center gap-3 px-3 py-2.5 rounded-lg
+            transition-all duration-200
+            ${isItemActive('/dashboard')
+              ? 'bg-gradient-to-r from-[#fef3c7] to-transparent text-[#1e3a8a] font-medium shadow-sm'
+              : 'text-gray-700 hover:bg-gray-50 hover:text-[#1e3a8a]'
+            }
+            ${isCollapsed ? 'justify-center' : ''}
+          `}
+          title={isCollapsed ? 'Dashboard' : undefined}
+        >
+          {isItemActive('/dashboard') && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-[#f59e0b] to-[#fbbf24] rounded-r-full" />
+          )}
+          <LayoutDashboard className={`w-5 h-5 ${isItemActive('/dashboard') ? 'text-[#f59e0b]' : 'text-gray-500'} flex-shrink-0`} />
+          {!isCollapsed && <span className="text-sm">Dashboard</span>}
+        </Link>
+      </div>
 
       {/* Contextual Tools */}
       <nav className="py-4">
