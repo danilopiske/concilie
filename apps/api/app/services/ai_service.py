@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -200,13 +201,23 @@ class AIService:
         mensagem: str,
         contexto: str,
         historico: Optional[List[dict]] = None,
+        max_tentativas: int = 3,
+        timeout_segundos: int = 30,
     ) -> tuple[str, List[str]]:
-        """Envia mensagem ao Gemini com contexto do processamento."""
+        """Envia mensagem ao Gemini com contexto do processamento.
+
+        Implementa retry com backoff exponencial (max 3 tentativas) e
+        timeout de 30s por chamada. Histórico limitado a 20 mensagens.
+        """
         if not settings.GEMINI_API_KEY:
             return (
                 "A chave GEMINI_API_KEY não está configurada. Adicione ao arquivo .env.",
                 [],
             )
+
+        # Limitar histórico para evitar overflow de tokens
+        MAX_HISTORY = 20
+        historico_limitado = (historico or [])[-MAX_HISTORY:]
 
         try:
             import google.generativeai as genai  # lazy import — opcional
@@ -218,7 +229,7 @@ class AIService:
             )
 
             gemini_history = []
-            for msg in (historico or []):
+            for msg in historico_limitado:
                 role = msg.get("role", "user")
                 gemini_history.append({
                     "role": role if role == "user" else "model",
@@ -227,8 +238,28 @@ class AIService:
 
             chat_session = model.start_chat(history=gemini_history)
             prompt = f"Contexto dos dados:\n{contexto}\n\nPergunta: {mensagem}" if contexto else mensagem
-            response = chat_session.send_message(prompt)
-            texto = response.text
+
+            # Retry com backoff exponencial
+            ultimo_erro: Exception | None = None
+            for tentativa in range(max_tentativas):
+                try:
+                    response = chat_session.send_message(
+                        prompt,
+                        request_options={"timeout": timeout_segundos},
+                    )
+                    texto = response.text
+                    break
+                except Exception as e:
+                    ultimo_erro = e
+                    if tentativa < max_tentativas - 1:
+                        logger.warning(
+                            "Gemini tentativa %d/%d falhou: %s — aguardando %ds",
+                            tentativa + 1, max_tentativas, e, 2 ** tentativa,
+                        )
+                        time.sleep(2 ** tentativa)
+            else:
+                logger.error("Gemini falhou após %d tentativas: %s", max_tentativas, ultimo_erro)
+                return "Serviço temporariamente indisponível. Tente novamente em instantes.", []
 
             # Extrair sugestões do JSON no final da resposta
             sugestoes: List[str] = []

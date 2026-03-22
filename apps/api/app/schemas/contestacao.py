@@ -1,12 +1,22 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class ContestacaoGerar(BaseModel):
     cliente_id: int
     processamento_id: int
+    periodo_inicio: Optional[date] = None
+    periodo_fim: Optional[date] = None
+
+    @field_validator("periodo_fim")
+    @classmethod
+    def fim_apos_inicio(cls, v: Optional[date], info) -> Optional[date]:
+        inicio = info.data.get("periodo_inicio")
+        if v is not None and inicio is not None and v < inicio:
+            raise ValueError("periodo_fim deve ser >= periodo_inicio")
+        return v
 
 
 class ContestacaoStatusUpdate(BaseModel):

@@ -1,9 +1,18 @@
 import uuid
 from datetime import datetime
+from enum import Enum as PyEnum
 
-from sqlalchemy import Column, Date, DateTime, Float, Integer, String, Text
+from sqlalchemy import Column, Date, DateTime, Enum, Float, Integer, String, Text
 
 from app.models.base import Base
+
+
+class StatusContestacao(str, PyEnum):
+    rascunho = "rascunho"
+    enviada = "enviada"
+    em_analise = "em_analise"
+    deferida = "deferida"
+    indeferida = "indeferida"
 
 
 class Contestacao(Base):
@@ -16,7 +25,11 @@ class Contestacao(Base):
     periodo_inicio = Column(Date, nullable=False)
     periodo_fim = Column(Date, nullable=False)
     valor_excesso_total = Column(Float, nullable=False, default=0.0)
-    status = Column(String(30), nullable=False, default="rascunho")
+    status = Column(
+        Enum(StatusContestacao, native_enum=False),
+        nullable=False,
+        default=StatusContestacao.rascunho,
+    )
     html_carta = Column(Text, nullable=True)
     created_by = Column(String(100), nullable=False, default="sistema")
     created_at = Column(DateTime, default=datetime.utcnow)
