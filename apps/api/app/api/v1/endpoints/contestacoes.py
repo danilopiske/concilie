@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
 from app.schemas.contestacao import (
     ContestacaoGerar,
@@ -21,7 +21,7 @@ router = APIRouter()
 def gerar(
     body: ContestacaoGerar,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(["admin", "operador"])),
 ):
     try:
         c = svc.gerar_contestacao(body.cliente_id, body.processamento_id, db)

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_role
 from app.core.database import get_db
 from app.models.abusividade_task import AbusividadeTask
 from app.models.calculo_task import CalculoTask
@@ -29,7 +29,7 @@ router = APIRouter()
 @router.get("/kpis", response_model=DashboardKpis)
 def get_dashboard_kpis(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(["admin", "operador", "visualizador"])),
 ):
     """Retorna KPIs executivos consolidados do sistema."""
     now = datetime.utcnow()
@@ -108,7 +108,7 @@ def get_dashboard_kpis(
 def get_dashboard_resumo(
     periodo: int = 30,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(["admin", "operador", "visualizador"])),
 ):
     """Retorna KPIs consolidados do sistema para o dashboard executivo."""
     now = datetime.utcnow()
@@ -158,11 +158,12 @@ def get_dashboard_resumo(
     )
 
     # Relatórios gerados no mês atual
+    inicio_mes_dt = datetime(now.year, now.month, 1)
     rel_mes = (
         db.query(func.count(RelatorioTask.id))
         .filter(
             RelatorioTask.status == "SUCCESS",
-            func.strftime("%Y-%m", RelatorioTask.created_at) == mes_atual,
+            RelatorioTask.created_at >= inicio_mes_dt,
         )
         .scalar()
         or 0
@@ -198,7 +199,7 @@ def get_dashboard_resumo(
 @router.get("/atividade-recente", response_model=AtividadeRecenteResponse)
 def get_atividade_recente(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(["admin", "operador", "visualizador"])),
 ):
     """Retorna os últimos 20 eventos de atividade do sistema."""
     eventos: List[EventoAtividade] = []
@@ -283,7 +284,7 @@ def get_atividade_recente(
 @router.get("/atividade-semanal")
 def get_atividade_semanal(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(["admin", "operador", "visualizador"])),
 ):
     """Retorna contagem de importações por semana nas últimas 4 semanas."""
     agora = datetime.utcnow()

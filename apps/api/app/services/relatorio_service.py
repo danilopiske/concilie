@@ -1,8 +1,11 @@
 import gc
+import logging
 import os
 import shutil
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Legacy imports
 from modules.reports import gerar_relatorio_html, gerar_relatorio_mensal_html
@@ -94,7 +97,7 @@ class RelatorioService:
                 # Buscar a task com a nova sessão
                 task = session.get(RelatorioTask, task_id)
                 if not task:
-                    print(f"Task {task_id} não encontrada para processamento async")
+                    logger.warning("Task %s não encontrada para processamento async", task_id)
                     return
 
                 task.status = "PROCESSING"
@@ -200,7 +203,7 @@ class RelatorioService:
             except Exception as e:
                 import traceback
                 error_trace = traceback.format_exc()
-                print(f"Error in async report: {e}\n{error_trace}")
+                logger.error("Error in async report: %s\n%s", e, error_trace)
                 # Recarregar task se possível para marcar erro
                 try:
                     # session.rollback() # Limpar estado se houver erro

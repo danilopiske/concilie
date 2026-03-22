@@ -42,7 +42,7 @@ class AIService:
     def __init__(self):
         self.api_key = settings.OPENAI_API_KEY
         if not self.api_key:
-             print("Warning: OPENAI_API_KEY not found in settings. AI features will be disabled.")
+             logger.warning("OPENAI_API_KEY not found in settings. AI features will be disabled.")
              self.llm = None
         else:
             try:
@@ -55,7 +55,7 @@ class AIService:
                     model_kwargs={"stop": ["\nObservation:", "Observation:", "Observation:\n"]}
                 )
             except Exception as e:
-                print(f"Error initializing ChatOpenAI: {e}")
+                logger.error("Error initializing ChatOpenAI: %s", e)
                 self.llm = None
 
 
@@ -133,7 +133,7 @@ class AIService:
                     "answer": error_str.split("Final Answer:")[-1].strip().split("For troubleshooting")[0].strip()
                 }
 
-            print(f"Error in AI analysis: {e}")
+            logger.error("Error in AI analysis: %s", e)
             return {
                 "answer": f"Desculpe, não consegui processar sua pergunta corretamente. Tente ser mais específico. (Erro técnico: {str(e)[:100]}...)"
             }

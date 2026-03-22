@@ -1,5 +1,8 @@
+import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Optional
+
+logger = logging.getLogger(__name__)
 
 import polars as pl
 from sqlalchemy import text
@@ -121,7 +124,7 @@ class AbusividadeService:
             if lf.collect().is_empty():
                 return []
         except Exception as e:
-            print(f"Error loading data with Polars: {e}")
+            logger.warning("Error loading data with Polars: %s", e)
             # Fallback for empty results or connection issues
             return []
 

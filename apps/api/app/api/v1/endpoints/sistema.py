@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_role
+from app.core.config import settings
 from app.core.database import get_db
 
 router = APIRouter()
@@ -15,7 +16,7 @@ router = APIRouter()
 @router.get("/status")
 def status_sistema(
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(["admin"])),
 ):
     """Retorna métricas consolidadas e saúde do sistema."""
     from app.models.calculo_task import CalculoTask
@@ -23,8 +24,9 @@ def status_sistema(
     from app.models.import_task import ImportTask
     from app.models.relatorio_task import RelatorioTask
 
-    # Testar conexão DB
+    # Testar conexão DB e detectar engine
     db_ok = False
+    db_engine = "mysql" if settings.DATABASE_TYPE == "mysql" else "sqlite"
     try:
         db.execute(text("SELECT 1"))
         db_ok = True
@@ -82,6 +84,7 @@ def status_sistema(
     return {
         "api": "ok",
         "database": "ok" if db_ok else "erro",
+        "db_engine": db_engine,
         "metricas": {
             "total_clientes": total_clientes,
             "total_importacoes": total_importacoes,

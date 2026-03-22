@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.api.deps import require_role
 from app.models.usuario_cliente import UsuarioCliente
 from app.models.usuario_contexto import UsuarioContexto
 from app.models.usuario_permissao import UsuarioPermissao
@@ -18,7 +19,8 @@ router = APIRouter()
 def listar_usuarios(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(deps.get_db)
+    db: Session = Depends(deps.get_db),
+    _: Any = Depends(require_role(["admin"])),
 ) -> Any:
     """
     Listar usuários.
@@ -29,7 +31,8 @@ def listar_usuarios(
 @router.post("/", response_model=UsuarioResponse)
 def criar_usuario(
     usuario_in: UsuarioCreate,
-    db: Session = Depends(deps.get_db)
+    db: Session = Depends(deps.get_db),
+    _: Any = Depends(require_role(["admin"])),
 ) -> Any:
     """
     Criar novo usuário.
@@ -46,7 +49,8 @@ def criar_usuario(
 def atualizar_usuario(
     usuario_id: int,
     usuario_in: UsuarioUpdate,
-    db: Session = Depends(deps.get_db)
+    db: Session = Depends(deps.get_db),
+    _: Any = Depends(require_role(["admin"])),
 ) -> Any:
     """
     Atualizar usuário.
@@ -63,7 +67,8 @@ def atualizar_usuario(
 @router.delete("/{usuario_id}", response_model=Any)
 def deletar_usuario(
     usuario_id: int,
-    db: Session = Depends(deps.get_db)
+    db: Session = Depends(deps.get_db),
+    _: Any = Depends(require_role(["admin"])),
 ) -> Any:
     """
     Deletar usuário.

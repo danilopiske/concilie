@@ -1,5 +1,6 @@
 """
 Ranking de recuperação financeira — clientes ordenados por valor contestável.
+PUBLIC — intencional: relatório de ranking para uso interno sem restrição de perfil.
 """
 
 import csv

@@ -1,4 +1,5 @@
 
+import logging
 import os
 import shutil
 import traceback
@@ -7,6 +8,8 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 import pandas as pd
 from fastapi import BackgroundTasks, HTTPException, UploadFile
@@ -133,7 +136,7 @@ class ImportService:
 
         except Exception as e:
             # ORIGINAL ERROR LOGGING
-            print(f"❌ ERROR in preview_upload: {str(e)}")
+            logger.error("ERROR in preview_upload: %s", e)
             traceback.print_exc()
 
             # Cleanup on error
@@ -141,7 +144,7 @@ class ImportService:
                 try:
                     shutil.rmtree(batch_dir, ignore_errors=True)
                 except Exception as cleanup_err:
-                    print(f"⚠️ Cleanup failed (ignored): {cleanup_err}")
+                    logger.warning("Cleanup failed (ignored): %s", cleanup_err)
 
             if isinstance(e, HTTPException):
                 raise e
@@ -287,7 +290,7 @@ class ImportService:
             error_msg = str(e)
             if len(error_msg) > 500:
                 error_msg = error_msg[:500] + "... [TRUNCATED]"
-            print(f"Error saving batch to DB: {error_msg}")
+            logger.error("Error saving batch to DB: %s", error_msg)
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Failed to save data: {error_msg}")
 
@@ -346,7 +349,7 @@ class ImportService:
             # We need to re-fetch the task using the new session
             task = db.query(ImportTask).filter(ImportTask.id == task_id).first()
             if not task:
-                print(f"Task {task_id} not found in background worker")
+                logger.warning("Task %s not found in background worker", task_id)
                 return
 
             try:
@@ -415,7 +418,7 @@ class ImportService:
                 task.status = "FAILED"
                 task.message = f"Erro: {error_msg}"[:255]
                 db.commit()
-                print(f"Async Task Error: {error_msg}")
+                logger.error("Async Task Error: %s", error_msg)
                 traceback.print_exc()
 
                 # Notificação (não-bloqueante)
@@ -546,7 +549,7 @@ class ImportService:
             error_msg = str(e)
             if len(error_msg) > 500:
                 error_msg = error_msg[:500] + "... [TRUNCATED]"
-            print(f"Error saving batch to DB: {error_msg}")
+            logger.error("Error saving batch to DB (v2): %s", error_msg)
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Failed to save data: {error_msg}")
 

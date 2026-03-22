@@ -2,11 +2,12 @@
 Gestao Endpoints - Management operations
 """
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_role
 from app.core.database import get_db
 from app.schemas.bandeira import (
     BandeiraClienteUpdate,
@@ -32,7 +33,7 @@ async def listar_contextos(
 
 
 @router.post("/contextos", response_model=dict, status_code=201)
-async def criar_contexto(contexto: ContextoCreate, db: Session = Depends(get_db)):
+async def criar_contexto(contexto: ContextoCreate, db: Session = Depends(get_db), _: Any = Depends(require_role(["admin", "operador"]))):
     """Create contexto"""
     service = GestaoService(db)
     return service.criar_contexto(contexto.model_dump())
@@ -48,7 +49,7 @@ async def listar_bandeiras_disponiveis(db: Session = Depends(get_db)):
 
 @router.post("/bandeiras-disponiveis", status_code=201)
 async def criar_bandeira_disponivel(
-    bandeira: BandeiraDisponivelCreate, db: Session = Depends(get_db)
+    bandeira: BandeiraDisponivelCreate, db: Session = Depends(get_db), _: Any = Depends(require_role(["admin", "operador"]))
 ):
     """Create bandeira disponivel"""
     service = GestaoService(db)
@@ -56,7 +57,7 @@ async def criar_bandeira_disponivel(
 
 
 @router.delete("/bandeiras-disponiveis/{bandeira_id}", status_code=204)
-async def deletar_bandeira_disponivel(bandeira_id: int, db: Session = Depends(get_db)):
+async def deletar_bandeira_disponivel(bandeira_id: int, db: Session = Depends(get_db), _: Any = Depends(require_role(["admin", "operador"]))):
     """Delete bandeira disponivel"""
     service = GestaoService(db)
     service.deletar_bandeira_disponivel(bandeira_id)
@@ -74,7 +75,7 @@ async def listar_bandeiras_ec(
 
 @router.put("/ecs/{ec}/bandeiras", status_code=204)
 async def salvar_bandeiras_ec(
-    ec: str, bandeiras: BandeiraClienteUpdate, db: Session = Depends(get_db)
+    ec: str, bandeiras: BandeiraClienteUpdate, db: Session = Depends(get_db), _: Any = Depends(require_role(["admin", "operador"]))
 ):
     """Save bandeiras for EC"""
     service = GestaoService(db)
@@ -96,7 +97,7 @@ async def listar_termos(
 
 @router.post("/ecs/{ec}/termos", response_model=TermoFiltravelResponse, status_code=201)
 async def adicionar_termo(
-    ec: str, termo: TermoFiltravelCreate, db: Session = Depends(get_db)
+    ec: str, termo: TermoFiltravelCreate, db: Session = Depends(get_db), _: Any = Depends(require_role(["admin", "operador"]))
 ):
     """Add termo"""
     service = GestaoService(db)
@@ -104,7 +105,7 @@ async def adicionar_termo(
 
 
 @router.delete("/termos/{termo_id}", status_code=204)
-async def excluir_termo(termo_id: int, db: Session = Depends(get_db)):
+async def excluir_termo(termo_id: int, db: Session = Depends(get_db), _: Any = Depends(require_role(["admin", "operador"]))):
     """Delete termo"""
     service = GestaoService(db)
     if not service.excluir_termo(termo_id):
@@ -122,7 +123,7 @@ async def listar_taxas(
 
 
 @router.post("/ecs/{ec}/taxas", response_model=TaxaResponse, status_code=201)
-async def adicionar_taxa(ec: str, taxa: TaxaCreate, db: Session = Depends(get_db)):
+async def adicionar_taxa(ec: str, taxa: TaxaCreate, db: Session = Depends(get_db), _: Any = Depends(require_role(["admin", "operador"]))):
     """Add taxa"""
     service = GestaoService(db)
     taxa_data = taxa.model_dump()
@@ -131,7 +132,7 @@ async def adicionar_taxa(ec: str, taxa: TaxaCreate, db: Session = Depends(get_db
 
 
 @router.delete("/taxas/{taxa_id}", status_code=204)
-async def excluir_taxa(taxa_id: int, db: Session = Depends(get_db)):
+async def excluir_taxa(taxa_id: int, db: Session = Depends(get_db), _: Any = Depends(require_role(["admin", "operador"]))):
     """Delete taxa"""
     service = GestaoService(db)
     if not service.excluir_taxa(taxa_id):
@@ -145,6 +146,7 @@ async def copiar_taxas(
     contexto: str = "padrao",
     sobrescrever: bool = False,
     db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
 ):
     """Copy taxas from one EC to others"""
     service = GestaoService(db)

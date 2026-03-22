@@ -1,3 +1,4 @@
+# PUBLIC — intencional: endpoint de autenticação não requer token
 import logging
 from datetime import timedelta
 from typing import Any

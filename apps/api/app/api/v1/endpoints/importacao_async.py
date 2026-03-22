@@ -1,8 +1,9 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_role
 from app.core.database import get_db
 from app.schemas.importacao import ImportacaoConfirmar
 from app.services.import_service import ImportService
@@ -14,7 +15,8 @@ async def confirmar_importacao_async(
     dados: ImportacaoConfirmar,
     background_tasks: BackgroundTasks,
     usuario: str = "api_user",
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
 ):
     """
     Inicia a gravação dos dados em segundo plano.

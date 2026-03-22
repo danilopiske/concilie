@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -9,6 +9,7 @@ from app.adapters.proc_importacao_adapter import (
     read_file_with_header,
     safe_read_multisheet_file,
 )
+from app.api.deps import require_role
 from app.core.database import get_db
 from app.repositories.depara_repository import DeParaRepository
 from app.schemas.depara import DeParaCreate, DeParaResponse, DeParaUpdate
@@ -36,7 +37,8 @@ def listar_deparas(
 @router.post("/", response_model=DeParaResponse)
 def criar_depara(
     depara: DeParaCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
 ):
     repo = DeParaRepository(db)
     return repo.criar(depara)
@@ -45,7 +47,8 @@ def criar_depara(
 def atualizar_depara(
     id: int,
     depara: DeParaUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
 ):
     repo = DeParaRepository(db)
     atualizado = repo.atualizar(id, depara)
@@ -56,7 +59,8 @@ def atualizar_depara(
 @router.delete("/{id}")
 def deletar_depara(
     id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
 ):
     repo = DeParaRepository(db)
     sucesso = repo.deletar(id)

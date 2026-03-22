@@ -1,5 +1,6 @@
 """
 Endpoints de Termos Filtráveis
+PUBLIC — intencional: dados de configuração de termos acessíveis sem restrição de perfil.
 """
 
 from typing import List

@@ -10,7 +10,7 @@ from sqlalchemy import Integer as SAInteger
 from sqlalchemy import cast
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
 from app.models.abusividade_task import AbusividadeTask
 from app.models.processamento import Processamento
@@ -73,7 +73,7 @@ async def gerar_relatorio_async(
     req: AbusividadeRelatorioRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(["admin", "operador", "visualizador"])),
 ):
     """Cria task e dispara geração assíncrona do relatório de abusividade."""
     task = AbusividadeTask(processamento_id=req.processamento_id)
@@ -111,7 +111,7 @@ def save_edit(
     task_id: str,
     body: dict,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(["admin", "operador", "visualizador"])),
 ):
     """Salva HTML editado no disco (mesmo padrão de RelatorioService.save_edit)."""
     task = db.query(AbusividadeTask).filter(AbusividadeTask.id == task_id).first()

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_role
 from app.core.database import get_db
 from app.services.audit_service import AuditService
 
@@ -32,7 +32,7 @@ def listar_auditoria(
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_role(["admin"])),
 ):
     """Lista os logs de auditoria do usuário logado."""
     usuario_id = getattr(current_user, "id", None)

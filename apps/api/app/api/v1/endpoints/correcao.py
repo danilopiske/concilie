@@ -1,8 +1,9 @@
-from typing import List
+from typing import Any, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_role
 from app.core.database import get_db
 from app.repositories.correcao_repository import CorrecaoRepository
 from app.schemas.correcao import (
@@ -35,7 +36,8 @@ def obter_historico(
 @router.patch("/atualizar")
 def atualizar_em_massa(
     request: AtualizarRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
 ):
     repo = CorrecaoRepository(db)
     try:
@@ -52,7 +54,8 @@ def atualizar_em_massa(
 @router.post("/remover")
 def remover_em_massa(
     request: RemoverRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
 ):
     repo = CorrecaoRepository(db)
     try:
@@ -68,7 +71,8 @@ def remover_em_massa(
 @router.post("/excluir-filtradas")
 def excluir_filtradas(
     request: RemoverRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
 ):
     """
     Remove permanentemente itens da tabela de filtrados.
@@ -95,7 +99,8 @@ def obter_filtros_taxa_bc(
 @router.post("/aplicar-taxa-bc")
 def aplicar_taxa_bc(
     request: AplicarTaxaBCRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
 ):
     repo = CorrecaoRepository(db)
     try:
