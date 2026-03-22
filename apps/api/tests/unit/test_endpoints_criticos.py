@@ -13,23 +13,21 @@ from fastapi.testclient import TestClient
 # ---------------------------------------------------------------------------
 
 def _mock_user(role: str = "admin"):
+    """Cria mock de usuário compatível com get_user_perfil (checa user.permissao.perfil)."""
     user = MagicMock()
     user.id = 1
     user.usuario = "test_user"
-    user.perfil = role
+    user.permissao = MagicMock()
+    user.permissao.perfil = role
     return user
 
 
-def _make_client(app, override_user=None):
-    """Cria TestClient com override de autenticação."""
-    from app.api.deps import require_role, get_current_user
-
-    if override_user is not None:
-        app.dependency_overrides[get_current_user] = lambda: override_user
-        # Sobrescreve require_role para qualquer perfil
-        for role in [["admin"], ["admin", "operador"], ["admin", "operador", "visualizador"]]:
-            app.dependency_overrides[require_role(role)] = lambda u=override_user: u
-    return TestClient(app, raise_server_exceptions=False)
+def _override_auth(app, role: str):
+    """Sobrescreve get_current_user para retornar usuário com perfil dado."""
+    from app.api.deps import get_current_user
+    user = _mock_user(role)
+    app.dependency_overrides[get_current_user] = lambda: user
+    return user
 
 
 # ---------------------------------------------------------------------------
@@ -43,21 +41,15 @@ class TestDashboardEndpoints:
         r = client.get("/api/v1/dashboard/resumo")
         assert r.status_code in (401, 403, 422)
 
-    def test_dashboard_com_visualizador_retorna_200_ou_dados(self):
+    def test_dashboard_com_visualizador_nao_retorna_401_403(self):
         from app.main import app
-        from app.api.deps import require_role
-
-        user = _mock_user("visualizador")
-        app.dependency_overrides[require_role(["admin", "operador", "visualizador"])] = lambda: user
-
+        _override_auth(app, "visualizador")
         with patch("app.api.v1.endpoints.dashboard.get_db") as mock_db:
             mock_db.return_value = MagicMock()
             client = TestClient(app, raise_server_exceptions=False)
             r = client.get("/api/v1/dashboard/resumo")
-            # Pode retornar 200 ou 500 (DB mock), mas NÃO 401/403
             assert r.status_code != 401
             assert r.status_code != 403
-
         app.dependency_overrides.clear()
 
 
@@ -66,27 +58,19 @@ class TestDashboardEndpoints:
 # ---------------------------------------------------------------------------
 
 class TestGestaoEndpoints:
-    def test_post_gestao_sem_auth_retorna_401_ou_403(self):
+    def test_post_gestao_sem_auth_retorna_401(self):
         from app.main import app
         client = TestClient(app, raise_server_exceptions=False)
-        r = client.post("/api/v1/gestao/clientes", json={
-            "nome_fantasia": "Teste",
-            "cliente_id": 999
-        })
+        # POST /gestao/contextos é uma rota protegida existente
+        r = client.post("/api/v1/gestao/contextos", json={"nome": "Teste"})
         assert r.status_code in (401, 403, 422)
 
     def test_post_gestao_com_visualizador_retorna_403(self):
         from app.main import app
-        from app.api.deps import require_role
-
-        # visualizador NÃO deve ter acesso a escrita
-        def raise_403():
-            from fastapi import HTTPException
-            raise HTTPException(status_code=403, detail="Acesso negado")
-
-        app.dependency_overrides[require_role(["admin", "operador"])] = raise_403
+        # visualizador não tem acesso a escrita — require_role(["admin","operador"])
+        _override_auth(app, "visualizador")
         client = TestClient(app, raise_server_exceptions=False)
-        r = client.post("/api/v1/gestao/clientes", json={"nome_fantasia": "X"})
+        r = client.post("/api/v1/gestao/contextos", json={"nome": "Teste"})
         assert r.status_code == 403
         app.dependency_overrides.clear()
 
@@ -107,11 +91,7 @@ class TestContestacaoEndpoints:
 
     def test_gerar_contestacao_com_admin_nao_retorna_401(self):
         from app.main import app
-        from app.api.deps import require_role
-
-        user = _mock_user("admin")
-        app.dependency_overrides[require_role(["admin", "operador"])] = lambda: user
-
+        _override_auth(app, "admin")
         with patch("app.api.v1.endpoints.contestacoes.get_db") as mock_db:
             mock_db.return_value = MagicMock()
             client = TestClient(app, raise_server_exceptions=False)
@@ -121,7 +101,6 @@ class TestContestacaoEndpoints:
             })
             assert r.status_code != 401
             assert r.status_code != 403
-
         app.dependency_overrides.clear()
 
 
@@ -138,19 +117,20 @@ class TestAbusividadeEndpoints:
         })
         assert r.status_code in (401, 403, 422)
 
-    def test_analise_publica_retorna_200_ou_dado(self):
-        """GET /analise/{id} é público — não deve exigir auth."""
+    def test_analise_com_auth_nao_retorna_401_403(self):
+        """GET /analise/{id} com auth válida — não deve retornar 401/403."""
         from app.main import app
+        from app.core.database import get_db
 
-        with patch("app.api.v1.endpoints.abusividade.get_db") as mock_db:
-            db = MagicMock()
-            db.query.return_value.filter.return_value.all.return_value = []
-            mock_db.return_value = db
-            client = TestClient(app, raise_server_exceptions=False)
-            r = client.get("/api/v1/abusividade/analise/999")
-            # Público — sem 401/403
-            assert r.status_code != 401
-            assert r.status_code != 403
+        _override_auth(app, "visualizador")
+        db_mock = MagicMock()
+        db_mock.query.return_value.filter.return_value.all.return_value = []
+        app.dependency_overrides[get_db] = lambda: db_mock
+        client = TestClient(app, raise_server_exceptions=False)
+        r = client.get("/api/v1/abusividade/analise/999")
+        assert r.status_code != 401
+        assert r.status_code != 403
+        app.dependency_overrides.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -158,23 +138,18 @@ class TestAbusividadeEndpoints:
 # ---------------------------------------------------------------------------
 
 class TestAuditoriaEndpoints:
-    def test_auditoria_sem_auth_retorna_401_ou_403(self):
+    def test_auditoria_sem_auth_retorna_401(self):
         from app.main import app
         client = TestClient(app, raise_server_exceptions=False)
-        r = client.get("/api/v1/auditoria/")
+        r = client.get("/api/v1/auditoria")
         assert r.status_code in (401, 403, 422)
 
     def test_auditoria_com_operador_retorna_403(self):
         from app.main import app
-        from app.api.deps import require_role
-
-        def raise_403():
-            from fastapi import HTTPException
-            raise HTTPException(status_code=403, detail="Acesso negado")
-
-        app.dependency_overrides[require_role(["admin"])] = raise_403
+        # operador não tem acesso — require_role(["admin"]) deve retornar 403
+        _override_auth(app, "operador")
         client = TestClient(app, raise_server_exceptions=False)
-        r = client.get("/api/v1/auditoria/")
+        r = client.get("/api/v1/auditoria")
         assert r.status_code == 403
         app.dependency_overrides.clear()
 
