@@ -1,11 +1,11 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ExtratoClienteCreate(BaseModel):
-    tipo: str = "Outro"
+    tipo: str = Field("Outro", max_length=50)
 
 
 class ExtratoClienteResponse(BaseModel):

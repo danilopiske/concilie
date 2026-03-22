@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ContestacaoGerar(BaseModel):
@@ -24,7 +24,7 @@ class ContestacaoStatusUpdate(BaseModel):
 
 
 class ContestacaoSaveEdit(BaseModel):
-    html_content: str
+    html_content: str = Field(..., max_length=500_000)
 
 
 class ContestacaoResponse(BaseModel):

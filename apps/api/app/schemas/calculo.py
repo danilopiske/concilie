@@ -2,12 +2,12 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CalculoPreviewRequest(BaseModel):
-    processamento_id: str
-    tipo_taxa: str = "log_mensal"
+    processamento_id: str = Field(..., max_length=100)
+    tipo_taxa: str = Field("log_mensal", max_length=50)
     usar_taxa_cad: bool = False
     tem_receba_rapido: bool = False
 
@@ -57,9 +57,9 @@ class AnalisePeriodosResponse(BaseModel):
 
 
 class CalculoHistoryItem(BaseModel):
-    calc_id: str
-    calc_tipo: str
-    calc_usuario: str
+    calc_id: str = Field(..., max_length=100)
+    calc_tipo: str = Field(..., max_length=50)
+    calc_usuario: str = Field(..., max_length=100)
     calc_data: datetime
     total_registros: int
     total_valor: Optional[Decimal] = Decimal(0)

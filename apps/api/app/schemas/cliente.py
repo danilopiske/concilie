@@ -32,16 +32,16 @@ class DadoBancarioBase(BaseModel):
 
 class ClienteBase(BaseModel):
     cliente_id: int
-    nome_fantasia: str
-    razao_social: Optional[str] = None
-    cnpj: Optional[str] = None
+    nome_fantasia: str = Field(..., max_length=200)
+    razao_social: Optional[str] = Field(None, max_length=200)
+    cnpj: Optional[str] = Field(None, max_length=18)
 
 
 class ClienteCreate(BaseModel):
     cliente_id: Optional[int] = None
-    nome_fantasia: str
-    razao_social: Optional[str] = None
-    cnpj: Optional[str] = None
+    nome_fantasia: str = Field(..., max_length=200)
+    razao_social: Optional[str] = Field(None, max_length=200)
+    cnpj: Optional[str] = Field(None, max_length=18)
     endereco: Optional[EnderecoBase] = None
     contatos: Optional[ContatoBase] = None
     bancario: Optional[DadoBancarioBase] = None
@@ -49,9 +49,9 @@ class ClienteCreate(BaseModel):
 
 
 class ClienteUpdate(BaseModel):
-    nome_fantasia: Optional[str] = None
-    razao_social: Optional[str] = None
-    cnpj: Optional[str] = None
+    nome_fantasia: Optional[str] = Field(None, max_length=200)
+    razao_social: Optional[str] = Field(None, max_length=200)
+    cnpj: Optional[str] = Field(None, max_length=18)
     endereco: Optional[EnderecoBase] = None
     contatos: Optional[ContatoBase] = None
     bancario: Optional[DadoBancarioBase] = None
