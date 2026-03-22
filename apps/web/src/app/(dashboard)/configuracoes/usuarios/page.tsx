@@ -5,8 +5,10 @@ import { Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { UsuariosTable } from '@/components/configuracoes/UsuariosTable';
 import { UsuarioFormModal } from '@/components/configuracoes/UsuarioFormModal';
+import { PermissoesModal } from '@/components/configuracoes/PermissoesModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ErrorMessage } from '@/components/shared/ErrorMessage';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Usuario, UsuarioCreate, UsuarioUpdate, usuariosApi } from '@/lib/api/usuarios';
 
 export default function UsuariosPage() {
@@ -22,6 +24,9 @@ export default function UsuariosPage() {
   // Delete State
   const [userToDelete, setUserToDelete] = useState<Usuario | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Permissões State
+  const [permissoesUser, setPermissoesUser] = useState<Usuario | null>(null);
 
   const fetchUsuarios = async () => {
     setLoading(true);
@@ -76,6 +81,7 @@ export default function UsuariosPage() {
   );
 
   return (
+    <ProtectedRoute modulo="configuracoes">
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -112,6 +118,7 @@ export default function UsuariosPage() {
           usuarios={filteredUsuarios}
           onEdit={(u) => { setEditingUser(u); setIsModalOpen(true); }}
           onDelete={(u) => setUserToDelete(u)}
+          onPermissoes={(u) => setPermissoesUser(u)}
         />
       )}
 
@@ -132,6 +139,13 @@ export default function UsuariosPage() {
         variant="danger"
         loading={deleting}
       />
+
+      <PermissoesModal
+        isOpen={!!permissoesUser}
+        onClose={() => setPermissoesUser(null)}
+        usuario={permissoesUser}
+      />
     </div>
+    </ProtectedRoute>
   );
 }

@@ -1,11 +1,16 @@
+from datetime import datetime
 from typing import Any, List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api import deps
+from app.models.usuario_cliente import UsuarioCliente
+from app.models.usuario_contexto import UsuarioContexto
+from app.models.usuario_permissao import UsuarioPermissao
 from app.repositories.usuario_repository import UsuarioRepository
 from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate
+from app.schemas.usuario_permissao import PermissaoResponse, PermissaoUpdate
 
 router = APIRouter()
 
@@ -70,3 +75,64 @@ def deletar_usuario(
             detail="Usuário não encontrado"
         )
     return {"message": "Usuário deletado com sucesso"}
+
+
+@router.get("/{usuario_id}/permissoes", response_model=PermissaoResponse)
+def get_permissoes(
+    usuario_id: int,
+    db: Session = Depends(deps.get_db),
+    _: Any = Depends(deps.require_role(["admin"])),
+) -> Any:
+    """Retorna perfil e escopos do usuário."""
+    repo = UsuarioRepository(db)
+    usuario = repo.get(usuario_id)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    perfil = usuario.permissao.perfil if usuario.permissao else "admin"
+    contextos_ids = [uc.contexto_id for uc in usuario.contextos_permitidos]
+    clientes_ids = [uc.cliente_id for uc in usuario.clientes_permitidos]
+
+    return PermissaoResponse(perfil=perfil, contextos_ids=contextos_ids, clientes_ids=clientes_ids)
+
+
+@router.put("/{usuario_id}/permissoes", response_model=PermissaoResponse)
+def set_permissoes(
+    usuario_id: int,
+    data: PermissaoUpdate,
+    db: Session = Depends(deps.get_db),
+    _: Any = Depends(deps.require_role(["admin"])),
+) -> Any:
+    """Atualiza perfil e escopos do usuário. Aplica imediatamente."""
+    repo = UsuarioRepository(db)
+    usuario = repo.get(usuario_id)
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+    # Upsert permissao
+    if usuario.permissao:
+        usuario.permissao.perfil = data.perfil
+        usuario.permissao.atualizado_em = datetime.utcnow()
+    else:
+        db.add(UsuarioPermissao(usuario_id=usuario_id, perfil=data.perfil))
+
+    # Substituir contextos
+    db.query(UsuarioContexto).filter(UsuarioContexto.usuario_id == usuario_id).delete()
+    for cid in data.contextos_ids or []:
+        db.add(UsuarioContexto(usuario_id=usuario_id, contexto_id=cid))
+
+    # Substituir clientes
+    db.query(UsuarioCliente).filter(UsuarioCliente.usuario_id == usuario_id).delete()
+    for cid in data.clientes_ids or []:
+        db.add(UsuarioCliente(usuario_id=usuario_id, cliente_id=cid))
+
+    db.commit()
+    db.refresh(usuario)
+
+    contextos_ids = [uc.contexto_id for uc in usuario.contextos_permitidos]
+    clientes_ids = [uc.cliente_id for uc in usuario.clientes_permitidos]
+    return PermissaoResponse(
+        perfil=usuario.permissao.perfil,
+        contextos_ids=contextos_ids,
+        clientes_ids=clientes_ids,
+    )

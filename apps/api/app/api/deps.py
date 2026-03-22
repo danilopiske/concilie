@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -81,3 +81,29 @@ def get_current_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     return user
+
+
+def get_user_perfil(user: Usuario) -> str:
+    """Retorna o perfil do usuário (default 'admin' para retrocompatibilidade)."""
+    if user.permissao:
+        return user.permissao.perfil
+    return "admin"
+
+
+def require_role(roles: List[str]):
+    """
+    Dependency factory que bloqueia acesso se o perfil do usuário
+    não estiver na lista de roles permitidos.
+
+    Uso: Depends(require_role(["admin", "operador"]))
+    """
+    def _check(current_user: Usuario = Depends(get_current_user)) -> Usuario:
+        perfil = get_user_perfil(current_user)
+        if perfil not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Acesso negado. Perfil '{perfil}' não tem permissão para esta operação.",
+            )
+        return current_user
+
+    return _check

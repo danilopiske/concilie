@@ -1,13 +1,15 @@
-import { Edit, Trash2 } from 'lucide-react';
+import { Edit, Shield, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { Usuario } from '@/lib/api/usuarios';
 
 interface UsuariosTableProps {
   usuarios: Usuario[];
   onEdit: (usuario: Usuario) => void;
   onDelete: (usuario: Usuario) => void;
+  onPermissoes?: (usuario: Usuario) => void;
 }
 
-export function UsuariosTable({ usuarios, onEdit, onDelete }: UsuariosTableProps) {
+export function UsuariosTable({ usuarios, onEdit, onDelete, onPermissoes }: UsuariosTableProps) {
   return (
     <div className="bg-white shadow-sm rounded-lg overflow-hidden border border-gray-200">
       <div className="overflow-x-auto">
@@ -36,20 +38,17 @@ export function UsuariosTable({ usuarios, onEdit, onDelete }: UsuariosTableProps
                   <td className="px-6 py-4">{user.nome || '-'}</td>
                   <td className="px-6 py-4">{user.empresa || '-'}</td>
                   <td className="px-6 py-4 text-right flex justify-end gap-2">
-                    <button
-                      onClick={() => onEdit(user)}
-                      className="p-1 text-blue-600 hover:text-blue-800 text-blue-400 hover:text-blue-300 transition-colors"
-                      title="Editar"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      onClick={() => onDelete(user)}
-                      className="p-1 text-red-600 hover:text-red-800 text-red-400 hover:text-red-300 transition-colors"
-                      title="Excluir"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {onPermissoes && (
+                      <Button variant="secondary" size="sm" onClick={() => onPermissoes(user)} title="Permissões">
+                        <Shield size={14} /> Permissões
+                      </Button>
+                    )}
+                    <Button variant="secondary" size="sm" onClick={() => onEdit(user)} title="Editar">
+                      <Edit size={14} /> Editar
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => onDelete(user)} title="Excluir">
+                      <Trash2 size={14} /> Excluir
+                    </Button>
                   </td>
                 </tr>
               ))

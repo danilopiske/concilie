@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { usePermissoes } from '@/hooks/usePermissoes';
 import {
   ChevronLeft,
   ChevronRight,
@@ -42,12 +43,14 @@ interface SidebarSection {
   title: string;
   items: SidebarItem[];
   modulePrefix: string;
+  modulo: string; // chave para verificação de permissão
 }
 
 const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Gestão',
     modulePrefix: '/gestao',
+    modulo: 'gestao',
     items: [
       { label: 'Clientes', href: '/gestao/clientes', icon: Users },
       { label: 'Contextos', href: '/gestao/contextos', icon: Settings },
@@ -62,6 +65,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Importar',
     modulePrefix: '/importar',
+    modulo: 'importar',
     items: [
       { label: 'Importar Vendas', href: '/importar/vendas', icon: Upload },
       { label: 'De-Para', href: '/importar/de-para', icon: FileText },
@@ -71,6 +75,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Análise e Correções',
     modulePrefix: '/analise-correcoes',
+    modulo: 'analise',
     items: [
       { label: 'Análise', href: '/analise-correcoes/analise', icon: BarChart3 },
       { label: 'Correção', href: '/analise-correcoes/correcao', icon: Edit },
@@ -79,6 +84,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Abusividade',
     modulePrefix: '/abusividade',
+    modulo: 'analise',
     items: [
       { label: 'Abusividade', href: '/abusividade', icon: AlertTriangle },
     ],
@@ -86,6 +92,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Contestação',
     modulePrefix: '/contestacoes',
+    modulo: 'analise',
     items: [
       { label: 'Contestações', href: '/contestacoes', icon: FileText },
       { label: 'Métricas', href: '/gestao/contestacoes-metricas', icon: BarChart3 },
@@ -94,6 +101,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Cálculos',
     modulePrefix: '/calculos',
+    modulo: 'calculos',
     items: [
       { label: 'Cálculo de Taxas', href: '/calculos', icon: Calculator },
       { label: 'Gestão de Cálculos', href: '/calculos/gestao', icon: History },
@@ -102,6 +110,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Relatórios',
     modulePrefix: '/relatorios',
+    modulo: 'relatorios',
     items: [
       { label: 'Gerar Relatórios', href: '/relatorios', icon: FileBarChart },
       { label: 'Gestão de Relatórios', href: '/relatorios/gestao', icon: History },
@@ -110,6 +119,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Configurações',
     modulePrefix: '/configuracoes',
+    modulo: 'configuracoes',
     items: [
       { label: 'Usuários', href: '/configuracoes/usuarios', icon: Users },
       { label: 'Meu Perfil', href: '/configuracoes/perfil', icon: User },
@@ -120,6 +130,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Notificações',
     modulePrefix: '/notificacoes',
+    modulo: 'dashboard',
     items: [
       { label: 'Centro de Alertas', href: '/notificacoes', icon: Bell },
     ],
@@ -127,6 +138,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Centro de Tarefas',
     modulePrefix: '/tarefas',
+    modulo: 'dashboard',
     items: [
       { label: 'Progresso de Tarefas', href: '/tarefas', icon: Activity },
     ],
@@ -134,6 +146,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
   {
     title: 'Sistema',
     modulePrefix: '/status',
+    modulo: 'dashboard',
     items: [
       { label: 'Status do Sistema', href: '/status', icon: Activity },
     ],
@@ -149,6 +162,7 @@ export function Sidebar() {
     return saved === 'true';
   });
   const pathname = usePathname();
+  const { podeAcessar } = usePermissoes();
 
   // Persistir estado
   const toggleCollapsed = () => {
@@ -163,8 +177,10 @@ export function Sidebar() {
   // Verificar se o item está ativo
   const isItemActive = (href: string) => pathname === href;
 
-  // Determine active section based on current path
-  const activeSection = SIDEBAR_SECTIONS.find(section => isModuleActive(section.modulePrefix));
+  // Determine active section based on current path (only if user has access)
+  const activeSection = SIDEBAR_SECTIONS.find(
+    section => isModuleActive(section.modulePrefix) && podeAcessar(section.modulo)
+  );
 
   return (
     <aside

@@ -23,6 +23,10 @@ from app.models.taxa_contratada import TaxaContratada
 from app.models.termo import TermoFiltravel
 
 ## Removido: formas de pagamento
+from app.models.usuario import Usuario
+from app.models.usuario_permissao import UsuarioPermissao
+from app.models.usuario_contexto import UsuarioContexto
+from app.models.usuario_cliente import UsuarioCliente
 from app.models.vendas import Venda, VendaFiltrada
 
 __all__ = [
@@ -54,4 +58,8 @@ __all__ = [
     "RelatorioTag",
     "ExtratoCliente",
     "AlertaConfig",
+    "Usuario",
+    "UsuarioPermissao",
+    "UsuarioContexto",
+    "UsuarioCliente",
 ]

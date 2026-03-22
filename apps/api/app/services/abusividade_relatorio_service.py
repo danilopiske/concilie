@@ -1,4 +1,6 @@
+import logging
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -6,6 +8,8 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.services.abusividade_service import AbusividadeService
+
+logger = logging.getLogger(__name__)
 
 
 class AbusividadeRelatorioService:
@@ -21,6 +25,14 @@ class AbusividadeRelatorioService:
         rows_list: List[str] = []
         cnpj_placeholder = "07.464.624/0001-09"
         adquirente_placeholder = "N/A"
+
+        logger.info(
+            "Iniciando cálculo abusividade processamento_id=%s período=%s..%s",
+            processamento_id,
+            data_inicio,
+            data_fim,
+        )
+        _t0 = time.monotonic()
 
         try:
             service = AbusividadeService(self.db)
@@ -130,20 +142,30 @@ class AbusividadeRelatorioService:
             with open(full_path, "w", encoding="utf-8") as f:
                 f.write(html_content)
 
+            elapsed = time.monotonic() - _t0
+            logger.info(
+                "Concluído processamento_id=%s linhas=%d tempo=%.2fs",
+                processamento_id,
+                len(dados),
+                elapsed,
+            )
             return full_path
 
         except Exception as e:
-            import traceback
-            print(f"❌ Erro ao gerar relatório de abusividade: {str(e)}")
-            traceback.print_exc()
+            logger.exception(
+                "Erro ao gerar relatório de abusividade processamento_id=%s",
+                processamento_id,
+            )
             return None
 
     def gerar_relatorio_async(self, task_id: str, processamento_id: str, db: Session) -> None:
         """Gera HTML de abusividade com editor-appendix e salva em relatorios_cache/abusividade/."""
         from app.models.abusividade_task import AbusividadeTask
 
+        logger.info("gerar_relatorio_async task_id=%s processamento_id=%s", task_id, processamento_id)
         task = db.query(AbusividadeTask).filter(AbusividadeTask.id == task_id).first()
         if not task:
+            logger.error("AbusividadeTask não encontrada task_id=%s", task_id)
             return
 
         try:
@@ -169,8 +191,23 @@ class AbusividadeRelatorioService:
             task.status = "ready"
             task.result_path = str(dest)
             db.commit()
+            logger.info("Relatório async concluído task_id=%s path=%s", task_id, dest)
+
+            # Notificação de abusividade detectada (não-bloqueante)
+            try:
+                from app.services.notificacao_service import NotificacaoService
+                NotificacaoService.criar(
+                    db,
+                    tipo="abusividade_detectada",
+                    titulo="Abusividade detectada",
+                    mensagem=f"Demonstrativo de oscilações gerado para o processamento {processamento_id}.",
+                    link="/abusividade",
+                )
+            except Exception:
+                pass
 
         except Exception as e:
+            logger.exception("Erro no gerar_relatorio_async task_id=%s", task_id)
             task.status = "error"
             task.error_message = str(e)[:500]
             db.commit()
