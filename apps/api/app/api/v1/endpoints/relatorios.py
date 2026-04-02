@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 from app.api.deps import get_current_user
+from app.models.usuario import Usuario
 from app.core.database import engine, get_db
 from app.schemas.relatorio import RelatorioOptions, RelatorioRequest, RelatorioResponse
 from app.services.relatorio_service import RelatorioService
@@ -195,7 +196,7 @@ def gerar_relatorio(
 async def gerar_relatorio_async(
     req: RelatorioRequest,
     background_tasks: BackgroundTasks,
-    current_user: str = Depends(get_current_user),
+    current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -217,7 +218,7 @@ async def gerar_relatorio_async(
     task = service.create_task(
         processamento_id=req.processamento_id,
         tipo_relatorio=req.tipo_relatorio,
-        usuario=str(current_user),
+        usuario=getattr(current_user, 'usuario', str(current_user)), # Ensure string, not object
         metadata=metadata
     )
 
@@ -300,6 +301,51 @@ def download_relatorio(path: str):
     else:
         # Excel e demais: forçar download com nome correto
         return FileResponse(actual_path, filename=filename)
+@router.get("/download-pdf")
+def download_relatorio_pdf(path: str):
+    """
+    Converte o HTML gerado para PDF (WeasyPrint) e retorna como download.
+    Aceita o mesmo parâmetro 'path' que /download.
+    """
+    import urllib.parse
+    from fastapi.responses import Response
+    from app.services.pdf_service import PdfService
+
+    actual_path = os.path.normpath(urllib.parse.unquote(path))
+
+    if not os.path.exists(actual_path):
+        from pathlib import Path
+        root = Path(__file__).resolve().parent.parent.parent.parent.parent
+        resolved = root / actual_path
+        if resolved.exists():
+            actual_path = str(resolved)
+        else:
+            raise HTTPException(status_code=404, detail=f"Arquivo não encontrado: {os.path.basename(actual_path)}")
+
+    path_lower = actual_path.lower()
+    if "relatorios" not in path_lower and "temp" not in path_lower:
+        raise HTTPException(status_code=403, detail="Acesso negado a este arquivo")
+
+    if not actual_path.lower().endswith(".html"):
+        raise HTTPException(status_code=400, detail="Apenas arquivos HTML podem ser convertidos para PDF")
+
+    with open(actual_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+
+    try:
+        pdf_bytes = PdfService.html_to_pdf(html_content, base_url=actual_path)
+    except Exception as e:
+        logger.error("Erro ao converter HTML para PDF: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar PDF: {str(e)}")
+
+    filename = os.path.basename(actual_path).replace(".html", ".pdf")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/tasks/{task_id}/download")
 def download_relatorio_task(
     task_id: str,

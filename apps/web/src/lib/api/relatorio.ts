@@ -100,12 +100,20 @@ export const relatorioApi = {
 
   downloadUrl: (path: string) => {
     const baseUrl = apiClient.defaults.baseURL;
-    return `${baseUrl}/relatorios/download?path=${encodeURIComponent(path)}`;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : '';
+    return `${baseUrl}/relatorios/download?path=${encodeURIComponent(path)}&token=${token}`;
+  },
+
+  downloadPdfUrl: (path: string) => {
+    const baseUrl = apiClient.defaults.baseURL;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : '';
+    return `${baseUrl}/relatorios/download-pdf?path=${encodeURIComponent(path)}&token=${token}`;
   },
 
   taskDownloadUrl: (taskId: string, format: 'html' | 'pdf' = 'html') => {
     const baseUrl = apiClient.defaults.baseURL;
-    return `${baseUrl}/relatorios/tasks/${taskId}/download?format=${format}`;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : '';
+    return `${baseUrl}/relatorios/tasks/${taskId}/download?format=${format}&token=${token}`;
   },
 
   saveEdit: async (taskId: string, htmlContent: string): Promise<{ success: boolean; path: string }> => {
@@ -115,4 +123,82 @@ export const relatorioApi = {
     );
     return response.data;
   },
+
+  // --- Pré-processamento + Emissão por modelo ---
+
+  getModelos: async (): Promise<ModeloRelatorio[]> => {
+    const response = await apiClient.get<ModeloRelatorio[]>('/relatorios/modelos');
+    return response.data;
+  },
+
+  getStatusPreprocessamento: async (processamentoId: string, adquirente?: string): Promise<StatusParquet> => {
+    const params: Record<string, string> = { processamento_id: processamentoId };
+    if (adquirente) params.adquirente = adquirente;
+    const response = await apiClient.get<StatusParquet>('/relatorios/preprocessar/status', { params });
+    return response.data;
+  },
+
+  preprocessar: async (req: PreprocessarRequest): Promise<PreprocessarResponse> => {
+    const response = await apiClient.post<PreprocessarResponse>('/relatorios/preprocessar', req, {
+      timeout: 600000,
+    });
+    return response.data;
+  },
+
+  emitir: async (req: EmitirRequest): Promise<EmitirResponse> => {
+    const response = await apiClient.post<EmitirResponse>('/relatorios/emitir', req, {
+      timeout: 600000, // 10 minutos — geração de múltiplos modelos pode demorar
+    });
+    return response.data;
+  },
 };
+
+// --- Tipos do novo fluxo ---
+
+export interface ModeloRelatorio {
+  id: number;
+  nome: string;
+  template_arquivo: string | null;
+  tipo: 'html' | 'xml';
+  secoes_necessarias: string[];
+  ativo: boolean;
+}
+
+export interface StatusParquet {
+  existe: boolean;
+  gerado_em: string | null;
+  calc_tipo: string | null;
+}
+
+export interface PreprocessarRequest {
+  processamento_id: string;
+  calc_tipo?: string;
+  data_inicio?: string;
+  data_fim?: string;
+  adquirente?: string;
+}
+
+export interface PreprocessarResponse {
+  message: string;
+  secoes_geradas: string[];
+  erros: string[];
+  gerado_em: string;
+}
+
+export interface OpcaoEmissao {
+  adquirente?: string;
+  incluir_filtradas: boolean;
+  incluir_recebiveis_filtrados: boolean;
+  apenas_com_perdas: boolean;
+}
+
+export interface EmitirRequest {
+  processamento_id: string;
+  modelo_ids: number[];
+  opcoes: OpcaoEmissao;
+}
+
+export interface EmitirResponse {
+  arquivos: Array<{ modelo_id: number; arquivo: string }>;
+  erros: Array<{ modelo_id: number; erro: string }>;
+}
