@@ -69,3 +69,26 @@ export const analistaApi = {
     return data;
   }
 };
+
+export const analistaFiltradaApi = {
+  getBandeiras: async (processamentoId: string) => {
+    const { data } = await apiClient.get<AgregacaoBandeira[]>(`/analista-filtrado/${processamentoId}/bandeiras`);
+    return data;
+  },
+  getFormasPagamento: async (processamentoId: string) => {
+    const { data } = await apiClient.get<AgregacaoFormaPagamento[]>(`/analista-filtrado/${processamentoId}/formas-pagamento`);
+    return data;
+  },
+  getPeriodos: async (processamentoId: string, tipo: 'mes' | 'trimestre' | 'semestre' | 'ano') => {
+    const { data } = await apiClient.get<AgregacaoPeriodo[]>(`/analista-filtrado/${processamentoId}/periodos`, { params: { tipo } });
+    return data;
+  },
+  getRecebiveis: async (processamentoId: string) => {
+    const { data } = await apiClient.get<AgregacaoRecebivel[]>(`/analista-filtrado/${processamentoId}/recebiveis`);
+    return data;
+  },
+  getFormasPorAno: async (processamentoId: string) => {
+    const { data } = await apiClient.get<AgregacaoFormaPagamentoAno[]>(`/analista-filtrado/${processamentoId}/formas-por-ano`);
+    return data;
+  }
+};

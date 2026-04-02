@@ -79,6 +79,8 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [
       { label: 'Análise', href: '/analise-correcoes/analise', icon: BarChart3 },
       { label: 'Correção', href: '/analise-correcoes/correcao', icon: Edit },
+      { label: 'Análise Filtrada', href: '/analise-correcoes/analise-filtrada', icon: Filter },
+      { label: 'Correção Filtrada', href: '/analise-correcoes/correcao-filtrada', icon: AlertTriangle },
     ],
   },
   {

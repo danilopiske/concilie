@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_role
 from app.core.database import get_db
 from app.repositories.correcao_repository import CorrecaoRepository
+from app.services.preprocessamento_service import invalidar_parquet
 from app.schemas.correcao import (
     AplicarTaxaBCRequest,
     AtualizarRequest,
@@ -47,6 +48,7 @@ def atualizar_em_massa(
             request.valores_antigos,
             request.valor_novo
         )
+        invalidar_parquet(request.processamento_id)
         return {"message": "Atualizado com sucesso", "linhas_afetadas": count}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -64,6 +66,7 @@ def remover_em_massa(
             request.campo,
             request.valores
         )
+        invalidar_parquet(request.processamento_id)
         return {"message": "Removido com sucesso (movido para filtrados)", "linhas_afetadas": count}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -84,7 +87,34 @@ def excluir_filtradas(
             request.campo,
             request.valores
         )
+        invalidar_parquet(request.processamento_id)
         return {"message": "Excluído permanentemente do sistema (tabela de filtrados)", "linhas_afetadas": count}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/resumo-filtradas", response_model=ResumoResponse)
+def obter_resumo_filtradas(
+    processamento_id: str,
+    db: Session = Depends(get_db)
+):
+    repo = CorrecaoRepository(db)
+    return repo.listar_resumo_filtradas(processamento_id)
+
+@router.patch("/atualizar-filtradas")
+def atualizar_filtradas(
+    request: AtualizarRequest,
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
+):
+    repo = CorrecaoRepository(db)
+    try:
+        count = repo.atualizar_filtradas(
+            request.processamento_id,
+            request.campo,
+            request.valores_antigos,
+            request.valor_novo
+        )
+        return {"message": "Filtrado atualizado com sucesso", "linhas_afetadas": count}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -113,6 +143,7 @@ def aplicar_taxa_bc(
             request.nova_taxa,
             request.usuario
         )
+        invalidar_parquet(request.processamento_id)
         return {"message": "Taxa BC aplicada com sucesso", "linhas_afetadas": count}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

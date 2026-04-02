@@ -40,6 +40,7 @@ export default function CorrecaoToolPage() {
   const [loadingResumo, setLoadingResumo] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   // Historico
   const [historicoOpen, setHistoricoOpen] = useState(false);
@@ -165,6 +166,8 @@ export default function CorrecaoToolPage() {
     
     try {
       setApplyingBC(true);
+      setError(null);
+      setSuccess(null);
       const res = await correcaoService.aplicarTaxaBC({
         processamento_id: selectedProcessamento,
         forma_pagamento: bcSelectedForma,
@@ -173,10 +176,10 @@ export default function CorrecaoToolPage() {
         data_fim: bcDataFim || undefined,
         nova_taxa: Number(bcNovaTaxa)
       });
-      alert(`Sucesso! ${res.linhas_afetadas} linhas atualizadas.`);
-      if (selectedProcessamento) fetchResumo(selectedProcessamento);
+      setSuccess(`Sucesso! ${res.linhas_afetadas} linhas atualizadas.`);
+      if (selectedProcessamento) await fetchResumo(selectedProcessamento);
     } catch (err) {
-      alert('Erro ao aplicar Taxa BC: ' + err);
+      setError('Erro ao aplicar Taxa BC: ' + err);
     } finally {
       setApplyingBC(false);
     }
@@ -191,12 +194,10 @@ export default function CorrecaoToolPage() {
         alert('Selecione ao menos um item');
         return;
       }
-      // Create a dummy item for the modal logic
       setActionItem({ campo, item: { valor: selected.join(', '), quantidade: 0, valor_total: 0 } });
     } else {
       setActionItem({ campo, item });
     }
-    
     setNewValue(customNewValue || (typeof item === 'string' ? '' : item.valor));
     setEditModalOpen(true);
   };
@@ -217,7 +218,7 @@ export default function CorrecaoToolPage() {
 
   const confirmEdit = async () => {
     if (!actionItem || !selectedProcessamento) return;
-    
+
     try {
       setProcessingAction(true);
       const isBatch = actionItem.item.quantidade === 0 && actionItem.item.valor.includes(', ');
@@ -230,24 +231,23 @@ export default function CorrecaoToolPage() {
         valor_novo: newValue,
         usuario: user?.usuario
       });
+      setSuccess('Atualização realizada com sucesso!');
     } catch (err) {
-      alert('Erro ao atualizar: ' + err);
-      return; 
+      setError('Erro ao atualizar: ' + err);
+      return;
     } finally {
       setProcessingAction(false);
       setEditModalOpen(false);
       setActionItem(null);
-      // Clear selection after batch action
       setSelectedItems(prev => ({ ...prev, [actionItem.campo]: [] }));
     }
 
-    // Refresh outside the lock
     await fetchResumo(selectedProcessamento);
   };
 
   const confirmDelete = async () => {
     if (!actionItem || !selectedProcessamento) return;
-    
+
     try {
       setProcessingAction(true);
       const isBatch = actionItem.item.quantidade === 0 && actionItem.item.valor.includes(', ');
@@ -259,27 +259,26 @@ export default function CorrecaoToolPage() {
         valores,
         usuario: user?.usuario
       });
+      setSuccess('Registros removidos com sucesso!');
     } catch (err: unknown) {
       console.error(err);
       const apiErr = err as { response?: { data?: { detail?: string } }; message?: string };
       const msg = apiErr.response?.data?.detail || apiErr.message || 'Erro desconhecido';
-      alert(`Erro ao remover: ${msg}`);
+      setError(`Erro ao remover: ${msg}`);
       return;
     } finally {
       setProcessingAction(false);
       setDeleteDialogOpen(false);
-      setActionItem(null); 
-      // Clear selection after batch action
+      setActionItem(null);
       setSelectedItems(prev => ({ ...prev, [actionItem.campo]: [] }));
     }
 
-    // Refresh
-    fetchResumo(selectedProcessamento);
+    await fetchResumo(selectedProcessamento);
   };
 
   const renderSection = (
-    title: string, 
-    data: ResumoItem[], 
+    title: string,
+    data: ResumoItem[],
     campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento',
     icon: ComponentType<{ className?: string }>
   ) => {
@@ -287,48 +286,48 @@ export default function CorrecaoToolPage() {
     const isAllSelected = data.length > 0 && selected.length === data.length;
 
     const toggleAll = () => {
-        setSelectedItems(prev => ({
-            ...prev,
-            [campo]: isAllSelected ? [] : data.map(i => i.valor)
-        }));
+      setSelectedItems(prev => ({
+        ...prev,
+        [campo]: isAllSelected ? [] : data.map(i => i.valor)
+      }));
     };
 
     const toggleItem = (valor: string) => {
-        setSelectedItems(prev => {
-            const current = prev[campo] || [];
-            if (current.includes(valor)) {
-                return { ...prev, [campo]: current.filter(v => v !== valor) };
-            } else {
-                return { ...prev, [campo]: [...current, valor] };
-            }
-        });
+      setSelectedItems(prev => {
+        const current = prev[campo] || [];
+        if (current.includes(valor)) {
+          return { ...prev, [campo]: current.filter(v => v !== valor) };
+        } else {
+          return { ...prev, [campo]: [...current, valor] };
+        }
+      });
     };
 
     const columns: TableColumn<ResumoItem>[] = [
       {
         key: 'select',
         label: (
-            <input 
-                type="checkbox" 
-                checked={isAllSelected}
-                onChange={toggleAll}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
+          <input
+            type="checkbox"
+            checked={isAllSelected}
+            onChange={toggleAll}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
         ),
         width: '40px',
         render: (_, item) => (
-            <input 
-                type="checkbox" 
-                checked={selected.includes(item.valor)}
-                onChange={() => toggleItem(item.valor)}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
+          <input
+            type="checkbox"
+            checked={selected.includes(item.valor)}
+            onChange={() => toggleItem(item.valor)}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
         )
       },
       { key: 'valor', label: 'Nome Original' },
       { key: 'quantidade', label: 'Qtd', width: '100px' },
-      { 
-        key: 'valor_total', 
+      {
+        key: 'valor_total',
         label: 'Total',
         render: (v) => formatCurrency(v),
         width: '150px'
@@ -339,20 +338,12 @@ export default function CorrecaoToolPage() {
         width: '200px',
         render: (_, item) => (
           <div className="flex gap-2 justify-end">
-            <button 
-                onClick={() => handleEdit(campo, item)}
-                className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
-                title="Editar"
-            >
-                <Edit2 className="w-4 h-4" /> Editar
-            </button>
-            <button 
-                onClick={() => handleDelete(campo, item)}
-                className="text-red-600 hover:text-red-800 text-sm font-medium flex items-center gap-1"
-                title="Remover"
-            >
-                <Trash2 className="w-4 h-4" /> Remover
-            </button>
+            <Button variant="secondary" size="sm" onClick={() => handleEdit(campo, item)} title="Editar">
+              <Edit2 className="w-4 h-4" /> Editar
+            </Button>
+            <Button variant="danger" size="sm" onClick={() => handleDelete(campo, item)} title="Remover">
+              <Trash2 className="w-4 h-4" /> Remover
+            </Button>
           </div>
         )
       }
@@ -361,33 +352,37 @@ export default function CorrecaoToolPage() {
     return (
       <Panel className="mb-6">
         <PanelHeader icon={icon}>
-            <div className="flex justify-between items-center w-full">
-                <span>{title}</span>
-                {selected.length > 0 && (
-                    <div className="flex gap-2 mr-4">
-                        <Button 
-                            variant="primary" 
-                            size="sm" 
-                            onClick={() => handleEdit(campo, 'selected')}
-                        >
-                            <Edit2 className="w-4 h-4 mr-1" /> Mapear {selected.length}
-                        </Button>
-                        <Button 
-                            variant="secondary" 
-                            size="sm" 
-                            onClick={() => handleDelete(campo, 'selected')}
-                            className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 shadow-none border"
-                        >
-                            <Trash2 className="w-4 h-4 mr-1" /> Remover {selected.length}
-                        </Button>
-                    </div>
-                )}
-            </div>
+          <div className="flex justify-between items-center w-full">
+            <span>{title}</span>
+            {selected.length > 0 && (
+              <div className="flex gap-2 mr-4">
+                <Button variant="primary" size="sm" onClick={() => handleEdit(campo, 'selected')}>
+                  <Edit2 className="w-4 h-4 mr-1" /> Mapear {selected.length}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleDelete(campo, 'selected')}
+                  className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 shadow-none border"
+                >
+                  <Trash2 className="w-4 h-4 mr-1" /> Remover {selected.length}
+                </Button>
+              </div>
+            )}
+          </div>
         </PanelHeader>
-        <PanelBody className="p-0">
-          <Table 
-            columns={columns} 
-            data={data} 
+        <PanelBody className="p-0 relative">
+          {isRefreshing && (
+            <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-2">
+                <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+                <span className="text-xs font-bold text-blue-800 uppercase tracking-widest animate-pulse">Atualizando dados...</span>
+              </div>
+            </div>
+          )}
+          <Table
+            columns={columns}
+            data={data}
             emptyMessage="Nenhum registro encontrado."
             pagination={data.length > 10}
             pageSize={10}
@@ -408,7 +403,21 @@ export default function CorrecaoToolPage() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto pb-10">
+    <div className="max-w-7xl mx-auto pb-10 relative">
+      {(processingAction || applyingBC) && (
+        <div className="fixed inset-0 bg-black/10 backdrop-blur-[2px] z-[9999] flex items-center justify-center">
+            <div className="bg-white p-8 rounded-xl shadow-2xl border border-gray-100 flex flex-col items-center gap-4">
+                <div className="relative w-16 h-16">
+                    <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                </div>
+                <div className="text-center">
+                    <h3 className="text-lg font-bold text-gray-900">Processando Operação...</h3>
+                    <p className="text-sm text-gray-500">Isso pode levar alguns segundos dependendo do volume.</p>
+                </div>
+            </div>
+        </div>
+      )}
       
       {/* Header Legacy Style */}
       <div className="mb-6 border-b pb-4">
@@ -423,6 +432,17 @@ export default function CorrecaoToolPage() {
       </div>
 
       {error && <ErrorMessage message={error} />}
+      {success && (
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded relative mb-6 animate-in fade-in duration-300">
+           <span className="block sm:inline">{success}</span>
+           <button 
+             className="absolute top-0 bottom-0 right-0 px-4 py-3"
+             onClick={() => setSuccess(null)}
+           >
+             <span className="text-xl">&times;</span>
+           </button>
+        </div>
+      )}
 
       {/* 1. Selecionar Processamento */}
       <Panel>

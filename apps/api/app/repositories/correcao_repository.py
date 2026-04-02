@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from sqlalchemy import delete, func, insert, select
+from sqlalchemy import delete, func, insert, select, or_
 from sqlalchemy.orm import Session
 
 from app.models.log import LogCorrecao
@@ -77,12 +77,23 @@ class CorrecaoRepository:
         self.db.add(log)
 
     def atualizar_em_massa(self, processamento_id: str, campo: str, valores_antigos: List[str], valor_novo: str, usuario: str = "sistema") -> int:
+        target_col = None
+        has_na = "N/A" in valores_antigos
+        v_rest = [v for v in valores_antigos if v != "N/A"]
+
         if campo == 'lancamento':
             # Update Recebiveis
-            result = self.db.query(Recebivel).filter(
-                Recebivel.processamentoid == processamento_id,
-                Recebivel.lancamento.in_(valores_antigos)
-            ).update({Recebivel.lancamento: valor_novo}, synchronize_session=False)
+            query = self.db.query(Recebivel).filter(
+                Recebivel.processamentoid == processamento_id
+            )
+            conds = []
+            if v_rest: conds.append(Recebivel.lancamento.in_(v_rest))
+            if has_na: conds.append(Recebivel.lancamento.is_(None))
+            
+            if conds:
+                result = query.filter(or_(*conds)).update({Recebivel.lancamento: valor_novo}, synchronize_session=False)
+            else:
+                result = 0
 
             self._registrar_log(
                 processamento_id,
@@ -104,10 +115,17 @@ class CorrecaoRepository:
             if not target_col:
                 raise ValueError(f"Campo inválido: {campo}")
 
-            result = self.db.query(Venda).filter(
-                Venda.processamentoid == processamento_id,
-                target_col.in_(valores_antigos)
-            ).update({target_col: valor_novo}, synchronize_session=False)
+            query = self.db.query(Venda).filter(
+                Venda.processamentoid == processamento_id
+            )
+            conds = []
+            if v_rest: conds.append(target_col.in_(v_rest))
+            if has_na: conds.append(target_col.is_(None))
+
+            if conds:
+                result = query.filter(or_(*conds)).update({target_col: valor_novo}, synchronize_session=False)
+            else:
+                result = 0
 
             self._registrar_log(
                 processamento_id,
@@ -123,34 +141,42 @@ class CorrecaoRepository:
 
     def mover_para_filtradas(self, processamento_id: str, campo: str, valores: List[str], usuario: str = "sistema") -> int:
         try:
+            has_na = "N/A" in valores
+            v_rest = [v for v in valores if v != "N/A"]
+
             if campo == 'lancamento':
                 # 1. Copiar dados para RecebivelFiltrado usando INSERT ... SELECT
-                stmt = insert(RecebivelFiltrado).from_select(
-                    [
-                        "processamentoid", "lancamento", "valor_recebivel", "valor_liquido",
-                        "data_pagamento", "data_recebivel", "recebivel_id", "adquirente",
-                        "descricao", "banco", "agencia", "conta", "cliente_id", "ec_id",
-                        "data_processamento", "usuario_processamento", "arquivo_origem"
-                    ],
-                    self.db.query(
-                        Recebivel.processamentoid, Recebivel.lancamento, Recebivel.valor_recebivel,
-                        Recebivel.valor_liquido, Recebivel.data_pagamento, Recebivel.data_recebivel,
-                        Recebivel.recebivel_id, Recebivel.adquirente, Recebivel.descricao,
-                        Recebivel.banco, Recebivel.agencia, Recebivel.conta, Recebivel.cliente_id,
-                        Recebivel.ec_id, Recebivel.data_processamento, Recebivel.usuario_processamento,
-                        Recebivel.arquivo_origem
-                    ).filter(
-                        Recebivel.processamentoid == processamento_id,
-                        Recebivel.lancamento.in_(valores)
-                    )
-                )
-                self.db.execute(stmt)
+                q_select = self.db.query(
+                    Recebivel.processamentoid, Recebivel.lancamento, Recebivel.valor_recebivel,
+                    Recebivel.valor_liquido, Recebivel.data_pagamento, Recebivel.data_recebivel,
+                    Recebivel.recebivel_id, Recebivel.adquirente, Recebivel.descricao,
+                    Recebivel.banco, Recebivel.agencia, Recebivel.conta, Recebivel.cliente_id,
+                    Recebivel.ec_id, Recebivel.data_processamento, Recebivel.usuario_processamento,
+                    Recebivel.arquivo_origem
+                ).filter(Recebivel.processamentoid == processamento_id)
 
-                # 2. Remover da tabela original
-                result = self.db.query(Recebivel).filter(
-                    Recebivel.processamentoid == processamento_id,
-                    Recebivel.lancamento.in_(valores)
-                ).delete(synchronize_session=False)
+                conds = []
+                if v_rest: conds.append(Recebivel.lancamento.in_(v_rest))
+                if has_na: conds.append(Recebivel.lancamento.is_(None))
+
+                if conds:
+                    stmt = insert(RecebivelFiltrado).from_select(
+                        [
+                            "processamentoid", "lancamento", "valor_recebivel", "valor_liquido",
+                            "data_pagamento", "data_recebivel", "recebivel_id", "adquirente",
+                            "descricao", "banco", "agencia", "conta", "cliente_id", "ec_id",
+                            "data_processamento", "usuario_processamento", "arquivo_origem"
+                        ],
+                        q_select.filter(or_(*conds))
+                    )
+                    self.db.execute(stmt)
+
+                    # 2. Remover da tabela original
+                    result = self.db.query(Recebivel).filter(
+                        Recebivel.processamentoid == processamento_id
+                    ).filter(or_(*conds)).delete(synchronize_session=False)
+                else:
+                    result = 0
 
                 self._registrar_log(
                     processamento_id,
@@ -177,44 +203,56 @@ class CorrecaoRepository:
                     raise ValueError(f"Campo inválido: {campo}")
 
                 # 1. INSERT ... SELECT para Vendas
-                stmt = insert(VendaFiltrada).from_select(
-                    [
-                        VendaFiltrada.processamentoid, VendaFiltrada.cliente_id, VendaFiltrada.ec_id,
-                        VendaFiltrada.data_venda, VendaFiltrada.valor_venda, VendaFiltrada.valor_liquido,
-                        VendaFiltrada.nsu, VendaFiltrada.autorizacao, VendaFiltrada.bandeira,
-                        VendaFiltrada.forma_pagamento, VendaFiltrada.status, VendaFiltrada.adquirente,
-                        VendaFiltrada.data_processamento
-                    ],
-                    self.db.query(
-                        Venda.processamentoid, Venda.cliente_id, Venda.ec_id, Venda.data_venda,
-                        Venda.valor_venda, Venda.valor_liquido, Venda.nsu, Venda.autorizacao,
-                        Venda.bandeira, Venda.forma_pagamento, Venda.status, Venda.adquirente,
-                        Venda.data_processamento
-                    ).filter(
-                        Venda.processamentoid == processamento_id,
-                        target_col.in_(valores)
+                q_select = self.db.query(
+                    Venda.processamentoid, Venda.cliente_id, Venda.ec_id, Venda.data_venda,
+                    Venda.valor_venda, Venda.valor_liquido, Venda.nsu, Venda.autorizacao,
+                    Venda.bandeira, Venda.forma_pagamento, Venda.status, Venda.adquirente,
+                    Venda.data_processamento
+                ).filter(Venda.processamentoid == processamento_id)
+
+                conds = []
+                if v_rest: conds.append(target_col.in_(v_rest))
+                if has_na: conds.append(target_col.is_(None))
+
+                if conds:
+                    stmt = insert(VendaFiltrada).from_select(
+                        [
+                            VendaFiltrada.processamentoid, VendaFiltrada.cliente_id, VendaFiltrada.ec_id,
+                            VendaFiltrada.data_venda, VendaFiltrada.valor_venda, VendaFiltrada.valor_liquido,
+                            VendaFiltrada.nsu, VendaFiltrada.autorizacao, VendaFiltrada.bandeira,
+                            VendaFiltrada.forma_pagamento, VendaFiltrada.status, VendaFiltrada.adquirente,
+                            VendaFiltrada.data_processamento
+                        ],
+                        q_select.filter(or_(*conds))
                     )
-                )
-                self.db.execute(stmt)
+                    self.db.execute(stmt)
 
-                # 2. DELETE DEPENDENCIES (vendas_calculos)
-                ids_to_delete = [
-                    r[0] for r in self.db.query(Venda.id).filter(
-                        Venda.processamentoid == processamento_id,
-                        target_col.in_(valores)
-                    ).all()
-                ]
+                    # 2. DELETE DEPENDENCIES (vendas_calculos) using subquery
+                    subquery_ids = self.db.query(Venda.id).filter(
+                        Venda.processamentoid == processamento_id
+                    ).filter(or_(*conds)).subquery()
 
-                if ids_to_delete:
-                    self.db.query(VendasCalculos).filter(
-                        VendasCalculos.id_venda.in_(ids_to_delete)
-                    ).delete(synchronize_session=False)
-
-                    # 3. Remover da tabela original
+                    # Get the count first for logging
                     result = self.db.query(Venda).filter(
-                        Venda.id.in_(ids_to_delete)
-                    ).delete(synchronize_session=False)
+                        Venda.id.in_(select(subquery_ids))
+                    ).count()
 
+                    if result > 0:
+                        # Delete from calculations
+                        self.db.query(VendasCalculos).filter(
+                            VendasCalculos.id_venda.in_(select(subquery_ids))
+                        ).delete(synchronize_session=False)
+
+                        # Delete from Venda
+                        self.db.query(Venda).filter(
+                            Venda.id.in_(select(subquery_ids))
+                        ).delete(synchronize_session=False)
+                    else:
+                        result = 0
+                else:
+                    result = 0
+
+                if result > 0:
                     self._registrar_log(
                         processamento_id,
                         f'remocao_{campo}',
@@ -223,8 +261,6 @@ class CorrecaoRepository:
                         result,
                         usuario
                     )
-                else:
-                    result = 0
 
                 self.db.commit()
                 return result
@@ -241,12 +277,22 @@ class CorrecaoRepository:
         Ação destrutiva.
         """
         try:
+            has_na = "N/A" in valores
+            v_rest = [v for v in valores if v != "N/A"]
+
             if campo == 'lancamento':
                 # Delete from RecebivelFiltrado
-                result = self.db.query(RecebivelFiltrado).filter(
-                    RecebivelFiltrado.processamentoid == processamento_id,
-                    RecebivelFiltrado.lancamento.in_(valores)
-                ).delete(synchronize_session=False)
+                query = self.db.query(RecebivelFiltrado).filter(
+                    RecebivelFiltrado.processamentoid == processamento_id
+                )
+                conds = []
+                if v_rest: conds.append(RecebivelFiltrado.lancamento.in_(v_rest))
+                if has_na: conds.append(RecebivelFiltrado.lancamento.is_(None))
+
+                if conds:
+                    result = query.filter(or_(*conds)).delete(synchronize_session=False)
+                else:
+                    result = 0
 
                 self._registrar_log(
                     processamento_id,
@@ -272,10 +318,17 @@ class CorrecaoRepository:
                 if not target_col:
                     raise ValueError(f"Campo inválido: {campo}")
 
-                result = self.db.query(VendaFiltrada).filter(
-                    VendaFiltrada.processamentoid == processamento_id,
-                    target_col.in_(valores)
-                ).delete(synchronize_session=False)
+                query = self.db.query(VendaFiltrada).filter(
+                    VendaFiltrada.processamentoid == processamento_id
+                )
+                conds = []
+                if v_rest: conds.append(target_col.in_(v_rest))
+                if has_na: conds.append(target_col.is_(None))
+
+                if conds:
+                    result = query.filter(or_(*conds)).delete(synchronize_session=False)
+                else:
+                    result = 0
 
                 self._registrar_log(
                     processamento_id,
@@ -294,6 +347,95 @@ class CorrecaoRepository:
             with open("debug_error_delete_filtered.txt", "w") as f:
                 f.write(f"Error in deletar_filtradas: {str(e)}\n{traceback.format_exc()}")
             raise e
+
+    def listar_resumo_filtradas(self, processamento_id: str) -> ResumoResponse:
+        def get_summary(model, column, value_col):
+            return self.db.query(
+                column.label("valor"),
+                func.count().label("quantidade"),
+                func.sum(value_col).label("valor_total")
+            ).filter(
+                model.processamentoid == processamento_id
+            ).group_by(column).all()
+
+        formas = get_summary(VendaFiltrada, VendaFiltrada.forma_pagamento, VendaFiltrada.valor_venda)
+        bandeiras = get_summary(VendaFiltrada, VendaFiltrada.bandeira, VendaFiltrada.valor_venda)
+        status = get_summary(VendaFiltrada, VendaFiltrada.status, VendaFiltrada.valor_venda)
+        recebiveis = get_summary(RecebivelFiltrado, RecebivelFiltrado.lancamento, RecebivelFiltrado.valor_recebivel)
+
+        def map_items(rows):
+            return [
+                ResumoItem(
+                    valor=str(row.valor) if row.valor else "N/A",
+                    quantidade=row.quantidade,
+                    valor_total=float(row.valor_total or 0)
+                ) for row in rows
+            ]
+
+        return ResumoResponse(
+            formas_pagamento=map_items(formas),
+            bandeiras=map_items(bandeiras),
+            status=map_items(status),
+            recebiveis=map_items(recebiveis)
+        )
+
+    def atualizar_filtradas(self, processamento_id: str, campo: str, valores_antigos: List[str], valor_novo: str, usuario: str = "sistema") -> int:
+        has_na = "N/A" in valores_antigos
+        v_rest = [v for v in valores_antigos if v != "N/A"]
+
+        if campo == 'lancamento':
+            query = self.db.query(RecebivelFiltrado).filter(
+                RecebivelFiltrado.processamentoid == processamento_id
+            )
+            conds = []
+            if v_rest: conds.append(RecebivelFiltrado.lancamento.in_(v_rest))
+            if has_na: conds.append(RecebivelFiltrado.lancamento.is_(None))
+
+            if conds:
+                result = query.filter(or_(*conds)).update({RecebivelFiltrado.lancamento: valor_novo}, synchronize_session=False)
+            else:
+                result = 0
+
+            self._registrar_log(
+                processamento_id,
+                'atualizacao_lancamento_recebiveis_filtrados',
+                ", ".join(valores_antigos),
+                valor_novo,
+                result,
+                usuario
+            )
+        else:
+            column_map = {
+                "forma_pagamento": VendaFiltrada.forma_pagamento,
+                "bandeira": VendaFiltrada.bandeira,
+                "status": VendaFiltrada.status
+            }
+            target_col = column_map.get(campo)
+            if not target_col:
+                raise ValueError(f"Campo inválido: {campo}")
+
+            query = self.db.query(VendaFiltrada).filter(
+                VendaFiltrada.processamentoid == processamento_id
+            )
+            conds = []
+            if v_rest: conds.append(target_col.in_(v_rest))
+            if has_na: conds.append(target_col.is_(None))
+
+            if conds:
+                result = query.filter(or_(*conds)).update({target_col: valor_novo}, synchronize_session=False)
+            else:
+                result = 0
+
+            self._registrar_log(
+                processamento_id,
+                f'atualizacao_{campo}_filtradas',
+                ", ".join(valores_antigos),
+                valor_novo,
+                result,
+                usuario
+            )
+        self.db.commit()
+        return result
 
     def listar_filtros_taxa_bc(self, processamento_id: str) -> dict:
         """

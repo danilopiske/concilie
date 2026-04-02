@@ -144,16 +144,16 @@ def preprocessar_relatorio(
     """
     # Importação local para evitar circular import e manter isolamento
     from modules.reports import (
-        load_vendas_calculos_cached,
-        calcular_perdas_por_semestre,
-        calcular_min_max_taxas_agrupado,
+        _get_base_id,
         calcular_contagem_taxas_agrupado,
+        calcular_min_max_taxas_agrupado,
+        calcular_perdas_por_semestre,
+        calcular_previsao_pagamento_rede,
         calcular_sumario_recebiveis,
+        filtrar_valores_rede_depara,
+        load_vendas_calculos_cached,
         obter_dados_bancarios_distintos,
         obter_evidencias_transacoes,
-        filtrar_valores_rede_depara,
-        calcular_previsao_pagamento_rede,
-        _get_base_id,
     )
 
     pasta = _pasta_processamento(processamento_id, adquirente)
@@ -171,7 +171,7 @@ def preprocessar_relatorio(
 
     if df_cached.is_empty() and calc_tipo:
         base_id = _get_base_id(processamento_id)
-        from modules.reports import read_sql_polars, _convert_placeholders
+        from modules.reports import _convert_placeholders, read_sql_polars
         sql_fallback = (
             "SELECT id_venda, data_venda, bandeira, forma_pagamento, tx_rr_venda, "
             "vl_rr_venda, vl_venda, tx_venda, desc_venda, vl_liq_venda, tx_calc, "
@@ -203,6 +203,86 @@ def preprocessar_relatorio(
     # Calcular stats reais sobre df_main completo ANTES de truncar
     _total_transacoes_real = len(df_main) if not df_main.is_empty() else 0
     _stats_reais: dict = {}
+
+    # Calcular período global (MIN/MAX) entre todas as 4 tabelas via SQL eficiente
+    # Calcular período global (MIN/MAX) entre as tabelas especificadas via SQL eficiente
+    _data_min_real: str = ""
+    _data_max_real: str = ""
+    _periodo_dias_real: int = 0
+    try:
+        from modules.reports import _convert_placeholders, read_sql_polars
+        from modules.reports import _get_base_id as _gbid_periodo
+        _base_id_per = _gbid_periodo(processamento_id)
+        _adq_cond = " AND adquirente = %s" if adq_filtro else ""
+        _adq_params = (adq_filtro,) if adq_filtro else ()
+        
+        # 1. Obter MIN global
+        _sql_min = f"""
+            SELECT MIN(dt) as data_min FROM (
+                SELECT MIN(Data_da_venda)   as dt FROM vendas_processadas     WHERE processamentoid LIKE %s{_adq_cond}
+                UNION ALL
+                SELECT MIN(Data_da_venda)   as dt FROM vendas_filtradas       WHERE processamentoId LIKE %s{_adq_cond}
+                UNION ALL
+                SELECT MIN(data_recebivel)  as dt FROM recebiveis_processados WHERE processamentoid LIKE %s{_adq_cond}
+                UNION ALL
+                SELECT MIN(data_recebivel)  as dt FROM recebiveis_filtrados   WHERE processamentoid LIKE %s{_adq_cond}
+            ) _sub WHERE dt IS NOT NULL
+        """
+        
+        # 2. Obter MAX global
+        _sql_max = f"""
+            SELECT MAX(dt) as data_max FROM (
+                SELECT MAX(Data_da_venda)   as dt FROM vendas_processadas     WHERE processamentoid LIKE %s{_adq_cond}
+                UNION ALL
+                SELECT MAX(Data_da_venda)   as dt FROM vendas_filtradas       WHERE processamentoId LIKE %s{_adq_cond}
+                UNION ALL
+                SELECT MAX(data_recebivel)  as dt FROM recebiveis_processados WHERE processamentoid LIKE %s{_adq_cond}
+                UNION ALL
+                SELECT MAX(data_recebivel)  as dt FROM recebiveis_filtrados   WHERE processamentoid LIKE %s{_adq_cond}
+            ) _sub WHERE dt IS NOT NULL
+        """
+        
+        _like = f"{_base_id_per}%"
+        _p_sql = (_like,) + _adq_params + (_like,) + _adq_params + (_like,) + _adq_params + (_like,) + _adq_params
+        
+        _df_min = read_sql_polars(_convert_placeholders(engine, _sql_min), engine, params=_p_sql)
+        _df_max = read_sql_polars(_convert_placeholders(engine, _sql_max), engine, params=_p_sql)
+        
+        if not _df_min.is_empty() and not _df_max.is_empty():
+            import pandas as _pd2
+            _dmin = _pd2.to_datetime(_df_min["data_min"][0], errors="coerce")
+            _dmax = _pd2.to_datetime(_df_max["data_max"][0], errors="coerce")
+            
+            if _pd2.notna(_dmin) and _pd2.notna(_dmax):
+                _data_min_real = _dmin.strftime("%d/%m/%Y")
+                _data_max_real = _dmax.strftime("%d/%m/%Y")
+                _periodo_dias_real = int((_dmax - _dmin).days) + 1
+        
+        logger.info(f"[PREPROC] Período global real: {_data_min_real} a {_data_max_real} ({_periodo_dias_real} dias)")
+    except Exception as _ep:
+        logger.warning(f"[PREPROC] Erro ao calcular período global: {_ep}")
+
+    # Contar vendas_filtradas para compor o total original da importação
+    _total_filtradas_real = 0
+    try:
+        from modules.reports import _get_base_id as _gbid_vf
+        from modules.reports import read_sql_polars
+        _base_id_vf = _gbid_vf(processamento_id)
+        if adq_filtro:
+            _df_filt = read_sql_polars(
+                "SELECT COUNT(*) as cnt FROM vendas_filtradas WHERE processamentoid LIKE %s AND adquirente = %s",
+                engine, params=(f"{_base_id_vf}%", adq_filtro)
+            )
+        else:
+            _df_filt = read_sql_polars(
+                "SELECT COUNT(*) as cnt FROM vendas_filtradas WHERE processamentoid LIKE %s",
+                engine, params=(f"{_base_id_vf}%",)
+            )
+        if not _df_filt.is_empty():
+            _total_filtradas_real = int(_df_filt["cnt"][0])
+    except Exception as _ef:
+        logger.warning(f"[PREPROC] Erro ao contar vendas_filtradas: {_ef}")
+
     if not df_main.is_empty():
         try:
             _cols = df_main.collect_schema().names()
@@ -222,6 +302,7 @@ def preprocessar_relatorio(
             ]).row(0, named=True)
             _stats_reais = {
                 "_total_transacoes_real": _total_transacoes_real,
+                "_total_filtradas_real":  _total_filtradas_real,
                 "_faturamento_bruto_real": float(_df_agg["fat"] or 0),
                 "_valor_liquido_real":     float(_df_agg["liq"] or 0),
                 "_taxa_media_real":        float(_df_agg["tm"]  or 0),
@@ -230,10 +311,16 @@ def preprocessar_relatorio(
                 "_valor_medio_real":       float(_df_agg["vmedio"] or 0),
                 "_valor_min_real":         float(_df_agg["vmin"] or 0),
                 "_valor_max_real":         float(_df_agg["vmax"] or 0),
+                "_data_min_real":          _data_min_real,
+                "_data_max_real":          _data_max_real,
+                "_periodo_dias_real":      _periodo_dias_real,
             }
         except Exception as _e:
             logger.warning(f"[PREPROC] stats reais erro: {_e}")
-            _stats_reais = {"_total_transacoes_real": _total_transacoes_real}
+            _stats_reais = {
+                "_total_transacoes_real": _total_transacoes_real,
+                "_total_filtradas_real":  _total_filtradas_real,
+            }
 
     try:
         if not df_main.is_empty():
@@ -301,7 +388,8 @@ def preprocessar_relatorio(
 
     # 8. Seção: vendas_filtradas
     try:
-        from modules.reports import read_sql_polars, _get_base_id as _gbid2
+        from modules.reports import _get_base_id as _gbid2
+        from modules.reports import read_sql_polars
         _base_id2 = _gbid2(processamento_id)
         _sql_vf = (
             "SELECT * FROM vendas_filtradas WHERE processamentoid LIKE %s"
@@ -310,7 +398,7 @@ def preprocessar_relatorio(
         if len(df_vf) > 100_000:
             logger.warning(f"[PREPROC] Truncando vendas_filtradas para 100k (tinha {len(df_vf)})")
             df_vf = df_vf.head(100_000)
-            
+
         if adq_filtro and not df_vf.empty:
             _col_adq = next((c for c in df_vf.columns if "adquirente" in c.lower()), None)
             if _col_adq:
@@ -331,7 +419,7 @@ def preprocessar_relatorio(
         if len(df_rfp) > 100_000:
             logger.warning(f"[PREPROC] Truncando recebiveis_filtrados para 100k (tinha {len(df_rfp)})")
             df_rfp = df_rfp.head(100_000)
-            
+
         if not df_rfp.empty:
             pl.from_pandas(df_rfp).write_parquet(_parquet_path(processamento_id, "recebiveis_filtrados", adquirente))
             secoes_geradas.append("recebiveis_filtrados")
@@ -503,8 +591,12 @@ def _montar_contexto_sintetico(dados: dict, processamento_id: str, engine: Engin
         ctx["adquirente"] = adquirente_filtro
 
     ctx.setdefault("cliente_nome", "—")
-    ctx.setdefault("periodo", "—")
     ctx.setdefault("adquirente", "Todos")
+
+    # Período: tenta montar a partir de _data_min_real/_data_max_real do df_vc
+    # (calculados no preprocessamento e armazenados como colunas de metadata)
+    # Será sobrescrito abaixo se o df_vc já estiver disponível
+    ctx.setdefault("periodo", "—")
     ctx["data_geracao"] = datetime.now().strftime("%d/%m/%Y %H:%M")
     ctx["disclaimer"] = "Todas as análises são baseadas exclusivamente nos dados fornecidos pela Adquirente."
 
@@ -596,6 +688,17 @@ def _montar_contexto_sintetico(dados: dict, processamento_id: str, engine: Engin
     ctx["taxa_media"] = _fmt_pct(taxa_media)
     ctx["bandeiras"] = bandeiras
     ctx["top_valores"] = top_valores
+
+    # Período: lê _data_min_real/_data_max_real do df_vc (metadata do preprocessamento)
+    if df_vc is not None and not df_vc.empty:
+        _dmin = _real("_data_min_real", "")
+        _dmax = _real("_data_max_real", "")
+        if _dmin and _dmax:
+            ctx["periodo"] = f"{_dmin} a {_dmax}"
+        elif _dmin:
+            ctx["periodo"] = _dmin
+        elif _dmax:
+            ctx["periodo"] = _dmax
 
     # Divergências: Perda MDR + Perda RR/RA (perdas_semestre) + recebíveis contestáveis
     def _to_float_sint(v) -> float:
@@ -719,7 +822,7 @@ def _gerar_excel_xlsx(
           Contagem Transações, Dados Bancários,
           Top 3 Maiores Valores, Vendas Filtradas, Recebíveis Filtrados.
     """
-    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
 
     opcoes = opcoes or {}
@@ -869,15 +972,15 @@ def _montar_contexto_html(dados: dict, processamento_id: str, engine: Engine, op
     Replica o que gerar_relatorio_html fazia: tabelas, gráficos, materialidade, imagens.
     """
     from modules.reports import (
-        gerar_tabela_html,
-        obter_dados_processamento,
-        criar_tabela_sumario,
+        criar_grafico_valor_medio_por_bandeira,
         criar_grafico_vendas_por_bandeira,
         criar_grafico_vendas_por_forma_pagamento,
         criar_grafico_vendas_por_mes,
-        criar_grafico_valor_medio_por_bandeira,
-        gerar_demonstrativo_vendas_filtradas,
+        criar_tabela_sumario,
         gerar_demonstrativo_recebiveis_filtrados,
+        gerar_demonstrativo_vendas_filtradas,
+        gerar_tabela_html,
+        obter_dados_processamento,
     )
 
     opcoes = opcoes or {}
@@ -894,6 +997,9 @@ def _montar_contexto_html(dados: dict, processamento_id: str, engine: Engine, op
         col_adq = next((c for c in df_vc.columns if "adquirente" in c.lower()), None)
         if col_adq:
             df_vc = df_vc[df_vc[col_adq].astype(str).str.lower() == adquirente_filtro.lower()]
+
+    # Guardar df antes do filtro de perdas para calcular período completo das transações
+    df_vc_periodo = df_vc
 
     if apenas_com_perdas and not df_vc.empty and "perda" in df_vc.columns:
         df_vc = df_vc[df_vc["perda"].fillna(0) != 0]
@@ -920,14 +1026,17 @@ def _montar_contexto_html(dados: dict, processamento_id: str, engine: Engine, op
             vl = df_vc[col_bruto] if col_bruto else pd.Series(dtype=float)
             tx = df_vc[col_taxa] if col_taxa else pd.Series(dtype=float)
             valor_total = float(vl.sum()) if not vl.empty else 0.0
-            datas = pd.to_datetime(df_vc[col_data], errors="coerce") if col_data else pd.Series(dtype="datetime64[ns]")
+            # Período sempre do dataset completo (sem filtro de perdas) para refletir o processamento real
+            col_data_periodo = next((c for c in df_vc_periodo.columns if "data" in c.lower()), col_data)
+            datas = pd.to_datetime(df_vc_periodo[col_data_periodo], errors="coerce") if col_data_periodo else pd.Series(dtype="datetime64[ns]")
             primeira = datas.min() if not datas.empty else None
             ultima = datas.max() if not datas.empty else None
             periodo_dias = int((ultima - primeira).days) if primeira and ultima else 0
 
             def _rstat(col, fallback):
                 return df_vc[col].iloc[0] if col in df_vc.columns else fallback
-            _qtd_real   = int(_rstat("_total_transacoes_real",   len(df_vc)))
+            _qtd_real      = int(_rstat("_total_transacoes_real",   len(df_vc)))
+            _filtradas_real = int(_rstat("_total_filtradas_real",   0))
             _fat_real   = float(_rstat("_faturamento_bruto_real", vl.sum() if not vl.empty else 0.0))
             _vmedio     = float(_rstat("_valor_medio_real",       vl.mean() if not vl.empty else 0.0))
             _vmin       = float(_rstat("_valor_min_real",         vl.min() if not vl.empty else 0.0))
@@ -936,15 +1045,15 @@ def _montar_contexto_html(dados: dict, processamento_id: str, engine: Engine, op
             _tmax       = float(_rstat("_taxa_max_real",          tx.max() if not tx.empty else 0.0))
             valor_total = _fat_real
             estatisticas_sumario = {
-                "quantidade": _qtd_real,
+                "quantidade": _qtd_real + _filtradas_real,
                 "valor_total": _fat_real,
                 "valor_medio": _vmedio,
                 "valor_min": _vmin,
                 "valor_max": _vmax,
                 "diferenca_taxa": _tmax - _tmin,
-                "primeira_venda": primeira.strftime("%d/%m/%Y") if primeira else "—",
-                "ultima_venda": ultima.strftime("%d/%m/%Y") if ultima else "—",
-                "periodo_dias": periodo_dias,
+                "primeira_venda": _rstat("_data_min_real", primeira.strftime("%d/%m/%Y") if primeira else "—"),
+                "ultima_venda":   _rstat("_data_max_real", ultima.strftime("%d/%m/%Y") if ultima else "—"),
+                "periodo_dias":   int(_rstat("_periodo_dias_real", periodo_dias)),
             }
             estatisticas_taxas = {
                 "min_taxa": _tmin,
@@ -1106,7 +1215,13 @@ def _montar_contexto_html(dados: dict, processamento_id: str, engine: Engine, op
             rr  = abs(float(df_vc["perda_rr"].fillna(0).sum())) if "perda_rr" in df_vc.columns else 0.0
             perda_total = mdr + rr
 
-        valor_total_ctx = float(df_vc[col_bruto].sum()) if (not df_vc.empty and col_bruto) else 1.0
+        # Usar faturamento real do parquet (evita distorção pelo truncamento a 100k linhas)
+        if not df_vc_periodo.empty and "_faturamento_bruto_real" in df_vc_periodo.columns:
+            valor_total_ctx = float(df_vc_periodo["_faturamento_bruto_real"].iloc[0]) or 1.0
+        elif not df_vc.empty and col_bruto in df_vc.columns:
+            valor_total_ctx = float(df_vc[col_bruto].sum()) or 1.0
+        else:
+            valor_total_ctx = 1.0
         pct = (perda_total / valor_total_ctx * 100) if valor_total_ctx else 0.0
         ctx["materialidade_valor"] = f"R$ {perda_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         ctx["materialidade_percentual"] = f"{pct:.2f}%".replace(".", ",")

@@ -37,5 +37,20 @@ export const correcaoService = {
   aplicarTaxaBC: async (req: AplicarTaxaBCRequest): Promise<{ linhas_afetadas: number }> => {
     const { data } = await api.post<{ linhas_afetadas: number }>('/correcao/aplicar-taxa-bc', req);
     return data;
+  },
+
+  obterResumoFiltradas: async (processamentoId: string): Promise<ResumoResponse> => {
+    const { data } = await api.get<ResumoResponse>('/correcao/resumo-filtradas', { params: { processamento_id: processamentoId } });
+    return data;
+  },
+
+  atualizarFiltradas: async (req: AtualizarRequest): Promise<{ linhas_afetadas: number }> => {
+    const { data } = await api.patch<{ linhas_afetadas: number }>('/correcao/atualizar-filtradas', req);
+    return data;
+  },
+
+  excluirFiltradas: async (req: RemoverRequest): Promise<{ linhas_afetadas: number }> => {
+    const { data } = await api.post<{ linhas_afetadas: number }>('/correcao/excluir-filtradas', req);
+    return data;
   }
 };

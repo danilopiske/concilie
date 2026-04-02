@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     ai,
     alertas_config,
     analista,
+    analista_filtrado,
     auditoria,
     calculos,
     clientes,
@@ -30,6 +31,7 @@ from app.api.v1.endpoints import (
     perfil,
     processamentos,
     recuperacao,
+    relatorio_modelos,
     relatorio_tags,
     relatorios,
     sistema,
@@ -62,8 +64,10 @@ api_router.include_router(correcao.router, prefix="/correcao", tags=["correcao"]
 api_router.include_router(importacao.router, prefix="/importar", tags=["importacao"], dependencies=_auth)
 api_router.include_router(importacao_async.router, prefix="/importacao-async", tags=["importacao-async"], dependencies=_auth)
 api_router.include_router(analista.router, prefix="/analista", tags=["analista"], dependencies=_auth)
+api_router.include_router(analista_filtrado.router, prefix="/analista-filtrado", tags=["analista-filtrado"], dependencies=_auth)
 api_router.include_router(calculos.router, prefix="/calculos", tags=["calculos"], dependencies=_auth)
 api_router.include_router(relatorios.router, prefix="/relatorios", tags=["relatorios"], dependencies=_auth)
+api_router.include_router(relatorio_modelos.router, prefix="/relatorios", tags=["relatorios-modelos"], dependencies=_auth)
 api_router.include_router(relatorio_tags.router, prefix="/relatorio-tags", tags=["relatorio-tags"], dependencies=_auth)
 api_router.include_router(usuarios.router, prefix="/usuarios", tags=["usuarios"], dependencies=_auth)
 api_router.include_router(contextos.router, prefix="/contextos", tags=["contextos"], dependencies=_auth)

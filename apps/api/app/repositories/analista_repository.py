@@ -180,6 +180,142 @@ class AnalistaRepository:
             ) for row in results
         ]
 
+    # ── Filtradas ─────────────────────────────────────────────────────────────
+
+    def get_bandeiras_filtradas(self, processamento_id: str) -> List[AgregacaoBandeira]:
+        sql = text("""
+            SELECT
+                Bandeira as bandeira,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_filtradas
+            WHERE processamentoid = :pid
+            GROUP BY Bandeira
+            ORDER BY valor_total DESC
+        """)
+        results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
+        return [
+            AgregacaoBandeira(
+                bandeira=row.bandeira or "Desconhecido",
+                quantidade=row.quantidade,
+                valor_total=row.valor_total or 0.0,
+                valor_medio=row.valor_medio or 0.0,
+                valor_min=row.valor_min or 0.0,
+                valor_max=row.valor_max or 0.0,
+            ) for row in results
+        ]
+
+    def get_formas_pagamento_filtradas(self, processamento_id: str) -> List[AgregacaoFormaPagamento]:
+        sql = text("""
+            SELECT
+                Forma_de_pagamento as forma_pagamento,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_filtradas
+            WHERE processamentoid = :pid
+            GROUP BY Forma_de_pagamento
+            ORDER BY valor_total DESC
+        """)
+        results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
+        return [
+            AgregacaoFormaPagamento(
+                forma_pagamento=row.forma_pagamento or "Desconhecido",
+                quantidade=row.quantidade,
+                valor_total=row.valor_total or 0.0,
+                valor_medio=row.valor_medio or 0.0,
+                valor_min=row.valor_min or 0.0,
+                valor_max=row.valor_max or 0.0,
+            ) for row in results
+        ]
+
+    def get_recebiveis_filtrados(self, processamento_id: str) -> List[AgregacaoRecebivel]:
+        check = self.db.execute(
+            text("SELECT COUNT(*) FROM recebiveis_filtrados WHERE processamentoid = :pid"),
+            {"pid": processamento_id}
+        ).scalar()
+        if not check or check == 0:
+            return []
+        sql = text("""
+            SELECT
+                lancamento as tipo_recebivel,
+                COUNT(*) as quantidade,
+                SUM(valor_recebivel) as valor_total
+            FROM recebiveis_filtrados
+            WHERE processamentoid = :pid
+            GROUP BY lancamento
+            ORDER BY valor_total DESC
+        """)
+        try:
+            results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
+            return [
+                AgregacaoRecebivel(
+                    tipo_recebivel=row.tipo_recebivel or "Indefinido",
+                    quantidade=row.quantidade,
+                    valor_total=row.valor_total or 0.0
+                ) for row in results
+            ]
+        except Exception:
+            return []
+
+    def get_periodos_filtradas(self, processamento_id: str, tipo_periodo: str) -> List[AgregacaoPeriodo]:
+        group_expr = self._get_period_sql("data_da_venda", tipo_periodo)
+        sql = text(f"""
+            SELECT
+                {group_expr} as periodo,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Valor_da_venda) as valor_min,
+                MAX(Valor_da_venda) as valor_max
+            FROM vendas_filtradas
+            WHERE processamentoid = :pid AND data_da_venda IS NOT NULL
+            GROUP BY {group_expr}
+            ORDER BY periodo
+        """)
+        results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
+        return [
+            AgregacaoPeriodo(
+                tipo_periodo=tipo_periodo,
+                periodo=row.periodo,
+                quantidade=row.quantidade,
+                valor_total=row.valor_total or 0.0,
+                valor_medio=row.valor_medio or 0.0,
+                valor_min=row.valor_min or 0.0,
+                valor_max=row.valor_max or 0.0,
+            ) for row in results
+        ]
+
+    def get_formas_por_ano_filtradas(self, processamento_id: str) -> List[AgregacaoFormaPagamentoAno]:
+        year_expr = self._get_year_sql("data_da_venda")
+        sql = text(f"""
+            SELECT
+                {year_expr} as ano,
+                Forma_de_pagamento as forma_pagamento,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio
+            FROM vendas_filtradas
+            WHERE processamentoid = :pid AND data_da_venda IS NOT NULL
+            GROUP BY {year_expr}, Forma_de_pagamento
+            ORDER BY ano, valor_total DESC
+        """)
+        results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
+        return [
+            AgregacaoFormaPagamentoAno(
+                ano=row.ano,
+                forma_pagamento=row.forma_pagamento or "Desconhecido",
+                quantidade=row.quantidade,
+                valor_total=row.valor_total or 0.0,
+                valor_medio=row.valor_medio or 0.0,
+            ) for row in results
+        ]
+
     def get_formas_por_ano(self, processamento_id: str) -> List[AgregacaoFormaPagamentoAno]:
         year_expr = self._get_year_sql("Data_da_venda")
 
