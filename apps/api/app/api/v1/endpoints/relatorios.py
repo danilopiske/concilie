@@ -302,10 +302,11 @@ def download_relatorio(path: str):
         # Excel e demais: forçar download com nome correto
         return FileResponse(actual_path, filename=filename)
 @router.get("/download-pdf")
-def download_relatorio_pdf(path: str):
+def download_relatorio_pdf(path: str, no_charts: bool = False):
     """
     Converte o HTML gerado para PDF (WeasyPrint) e retorna como download.
     Aceita o mesmo parâmetro 'path' que /download.
+    Use no_charts=true para pular a conversão de gráficos Plotly (diagnóstico).
     """
     import urllib.parse
     from fastapi.responses import Response
@@ -333,7 +334,7 @@ def download_relatorio_pdf(path: str):
         html_content = f.read()
 
     try:
-        pdf_bytes = PdfService.html_to_pdf(html_content, base_url=actual_path)
+        pdf_bytes = PdfService.html_to_pdf(html_content, base_url=actual_path, skip_charts=no_charts)
     except Exception as e:
         logger.error("Erro ao converter HTML para PDF: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro ao gerar PDF: {str(e)}")
