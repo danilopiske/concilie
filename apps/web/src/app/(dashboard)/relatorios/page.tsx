@@ -18,7 +18,6 @@ import {
   Zap,
   CheckSquare,
   RefreshCw,
-  FileDown,
 } from 'lucide-react';
 
 export default function RelatoriosPage() {
@@ -480,30 +479,17 @@ export default function RelatoriosPage() {
                 <p className="text-sm font-medium text-green-700">✅ {arquivosEmitidos.length} arquivo(s) gerado(s):</p>
                 {arquivosEmitidos.map(a => {
                   const modelo = modelos.find(m => m.id === a.modelo_id);
-                  const isHtml = a.arquivo.toLowerCase().endsWith('.html');
                   return (
-                    <div key={a.modelo_id} className="flex gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="flex-1 flex items-center justify-center gap-2"
-                        onClick={() => openFile(a.arquivo)}
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        {modelo?.nome ?? `Modelo ${a.modelo_id}`} — Abrir
-                      </Button>
-                      {isHtml && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="flex items-center gap-2 whitespace-nowrap"
-                          onClick={() => window.open(relatorioApi.downloadPdfUrl(a.arquivo), '_blank')}
-                        >
-                          <FileDown className="w-4 h-4" />
-                          PDF
-                        </Button>
-                      )}
-                    </div>
+                    <Button
+                      key={a.modelo_id}
+                      variant="secondary"
+                      size="sm"
+                      className="w-full flex items-center justify-center gap-2"
+                      onClick={() => openFile(a.arquivo)}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      {modelo?.nome ?? `Modelo ${a.modelo_id}`} — Abrir
+                    </Button>
                   );
                 })}
               </>
