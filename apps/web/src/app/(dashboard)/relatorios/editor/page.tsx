@@ -8,7 +8,7 @@ import { Panel } from '@/components/ui/Panel';
 import { RelatorioEditor } from '@/components/relatorio/RelatorioEditor';
 import { relatorioApi } from '@/lib/api/relatorio';
 import { relatorioTagsApi, RelatorioTag } from '@/lib/api/relatorio-tags';
-import { AlertCircle, Loader2, Save, Download, ArrowLeft } from 'lucide-react';
+import { AlertCircle, Loader2, Save, Download, ArrowLeft, FileDown } from 'lucide-react';
 
 /**
  * Extrai o conteúdo do .editor-appendix (adições feitas pelo usuário).
@@ -171,6 +171,14 @@ function RelatorioEditorContent() {
           <Button variant="secondary" onClick={handleExport} disabled={!savedPath || loadingContent}>
             <Download className="h-4 w-4 mr-2" />
             Exportar HTML
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => savedPath && window.open(relatorioApi.downloadPdfUrl(savedPath), '_blank')}
+            disabled={!savedPath || loadingContent}
+          >
+            <FileDown className="h-4 w-4 mr-2" />
+            Exportar PDF
           </Button>
           <Button variant="primary" onClick={handleSave} disabled={saving || loadingContent}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
