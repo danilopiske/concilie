@@ -5,6 +5,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import polars as pl
 import pytest
 
 
@@ -122,6 +123,8 @@ class TestStatusParquet:
 # ─────────────────────────────────────────────
 
 class TestPreprocessarRelatorio:
+    # load_vendas_calculos_cached retorna Polars; seções retornam pandas
+    _DF_PL = pl.DataFrame({"col": [1, 2, 3]})
     _DF = pd.DataFrame({"col": [1, 2, 3]})
 
     def _patches(self, tmp_path):
@@ -144,16 +147,15 @@ class TestPreprocessarRelatorio:
 
         engine_mock = MagicMock()
 
-        with patch.multiple("app.services.preprocessamento_service",
-                            _PREPROC_CACHE_DIR=str(tmp_path),
-                            load_vendas_calculos_cached=MagicMock(return_value=self._DF),
-                            calcular_perdas_por_semestre=MagicMock(return_value=self._DF),
-                            calcular_min_max_taxas_agrupado=MagicMock(return_value=self._DF),
-                            calcular_contagem_taxas_agrupado=MagicMock(return_value=self._DF),
-                            calcular_sumario_recebiveis=MagicMock(return_value=self._DF),
-                            calcular_tabela_consolidada_mensal=MagicMock(return_value=self._DF),
-                            obter_evidencias_transacoes=MagicMock(return_value={}),
-                            obter_dados_bancarios_distintos=MagicMock(return_value=self._DF)):
+        with patch("app.services.preprocessamento_service._PREPROC_CACHE_DIR", str(tmp_path)), \
+             patch("modules.reports.load_vendas_calculos_cached", return_value=self._DF_PL), \
+             patch("modules.reports.calcular_perdas_por_semestre", return_value=self._DF), \
+             patch("modules.reports.calcular_min_max_taxas_agrupado", return_value=self._DF), \
+             patch("modules.reports.calcular_contagem_taxas_agrupado", return_value=self._DF), \
+             patch("modules.reports.calcular_sumario_recebiveis", return_value=self._DF), \
+             patch("modules.reports.calcular_tabela_consolidada_mensal", return_value=self._DF), \
+             patch("modules.reports.obter_evidencias_transacoes", return_value={}), \
+             patch("modules.reports.obter_dados_bancarios_distintos", return_value=self._DF):
             preprocessar_relatorio(engine_mock, "proc_test", "anual")
 
         # _meta.json deve existir
@@ -171,17 +173,39 @@ class TestPreprocessarRelatorio:
 
         engine_mock = MagicMock()
 
-        with patch.multiple("app.services.preprocessamento_service",
-                            _PREPROC_CACHE_DIR=str(tmp_path),
-                            load_vendas_calculos_cached=MagicMock(side_effect=Exception("DB error")),
-                            calcular_perdas_por_semestre=MagicMock(return_value=self._DF),
-                            calcular_min_max_taxas_agrupado=MagicMock(return_value=self._DF),
-                            calcular_contagem_taxas_agrupado=MagicMock(return_value=self._DF),
-                            calcular_sumario_recebiveis=MagicMock(return_value=self._DF),
-                            calcular_tabela_consolidada_mensal=MagicMock(return_value=self._DF),
-                            obter_evidencias_transacoes=MagicMock(return_value={}),
-                            obter_dados_bancarios_distintos=MagicMock(return_value=self._DF)):
-            result = preprocessar_relatorio(engine_mock, "proc_err", "anual")
+        with patch("app.services.preprocessamento_service._PREPROC_CACHE_DIR", str(tmp_path)), \
+             patch("modules.reports.load_vendas_calculos_cached", side_effect=Exception("DB error")), \
+             patch("modules.reports.calcular_perdas_por_semestre", return_value=self._DF), \
+             patch("modules.reports.calcular_min_max_taxas_agrupado", return_value=self._DF), \
+             patch("modules.reports.calcular_contagem_taxas_agrupado", return_value=self._DF), \
+             patch("modules.reports.calcular_sumario_recebiveis", return_value=self._DF), \
+             patch("modules.reports.calcular_tabela_consolidada_mensal", return_value=self._DF), \
+             patch("modules.reports.obter_evidencias_transacoes", return_value={}), \
+             patch("modules.reports.obter_dados_bancarios_distintos", return_value=self._DF):
+            result = preprocessar_relatorio(engine_mock, "proc_err", "anual")  # não deve lançar
 
         # Deve retornar dict com erros, não lançar exceção
         assert isinstance(result, dict)
+
+    def test_cria_tabela_consolidada_parquet(self, tmp_path):
+        """preprocessar_relatorio deve criar tabela_consolidada.parquet (AC8)."""
+        from app.services.preprocessamento_service import preprocessar_relatorio
+
+        engine_mock = MagicMock()
+
+        # Patch direto em modules.reports — onde a função é importada localmente
+        # dentro de preprocessar_relatorio(). Isso garante que o mock é resolvido
+        # no momento da importação local (from modules.reports import ...).
+        with patch("app.services.preprocessamento_service._PREPROC_CACHE_DIR", str(tmp_path)), \
+             patch("modules.reports.load_vendas_calculos_cached", return_value=self._DF_PL), \
+             patch("modules.reports.calcular_perdas_por_semestre", return_value=self._DF), \
+             patch("modules.reports.calcular_min_max_taxas_agrupado", return_value=self._DF), \
+             patch("modules.reports.calcular_contagem_taxas_agrupado", return_value=self._DF), \
+             patch("modules.reports.calcular_sumario_recebiveis", return_value=self._DF), \
+             patch("modules.reports.calcular_tabela_consolidada_mensal", return_value=self._DF), \
+             patch("modules.reports.obter_evidencias_transacoes", return_value={}), \
+             patch("modules.reports.obter_dados_bancarios_distintos", return_value=self._DF):
+            preprocessar_relatorio(engine_mock, "proc_tab", "anual")
+
+        parquet_files = list(tmp_path.rglob("tabela_consolidada.parquet"))
+        assert len(parquet_files) == 1, "tabela_consolidada.parquet não foi criado (AC8)"

@@ -87,12 +87,12 @@ def status_parquet(processamento_id: str, adquirente: Optional[str] = None) -> d
         with open(meta, "r", encoding="utf-8") as f:
             dados = json.load(f)
         return {
-            "existe": True,
+            "exists": True,
             "gerado_em": dados.get("gerado_em"),
             "calc_tipo": dados.get("calc_tipo"),
             "adquirente": dados.get("adquirente"),
         }
-    return {"existe": False, "gerado_em": None, "calc_tipo": None, "adquirente": None}
+    return {"exists": False, "gerado_em": None, "calc_tipo": None, "adquirente": None}
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +150,7 @@ def preprocessar_relatorio(
         calcular_perdas_por_semestre,
         calcular_previsao_pagamento_rede,
         calcular_sumario_recebiveis,
+        calcular_tabela_consolidada_mensal,
         filtrar_valores_rede_depara,
         load_vendas_calculos_cached,
         obter_dados_bancarios_distintos,
@@ -167,18 +168,28 @@ def preprocessar_relatorio(
 
     # 1. Carregar dataset principal (Polars) — mesmo fluxo do gerar_relatorio_html
     logger.info(f"[PREPROC] Carregando dataset principal para {processamento_id}")
-    df_cached = load_vendas_calculos_cached(engine, processamento_id, calc_tipo)
+    try:
+        df_cached = load_vendas_calculos_cached(engine, processamento_id, calc_tipo)
+    except Exception as e:
+        erros.append(f"load_vendas_calculos: {e}")
+        logger.error(f"[PREPROC] Erro ao carregar dataset principal: {e}")
+        df_cached = pl.DataFrame()
 
     if df_cached.is_empty() and calc_tipo:
-        base_id = _get_base_id(processamento_id)
-        from modules.reports import _convert_placeholders, read_sql_polars
-        sql_fallback = (
-            "SELECT id_venda, data_venda, bandeira, forma_pagamento, tx_rr_venda, "
-            "vl_rr_venda, vl_venda, tx_venda, desc_venda, vl_liq_venda, tx_calc, "
-            "desc_calc, vl_liq_calc, perda, adquirente, nsu, cod_autorizacao, "
-            "perda_rr, ec_id FROM vendas_calculos WHERE calc_id LIKE %s"
-        )
-        df_cached = read_sql_polars(sql_fallback, engine, params=(f"{base_id}%",))
+        try:
+            base_id = _get_base_id(processamento_id)
+            from modules.reports import _convert_placeholders, read_sql_polars
+            sql_fallback = (
+                "SELECT id_venda, data_venda, bandeira, forma_pagamento, tx_rr_venda, "
+                "vl_rr_venda, vl_venda, tx_venda, desc_venda, vl_liq_venda, tx_calc, "
+                "desc_calc, vl_liq_calc, perda, adquirente, nsu, cod_autorizacao, "
+                "perda_rr, ec_id FROM vendas_calculos WHERE calc_id LIKE %s"
+            )
+            df_cached = read_sql_polars(sql_fallback, engine, params=(f"{base_id}%",))
+        except Exception as e:
+            erros.append(f"load_vendas_calculos_fallback: {e}")
+            logger.error(f"[PREPROC] Erro no fallback de vendas_calculos: {e}")
+            df_cached = pl.DataFrame()
 
     # Aplicar filtros de data e adquirente
     if not df_cached.is_empty():
@@ -386,7 +397,24 @@ def preprocessar_relatorio(
         erros.append(f"dados_bancarios: {e}")
         logger.error(f"[PREPROC] Erro em dados_bancarios: {e}")
 
-    # 8. Seção: vendas_filtradas
+    # 8. Seção: tabela_consolidada
+    try:
+        df_tc = calcular_tabela_consolidada_mensal(
+            engine,
+            processamento_id,
+            df_vendas_processadas=df_main.to_pandas() if hasattr(df_main, "to_pandas") else pd.DataFrame(),
+            df_vendas_calculos=df_main.to_pandas() if hasattr(df_main, "to_pandas") else pd.DataFrame(),
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+        if not df_tc.empty:
+            pl.from_pandas(df_tc).write_parquet(_parquet_path(processamento_id, "tabela_consolidada", adquirente))
+            secoes_geradas.append("tabela_consolidada")
+    except Exception as e:
+        erros.append(f"tabela_consolidada: {e}")
+        logger.error(f"[PREPROC] Erro em tabela_consolidada: {e}")
+
+    # 10. Seção: vendas_filtradas
     try:
         from modules.reports import _get_base_id as _gbid2
         from modules.reports import read_sql_polars
@@ -410,7 +438,7 @@ def preprocessar_relatorio(
         erros.append(f"vendas_filtradas: {e}")
         logger.error(f"[PREPROC] Erro em vendas_filtradas: {e}")
 
-    # 9. Seção: recebiveis_filtrados
+    # 11. Seção: recebiveis_filtrados
     try:
         _sql_rf = (
             "SELECT * FROM recebiveis_filtrados WHERE processamentoid LIKE %s"
@@ -427,7 +455,7 @@ def preprocessar_relatorio(
         erros.append(f"recebiveis_filtrados: {e}")
         logger.error(f"[PREPROC] Erro em recebiveis_filtrados: {e}")
 
-    # 10. Seção: evidencias
+    # 12. Seção: evidencias
     try:
         evidencias = obter_evidencias_transacoes(engine, processamento_id, calc_tipo, df=df_main)
         ev_frames = {}
