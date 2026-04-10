@@ -122,8 +122,8 @@ class RedeImporter(BaseImporter):
                 .str.replace("  ", " ", regex=False)
             )
 
-    def normalize(self):
+    def normalize(self, progress_callback=None):
         """Standard normalization + Rede specific adjustments."""
-        super().normalize()
+        super().normalize(progress_callback)
         # Additional normalization if needed
 

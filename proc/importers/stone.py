@@ -30,9 +30,9 @@ class StoneImporter(BaseImporter):
         return score
 
 
-    def normalize(self):
+    def normalize(self, progress_callback=None):
         """Stone-specific normalization."""
-        super().normalize()
+        super().normalize(progress_callback)
         
         if self.df_proc is not None and not self.df_proc.empty:
             # Add Stone-specific normalization if any

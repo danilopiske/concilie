@@ -225,7 +225,14 @@ class ReconciliationCore:
 
                 with PerformanceTimer("RECONCILIATION", "Salvar Resultados (DB)", {"rows": len(df_final)}):
                     # Limpar dados antigos e inserir novos usando Parameter Binding
+                    # IDEMPOTÊNCIA: Deletar registros anteriores do mesmo calc_id e calc_tipo
                     with engine.begin() as conn:
+                        calc_id_val = custom_calc_id or proc_id
+                        conn.execute(
+                            text("DELETE FROM vendas_calculos WHERE calc_id = :calc_id AND calc_tipo = :calc_tipo"),
+                            {"calc_id": calc_id_val, "calc_tipo": tipo_taxa}
+                        )
+                        
                         # Converter para pandas para escrita segura via SQLAlchemy
                         # ADICIONADO CHUNKSIZE para evitar deadlocks no MySQL com 1.5M+ linhas
                         df_final.to_pandas().to_sql(

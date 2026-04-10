@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Any, Protocol
+from typing import Dict, List, Tuple, Any, Protocol, Optional
 import pandas as pd
 import numpy as np
 import unicodedata
@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from sqlalchemy.engine import Engine
 from proc.importers.factory import ImporterFactory
+from proc.importers.utils import log_to_debug_file
 
 from conf.funcoesbd import (
     depara_carregar_mapa_completo,
@@ -25,6 +26,7 @@ from conf.funcoesbd import (
     recebiveis_filtrados_bulk_insert,
     recebiveis_remover_duplicadas,
 )
+from conf.debug_utils import PerformanceTimer
 
 
 # Função para processar, filtrar e gravar recebíveis
@@ -2070,7 +2072,12 @@ def safe_read_file(path: str, nrows: Optional[int] = None) -> tuple[pd.DataFrame
 
 
 def _to_datetime_pt(s: pd.Series) -> pd.Series:
-    return pd.to_datetime(s, errors="coerce", dayfirst=True)
+    res = pd.to_datetime(s, errors="coerce", dayfirst=True)
+    if not res.empty:
+        # MySQL datetimes must be between 1000-01-01 and 9999-12-31
+        mask_too_early = res < pd.Timestamp(1000, 1, 1)
+        res[mask_too_early] = pd.NaT
+    return res
 
 
 def _to_float_br(s: pd.Series) -> pd.Series:
@@ -2523,6 +2530,8 @@ def preparar_dataframe_de_arquivo(
     path: str,
     engine: Engine,
     cliente_id: int,
+    ec_id: str = "",
+    usuario: str = "desconhecido",
     contexto: str = "",
     tipo_origem: str = "V",
     progress_callback=None,
@@ -2542,9 +2551,15 @@ def preparar_dataframe_de_arquivo(
         df_final = pd.DataFrame()
         transformacoes = {}
     
-        def update_progress(val):
+        def update_progress(val, message=None):
             if progress_callback:
-                progress_callback(val)
+                if message:
+                    try:
+                        progress_callback(val, message)
+                    except TypeError:
+                        progress_callback(val)
+                else:
+                    progress_callback(val)
     
         def log(msg):
             now = datetime.now().strftime("%H:%M:%S")
@@ -2553,6 +2568,12 @@ def preparar_dataframe_de_arquivo(
     
         update_progress(5)
         log(f"Processando arquivo (1/10): Iniciando leitura robusta do arquivo...")
+        
+        log_to_debug_file(f"\n--- PREPARAR DF AT {datetime.now()} ---")
+        log_to_debug_file(f"Path: {path}")
+        log_to_debug_file(f"Contexto: {contexto}")
+        log_to_debug_file(f"Tipo: {tipo_origem}")
+        
         print(f"[DEBUG][PROCESSAR] 🚀 INICIANDO preparar_dataframe_de_arquivo")
         print(f"[DEBUG][PROCESSAR] - Arquivo: {path}")
         print(f"[DEBUG][PROCESSAR] - Contexto: '{contexto}'")
@@ -2565,15 +2586,16 @@ def preparar_dataframe_de_arquivo(
                 f"[DEBUG][PROCESSAR] - Contexto: '{contexto}' (upper: '{contexto.upper()}')"
             )
             is_multisheet = is_multisheet_rede_file(path)
+            log_to_debug_file(f"IS_MULTISHEET: {is_multisheet}")
             
             # --- TENTATIVA MODULAR (Strategy Pattern) ---
             if not is_multisheet:
-                importer = ImporterFactory.get_importer(engine, path, 0, cliente_id, contexto, usuario, tipo_origem)
+                importer = ImporterFactory.get_importer(engine, path, ec_id, cliente_id, contexto, usuario, tipo_origem)
                 if importer:
                     log(f"Executando motor de importação modular: {importer.__class__.__name__}")
-                    importer.read(path, nrows=nrows)
-                    importer.parse()
-                    importer.normalize()
+                    importer.read(path, nrows=nrows, progress_callback=update_progress)
+                    importer.parse(progress_callback=update_progress)
+                    importer.normalize(progress_callback=update_progress)
                     
                     # Enriquecimento de metadados antes de retornar
                     if importer.df_proc is not None and not importer.df_proc.empty:
@@ -2583,7 +2605,7 @@ def preparar_dataframe_de_arquivo(
                     
                     update_progress(100)
                     # Formato esperado: (df_final, transformacoes, header_row)
-                    return importer.df_proc, getattr(importer, 'transformacoes', {}), importer.header_idx
+                    return importer.df_proc, getattr(importer, 'transformacoes', {}), getattr(importer, 'header_idx', 0)
                 else:
                     raise ValueError("Nenhum motor de importação compatível encontrado para este arquivo.")
     
@@ -2622,19 +2644,12 @@ def preparar_dataframe_de_arquivo(
                         f"[DEBUG][MULTISHEET] Processando planilha {sheet_name}: {len(df_sheet)} linhas"
                     )
     
-                    # Aplicar regras de de/para para esta planilha
-                    print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - Carregando regras de de/para..."
-                    )
-                    print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - Parâmetros: contexto='{contexto}', tipo_origem='{tipo_origem}'"
-                    )
+                    log_to_debug_file(f"[DEBUG][MULTISHEET] {sheet_name} - Carregando regras de de/para...")
+                    log_to_debug_file(f"[DEBUG][MULTISHEET] {sheet_name} - Parâmetros: contexto='{contexto}', tipo_origem='{tipo_origem}'")
                     regras = depara_carregar_mapa_completo(
                         engine, contexto=(contexto or ""), tipo_origem=tipo_origem
                     )
-                    print(
-                        f"[DEBUG][MULTISHEET] {sheet_name} - Total de regras carregadas: {len(regras)}"
-                    )
+                    log_to_debug_file(f"[DEBUG][MULTISHEET] {sheet_name} - Total de regras carregadas: {len(regras)}")
     
                     if df_sheet is not None and not df_sheet.empty:
                         print(
@@ -2656,16 +2671,9 @@ def preparar_dataframe_de_arquivo(
                             df_sheet, regras
                         )
     
-                        print(f"[DEBUG][MULTISHEET] {sheet_name} - DataFrame após de/para:")
-                        print(
-                            f"[DEBUG][MULTISHEET] {sheet_name} - Linhas resultantes: {len(df_sheet_final) if df_sheet_final is not None else 0}"
-                        )
-                        print(
-                            f"[DEBUG][MULTISHEET] {sheet_name} - Colunas resultantes: {list(df_sheet_final.columns) if df_sheet_final is not None else []}"
-                        )
-                        print(
-                            f"[DEBUG][MULTISHEET] {sheet_name} - Transformações: {transformacoes_sheet}"
-                        )
+                        log_to_debug_file(f"[DEBUG][MULTISHEET] {sheet_name} - DataFrame após de/para:")
+                        log_to_debug_file(f"[DEBUG][MULTISHEET] {sheet_name} - Linhas resultantes: {len(df_sheet_final) if df_sheet_final is not None else 0}")
+                        log_to_debug_file(f"[DEBUG][MULTISHEET] {sheet_name} - Colunas resultantes: {list(df_sheet_final.columns) if df_sheet_final is not None else []}")
     
                         if not df_sheet_final.empty:
                             # Adicionar coluna identificadora da planilha
@@ -3018,6 +3026,7 @@ def aplicar_regras_depara(
         print(
             f"[DEBUG][aplicar_regras_depara] Colunas do DataFrame origem: {list(df_origem.columns)}"
         )
+        print(f"[DEBUG][aplicar_regras_depara] DF Origem (primeiras 5 linhas):\n{df_origem.head(5)}")
 
         if not isinstance(regras, list) or (regras and not isinstance(regras[0], dict)):
             raise TypeError("O argumento 'regras' deve ser uma lista de dicts.")
@@ -3184,6 +3193,13 @@ def aplicar_regras_depara(
         # Remover colunas auxiliares
         columns_to_remove = ["Filtrado", "planilha_origem"]
         df_limpo = df_origem.drop(columns=columns_to_remove, errors="ignore")
+        
+        log_to_debug_file(f"\n[APLICAR_REGRAS] Colunas Origem: {list(df_origem.columns)}")
+        log_to_debug_file(f"Regras: {len(regras)} encontradas")
+        if mapeamento:
+            log_to_debug_file(f"Mapeamento criado para: {list(mapeamento.keys())}")
+        else:
+            log_to_debug_file("AVISO: NENHUM MAPEAMENTO CRIADO!")
 
         if not mapeamento:
             print(
@@ -4064,6 +4080,7 @@ def classificar_por_bandeira_e_termos(
     df: pd.DataFrame, engine: Engine, ec_id: str, contexto: str = "padrao"
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     df = df.copy()
+    log_to_debug_file(f"[DEBUG][NORM] Iniciando normalizar_dataframe_vendas com {len(df)} linhas...")
     import unicodedata
 
     def norm(s):
@@ -4103,11 +4120,12 @@ def classificar_por_bandeira_e_termos(
             ]
             if c in df.columns
         ]
-        return (
-            pd.concat([df[c].astype(str) for c in cols], axis=1).agg(" ".join, axis=1)
-            if cols
-            else pd.Series([""] * len(df), index=df.index)
-        )
+        if not cols: return pd.Series("", index=df.index)
+        # Optimized join using direct string concatenation
+        res = df[cols[0]].astype(str).fillna("")
+        for c in cols[1:]:
+            res += " " + df[c].astype(str).fillna("")
+        return res
 
     # Normaliza a coluna Bandeira antes de comparar
     if "Bandeira" in df.columns:
@@ -4122,9 +4140,13 @@ def classificar_por_bandeira_e_termos(
 
     # Normaliza o texto de busca de termos
     if padrao_termos:
+        log_to_debug_file("[DEBUG][NORM] Agregando colunas de texto para busca de termos...")
         texto = _texto(df)
         if not texto.empty:
-            texto_norm = texto.map(norm)
+            log_to_debug_file("[DEBUG][NORM] Aplicando normalização vetorial de texto...")
+            # Vectorized normalization
+            texto_norm = texto.str.normalize("NFKD").str.encode("ascii", errors="ignore").str.decode("ascii").str.upper().str.strip()
+            log_to_debug_file("[DEBUG][NORM] Buscando termos no texto normalizado...")
             mask_termo = texto_norm.str.contains(padrao_termos, na=False)
         else:
             mask_termo = pd.Series(False, index=df.index)
@@ -4132,19 +4154,6 @@ def classificar_por_bandeira_e_termos(
         mask_termo = pd.Series(False, index=df.index)
 
     mask_filtrado = (~mask_bandeira_ok) | mask_termo
-
-    # Adiciona logs de diagnóstico
-    print(f"[DEBUG][FILTROS] Contexto utilizado: {contexto}")
-    print(f"[DEBUG][FILTROS] Bandeiras ativas encontradas: {len(bandeiras_ativas)}")
-    print(f"[DEBUG][FILTROS] Bandeiras ativas: {', '.join(sorted(bandeiras_ativas))}")
-    print(f"[DEBUG][FILTROS] Termos filtráveis encontrados: {len(termos)}")
-    print(f"[DEBUG][FILTROS] Termos filtráveis: {', '.join(sorted(termos))}")
-    print(
-        f"[DEBUG][FILTROS] Linhas filtradas por bandeira inválida: {(~mask_bandeira_ok).sum()}"
-    )
-    print(f"[DEBUG][FILTROS] Linhas filtradas por termos: {mask_termo.sum()}")
-    print(f"[DEBUG][FILTROS] Total de linhas filtradas: {mask_filtrado.sum()}")
-    print(f"[DEBUG][FILTROS] Total de linhas processadas: {(~mask_filtrado).sum()}")
 
     df_filt = df.loc[mask_filtrado].copy()
     df_proc = df.loc[~mask_filtrado].copy()
@@ -4162,105 +4171,104 @@ def classificar_e_gravar_vendas(
     contexto: str,
     usuario: str,
     arquivo_origem: str = "",
-    processamentoid: int = None,
+    processamentoid: str = None,
     progress_callback = None
 ) -> Dict[str, Any]:
-    with PerformanceTimer("RECORD", "Gravação Vendas (Bulk Insert)", {"rows": len(df), "contexto": contexto}):
-        now = datetime.now()
+    print(f"[RECORD][VENDAS] Colunas recebidas no DataFrame: {list(df.columns)}")
+    
+    try:
+        with PerformanceTimer("RECORD", "Gravação Vendas (Bulk Insert)", {"rows": len(df), "contexto": contexto}):
+            now = datetime.now()
+            was_fresh = processamentoid is None
 
-        was_fresh = processamentoid is None
+            if processamentoid is None:
+                processamentoid, _ = processamento_gerar_novo_id(engine, ec_id, now)
+                print(f"[RECORD][VENDAS] Gerado novo ID: {processamentoid}")
+                processamento_salvar(
+                    engine,
+                    ec_id=ec_id,
+                    cliente_id=cliente_id,
+                    id_processamento=processamentoid,
+                    descricao=f"Importação {contexto or '-'} ({arquivo_origem or 'arquivo'})",
+                    data_processamento=now,
+                )
+            else:
+                print(f"[RECORD][VENDAS] Usando processamentoid existente: {processamentoid}")
 
-        if processamentoid is None:
-            processamentoid, _ = processamento_gerar_novo_id(engine, ec_id, now)
-            processamento_salvar(
-                engine,
-                ec_id=ec_id,
-                cliente_id=cliente_id,
-                id_processamento=processamentoid,
-                descricao=f"Importação {contexto or '-'} ({arquivo_origem or 'arquivo'})",
-                data_processamento=now,
-            )
-        else:
-            # Usar processamentoid existente
-            print(f"Usando processamentoid existente: {processamentoid}")
+            # Garantir que df_proc e df_filt comecem definidos
+            df_proc, df_filt = pd.DataFrame(), pd.DataFrame()
 
-        # O DataFrame já foi normalizado pela interface, apenas separa processadas e filtradas se necessário
-        # Se df já tem a coluna 'Filtrado', significa que já foi processado pela interface
-        if "Filtrado" in df.columns:
-            df_proc = df[df["Filtrado"] == 0].copy()  # Processadas
-            df_filt = df[df["Filtrado"] == 1].copy()  # Filtradas
-        else:
-            # Se não tem a coluna Filtrado, ainda precisa normalizar
+            # Se a coluna Filtrado não existe ou se queremos re-checkar (padrão)
+            log_to_debug_file(f"[RECORD][VENDAS] Chamando normalizar_dataframe_vendas para {len(df)} linhas...")
             df_proc, df_filt = normalizar_dataframe_vendas(
-                df, engine=engine, ec_id=ec_id, contexto=contexto, usuario=usuario
+                df, engine=engine, ec_id=ec_id, contexto=contexto
             )
+            log_to_debug_file(f"[RECORD][VENDAS] -> Processar: {len(df_proc)} | Filtradas: {len(df_filt)}")
 
-        for _df in (df_proc, df_filt):
-            _df["arquivo_origem"] = arquivo_origem or ""
-            _df["processamentoid"] = processamentoid
-            _df["cliente_id"] = int(cliente_id)
+            for _df in (df_proc, df_filt):
+                if _df is not None and not _df.empty:
+                    _df["arquivo_origem"] = arquivo_origem or ""
+                    _df["processamentoid"] = processamentoid
+                    _df["cliente_id"] = int(cliente_id)
+                    if "ec_id" not in _df.columns or _df["ec_id"].isna().all():
+                        _df["ec_id"] = str(ec_id)
 
-            # ⚠️ CRÍTICO: Apenas preencher ec_id se não veio do de-para (coluna vazia/ausente)
-            # Se ec_id já existe no DataFrame (via de-para), NÃO sobrescrever!
-            if "ec_id" not in _df.columns or _df["ec_id"].isna().all():
-                _df["ec_id"] = str(ec_id)  # ec_id agora é VARCHAR, não INT
+            # --- DEDUPLICAÇÃO EM MEMÓRIA (PYTHON) ---
+            cols_ignorar = {"id", "data_processamento", "usuario_processamento", "arquivo_origem", "processamentoid"}
+            n_proc, n_filt = len(df_proc), len(df_filt)
 
-        # Removido: lógica de limpeza de valores zerados - mantém todas as vendas
-        # Removido: lógica de vendas_diversas conforme solicitado
+            if n_proc:
+                cols_dedup_proc = [c for c in df_proc.columns if c not in cols_ignorar]
+                len_antes = len(df_proc)
+                df_proc = df_proc.drop_duplicates(subset=cols_dedup_proc).copy()
+                n_proc = len(df_proc)
+                if len_antes > n_proc:
+                    print(f"[DEBUG][DEDUP] Removidas {len_antes - n_proc} duplicadas (Vendas Processadas) em memória.")
+            
+            print(f"[RECORD][VENDAS] Preparado para inserção bulk: {n_proc} linhas")
 
-        # --- DEDUPLICAÇÃO EM MEMÓRIA (PYTHON) ---
-        # Identificar colunas para unicidade (ignorar metadados de inserção)
-        cols_ignorar = {"id", "data_processamento", "usuario_processamento", "arquivo_origem", "processamentoid"}
-        
-        n_proc, n_filt = len(df_proc), len(df_filt)
+            if n_filt:
+                cols_dedup_filt = [c for c in df_filt.columns if c not in cols_ignorar]
+                len_antes = len(df_filt)
+                df_filt = df_filt.drop_duplicates(subset=cols_dedup_filt).copy()
+                n_filt = len(df_filt)
+                if len_antes > n_filt:
+                    print(f"[DEBUG][DEDUP] Removidas {len_antes - n_filt} duplicadas (Vendas Filtradas) em memória.")
 
-        if n_proc:
-            cols_dedup_proc = [c for c in df_proc.columns if c not in cols_ignorar]
-            len_antes = len(df_proc)
-            df_proc = df_proc.drop_duplicates(subset=cols_dedup_proc).copy()
-            n_proc = len(df_proc)
-            if len_antes > n_proc:
-                print(f"[DEBUG][DEDUP] Removidas {len_antes - n_proc} duplicadas (Vendas Processadas) em memória.")
+            # Inserir dados nas respectivas tabelas
+            if n_proc:
+                if progress_callback: progress_callback(70, "Gravando vendas processadas...")
+                log_to_debug_file(f"[RECORD][VENDAS] Chamando bulk_insert para {n_proc} vendas processadas...")
+                vendas_processadas_bulk_insert(engine, df_proc, progress_callback=progress_callback)
+            if n_filt:
+                if progress_callback: progress_callback(85, "Gravando vendas filtradas...")
+                print(f"[RECORD][VENDAS] Gravando {n_filt} vendas filtradas...")
+                vendas_filtradas_bulk_insert(engine, df_filt, progress_callback=progress_callback)
 
-        if n_filt:
-            cols_dedup_filt = [c for c in df_filt.columns if c not in cols_ignorar]
-            len_antes = len(df_filt)
-            df_filt = df_filt.drop_duplicates(subset=cols_dedup_filt).copy()
-            n_filt = len(df_filt)
-            if len_antes > n_filt:
-                print(f"[DEBUG][DEDUP] Removidas {len_antes - n_filt} duplicadas (Vendas Filtradas) em memória.")
+            # Remover duplicadas
+            if n_proc and not was_fresh:
+                if progress_callback: progress_callback(90, "Removendo duplicadas SQL...")
+                vendas_remover_duplicadas(engine, "vendas_processadas", processamentoid, df_proc.columns.tolist())
+            elif n_proc and was_fresh:
+                print(f"[DEBUG][DEDUP] Pulando remoção SQL de duplicadas para fresh import")
+                if progress_callback: progress_callback(95, "Deduplicação concluída.")
 
-        # Inserir dados nas respectivas tabelas
-        if n_proc:
-            if progress_callback: progress_callback(70, "Gravando vendas processadas...")
-            vendas_processadas_bulk_insert(engine, df_proc, progress_callback=progress_callback)
-        if n_filt:
-            if progress_callback: progress_callback(85, "Gravando vendas filtradas...")
-            vendas_filtradas_bulk_insert(engine, df_filt, progress_callback=progress_callback)
+            if n_filt and not was_fresh:
+                vendas_remover_duplicadas(engine, "vendas_filtradas", processamentoid, df_filt.columns.tolist())
 
-        # Remover duplicadas
-        # OTIMIZAÇÃO: Se for uma importação nova (was_fresh=True), a deduplicação em memória feita acima
-        # já é suficiente e muito mais rápida que o self-join no banco de dados.
-        if n_proc and not was_fresh:
-            if progress_callback: progress_callback(90, "Removendo duplicadas (vendas)...")
-            vendas_remover_duplicadas(
-                engine, "vendas_processadas", processamentoid, df_proc.columns.tolist()
-            )
-        elif n_proc and was_fresh:
-            print(f"[DEBUG][DEDUP] Pulando remoção SQL de duplicadas para fresh import (processamentoid: {processamentoid})")
-            if progress_callback: progress_callback(95, "Deduplicação em memória concluída.")
+            print(f"[DEBUG][VENDAS] Processadas: {n_proc}, Filtradas: {n_filt}")
 
-        if n_filt and not was_fresh:
-            vendas_remover_duplicadas(
-                engine, "vendas_filtradas", processamentoid, df_filt.columns.tolist()
-            )
+            return {
+                "processadas": n_proc,
+                "filtradas": n_filt,
+                "diversas": 0,
+                "total": n_proc + n_filt,
+                "processamentoid": processamentoid,
+            }
 
-        print(f"[DEBUG][VENDAS] Processadas: {n_proc}, Filtradas: {n_filt}")
-
-        return {
-            "processadas": n_proc,
-            "filtradas": n_filt,
-            "diversas": 0,  # Mantido para compatibilidade com interface
-            "total": n_proc + n_filt,
-            "processamentoid": processamentoid,
-        }
+    except Exception as e:
+        print(f"\n[RECORD][VENDAS] !!! ERRO FATAL NA GRAVAÇÃO !!!")
+        print(f"Erro: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise e

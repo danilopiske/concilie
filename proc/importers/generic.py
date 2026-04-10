@@ -15,9 +15,9 @@ class GenericDeParaImporter(BaseImporter):
         """
         return 1 # Baseline score
     
-    def normalize(self):
+    def normalize(self, progress_callback=None):
         """Applies basic normalization after De-Para mapping."""
-        super().normalize()
+        super().normalize(progress_callback)
         if self.df_proc is not None and not self.df_proc.empty:
             # Add any universal normalization steps here if needed
             pass

@@ -4,7 +4,7 @@ from .rede import RedeImporter
 from .stone import StoneImporter
 from .generic import GenericDeParaImporter
 from .utils import log_with_time, safe_read_file
-import pandas as pd
+import os
 from typing import Optional, List, Type
 
 class ImporterFactory:
@@ -24,6 +24,7 @@ class ImporterFactory:
         try:
             # We only need a small chunk for detection
             df_head, _, _ = safe_read_file(path, nrows=100)
+            log_with_time(f"[DEBUG][FACTORY] Arquivo: {os.path.basename(path)} - Colunas lidas: {list(df_head.columns)[:10]}...", "DEBUG")
         except Exception as e:
             log_with_time(f"Erro ao ler cabeçalho para detecção: {str(e)}", "ERROR")
             return None
@@ -36,12 +37,11 @@ class ImporterFactory:
                 best_match = (score, importer_cls)
 
         if best_match[1]:
-            # If it's a specialized importer, we want a high score (10+)
-            # If it's the Generic fallback, we accept any score > 0
+            # Reduced threshold from 10 to 3 to be more flexible with header variations
             is_generic = best_match[1] == GenericDeParaImporter
-            if best_match[0] >= 10 or is_generic:
+            if best_match[0] >= 3 or is_generic:
                 log_with_time(f"Layout detectado: {best_match[1].__name__} (score: {best_match[0]})", "SUCCESS")
                 return best_match[1](engine, ec_id, cliente_id, contexto, usuario, tipo_arquivo)
         
-        log_with_time("Nenhum layout compatível detectado.", "WARNING")
+        log_with_time(f"Nenhum layout compatível detectado para {os.path.basename(path)}.", "WARNING")
         return None

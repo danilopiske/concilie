@@ -52,6 +52,7 @@ class BaseImporter:
             
             self.log(f"Aplicando {len(regras)} regras de De-Para...")
             if progress_callback: progress_callback(50, "Mapeando colunas...")
+            print(f"[DEBUG][BASE_IMPORTER] Realizando mapeamento... df_raw shape: {self.df_raw.shape}")
             self.df_proc, self.transformacoes = aplicar_regras_depara(self.df_raw, regras)
             self.log(f"Mapeamento concluído. {len(self.df_proc)} linhas resultantes.")
             if progress_callback: progress_callback(70, "Mapeamento concluído.")
@@ -63,9 +64,29 @@ class BaseImporter:
     def normalize(self, progress_callback=None):
         """Standardizes data types and values."""
         if progress_callback: progress_callback(80, "Normalizando dados...")
+        
         if self.df_proc is not None and not self.df_proc.empty:
-            if "Filtrado" not in self.df_proc.columns:
-                self.df_proc["Filtrado"] = 0
+            from .utils import _to_datetime_pt, _to_float_br
+
+            # Normalização básica de colunas padrão (se existirem) - Vendas, Recebíveis e Lançamentos
+            date_cols = [
+                "Data_da_venda", "Data_pagamento", "Data_da_autorização_da_venda", "Previsão_de_pagamento",
+                "Data_da_venda_original", "Data_limite_pagamento", "Data_vcto", "Data_prevista", "Data_efetiva",
+                "Data_transação", "Data_ajuste", "Data_antecipação"
+            ]
+            for col in date_cols:
+                if col in self.df_proc.columns:
+                    self.df_proc[col] = _to_datetime_pt(self.df_proc[col])
+
+            # Valores numéricos (Financeiro)
+            cols_dinheiro = [
+                "Valor_da_venda", "Valor_liquido", "Valor_recebivel", "Taxas_Perc", "Valor_bruto",
+                "Valor_taxa", "Valor_antecipação", "Valor_parcela", "Valor_ajuste", "Valor_fatura"
+            ]
+            for col in cols_dinheiro:
+                if col in self.df_proc.columns:
+                    self.df_proc[col] = _to_float_br(self.df_proc[col])
+
                 
         if progress_callback: progress_callback(90, "Normalização concluída.")
 
@@ -122,6 +143,11 @@ class BaseImporter:
 
             # 2. Bulk Insert
             if progress_callback: progress_callback(97, "Gravando no banco de dados...")
+            print(f"[DEBUG][BASE_IMPORTER] Colunas preparadas para gravação: {list(self.df_proc.columns)}")
+            print(f"[DEBUG][BASE_IMPORTER] Tipos de dados:\n{self.df_proc.dtypes}")
+            if not self.df_proc.empty:
+                print(f"[DEBUG][BASE_IMPORTER] Primeira linha (processada):\n{self.df_proc.iloc[0].to_dict()}")
+            
             if self.tipo_arquivo == "V":
                 if not self.df_proc.empty:
                     vendas_processadas_bulk_insert(self.engine, self.df_proc)
