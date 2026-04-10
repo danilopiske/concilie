@@ -329,3 +329,25 @@ apps/api/relatorios_cache/abusividade/
 
 # Cartas de contestação geradas
 apps/api/contestacoes/
+
+# ==================
+# Caches e Artefatos de Teste
+# ==================
+# Cache de parquet (dados gerados em runtime)
+apps/api/parquet_cache/
+
+# Cache de relatórios gerados
+apps/api/relatorios_cache/
+
+# Playwright — artefatos de teste
+.playwright-mcp/
+apps/web/playwright-report/
+apps/web/test-results/
+
+# Screenshots de referência (geradas em runtime)
+screenshots/
+
+# Scripts de diagnóstico avulsos
+apps/api/read_headers.py
+apps/api/simulate_import.py
+apps/web/functional_review.js
