@@ -42,10 +42,26 @@ class TestValidarExtratos:
         assert extrato.processamento_id == processamento.id
         assert result["atualizados"] == 1
 
-    def test_match_substring_importado(self):
-        """Extrato cujo nome está contido no nome do processamento deve ficar 'importado'."""
+    def test_sem_falso_positivo_substring(self):
+        """Extrato 'jan.xlsx' NÃO deve match 'vendas_jan.xlsx' (substring parcial)."""
         extrato = _make_extrato("jan.xlsx")
         processamento = _make_processamento("uploads/vendas_jan.xlsx", tipo_arquivo="Venda")
+
+        db = MagicMock()
+        db.query.return_value.filter.return_value.all.side_effect = [
+            [extrato],
+            [processamento],
+        ]
+
+        result = validar_extratos(cliente_id=1, db=db)
+
+        assert extrato.status == "aguardando"  # não deve match por substring
+        assert result["atualizados"] == 0
+
+    def test_match_basename_em_subdir(self):
+        """Extrato 'jan.xlsx' deve match processamento em subdir 'uploads/jan.xlsx'."""
+        extrato = _make_extrato("jan.xlsx")
+        processamento = _make_processamento("uploads/jan.xlsx", tipo_arquivo="Venda")
 
         db = MagicMock()
         db.query.return_value.filter.return_value.all.side_effect = [
