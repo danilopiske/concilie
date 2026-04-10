@@ -1145,8 +1145,19 @@ def vendas_processadas_bulk_insert(engine: Engine, df, progress_callback=None) -
 
     from sqlalchemy import inspect
     inspector = inspect(engine)
-    valid_cols = [c["name"] for c in inspector.get_columns("vendas_processadas")]
-    df = df[[c for c in df.columns if c in valid_cols]]
+    db_cols = inspector.get_columns("vendas_processadas")
+    valid_cols_map = {c["name"].lower(): c["name"] for c in db_cols}
+    
+    new_cols = {}
+    for col in df.columns:
+        if col.lower() in valid_cols_map:
+            new_cols[col] = valid_cols_map[col.lower()]
+            
+    df = df.rename(columns=new_cols)
+    actual_db_names = [v["name"] for v in db_cols]
+    df = df[[c for c in df.columns if c in actual_db_names]]
+    
+    print(f"[DEBUG][BULK_INSERT] Inserindo {len(df)} linhas com colunas: {list(df.columns)}")
 
     total_rows = len(df)
     inserted = 0
@@ -1160,6 +1171,7 @@ def vendas_processadas_bulk_insert(engine: Engine, df, progress_callback=None) -
             index=False,
             if_exists="append",
             chunksize=chunksize,
+            method="multi", # Optimization for bulk insert
             dtype=dtype_map if dtype_map else None,
         )
         inserted += len(chunk)
@@ -1197,8 +1209,17 @@ def vendas_filtradas_bulk_insert(engine: Engine, df, progress_callback=None) -> 
 
     from sqlalchemy import inspect
     inspector = inspect(engine)
-    valid_cols = [c["name"] for c in inspector.get_columns("vendas_filtradas")]
-    df = df[[c for c in df.columns if c in valid_cols]]
+    db_cols = inspector.get_columns("vendas_filtradas")
+    valid_cols_map = {c["name"].lower(): c["name"] for c in db_cols}
+    
+    new_cols = {}
+    for col in df.columns:
+        if col.lower() in valid_cols_map:
+            new_cols[col] = valid_cols_map[col.lower()]
+            
+    df = df.rename(columns=new_cols)
+    actual_db_names = [v["name"] for v in db_cols]
+    df = df[[c for c in df.columns if c in actual_db_names]]
 
     total_rows = len(df)
     inserted = 0

@@ -1,11 +1,41 @@
 services:
+  # --- API (FastAPI) ---
   api:
     build:
-      context: apps/api
-    ports:
-      - "8000:8000"
-    env_file:
-      - apps/api/.env
-    volumes:
-      - ./data:/data  # SQLite database persistido no host
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: financial-api
     restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./temp_uploads:/app/temp_uploads
+    networks:
+      - financial-network
+
+  # --- WEB (Next.js + Nginx) ---
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: financial-web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - financial-network
+
+  # --- REDIS (Cache / Fila) ---
+  redis:
+    image: redis:7-alpine
+    container_name: financial-redis
+    restart: unless-stopped
+    networks:
+      - financial-network
+
+networks:
+  financial-network:
+    driver: bridge

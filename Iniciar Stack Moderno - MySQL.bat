@@ -86,7 +86,7 @@ timeout /t 2 /nobreak >nul
 
 echo.
 echo [>] Iniciando Backend...
-start "Financial - Backend (MySQL)" cmd /k "cd /d \"%~dp0apps\api\" && set PYTHONOPTIMIZE=1 && poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --reload-dir app"
+start "Financial - Backend (MySQL)" cmd /k "cd /d \"%~dp0apps\api\" && set PYTHONOPTIMIZE=1 && poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --reload-dir app --reload-dir ../../modules --reload-dir ../../templates"
 
 echo [>] Aguardando 3 segundos...
 timeout /t 3 /nobreak >nul

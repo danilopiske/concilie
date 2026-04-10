@@ -96,13 +96,13 @@ schema_differences.json
 data/*.csv
 arquivos_processados/*.csv
 
-# Relatórios gerados (exceto templates)
+# Relatórios gerados (exceto templates que agora estão em /templates)
 relatorios/*.html
-!relatorios/template_relatorio.html
-!relatorios/template_relatorio_mensal.html
-!relatorios/template_relatorio_sintetico.html
-!relatorios/template_relatorio_sem_capa.html
-!relatorios/template_relatorio_mensal_sem_capa.html
+!relatorios/.gitkeep
+
+# Pasta de templates (rastrear todos os templates)
+templates/*.html
+!templates/.gitkeep
 relatorios/*.png
 relatorios/*.pdf
 
@@ -265,7 +265,7 @@ backup/
 !CHANGELOG.md
 
 # Templates
-!relatorios/template_relatorio.html
+!templates/*.html
 
 # Exceptions
 !apps/web/src/lib/
