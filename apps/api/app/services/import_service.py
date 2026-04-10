@@ -119,6 +119,19 @@ class ImportService:
             df_norm = pd.concat(all_dfs, ignore_index=True)
             total_lines_preview = len(df_norm)
 
+            if total_lines_preview == 0:
+                print(f"\n[IMPORT_SERVICE] PREVIEW EMPTY for {original_names} | Context: {contexto}")
+                
+                logger.warning(f"Nenhuma linha mapeada no preview para {len(original_names)} arquivos no contexto {contexto}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Nenhuma linha foi mapeada nos {len(original_names)} arquivos analisados. "
+                        f"Isso ocorre geralmente quando o Layout ({contexto}) não possui regras de De-Para ativas "
+                        "ou as colunas do arquivo não coincidem com as regras. Verifique as configurações."
+                    )
+                )
+
             # 4. Prepare Preview Data (First 50 rows)
             preview_data = df_norm.head(50).fillna("").astype(str).to_dict(orient="records")
 
@@ -135,9 +148,7 @@ class ImportService:
             }
 
         except Exception as e:
-            # ORIGINAL ERROR LOGGING
-            logger.error("ERROR in preview_upload: %s", e)
-            traceback.print_exc()
+            logger.exception("ERROR in preview_upload: %s", e)
 
             # Cleanup on error
             if batch_dir.exists():
@@ -153,8 +164,14 @@ class ImportService:
     def _process_single_file(self, path: Path, cliente_id: int, ec_id: str, contexto: str, tipo: str, usuario: str, row_limit: Optional[int] = None) -> pd.DataFrame:
         """Helper to process a single file and return its normalized DF"""
         engine = self.db.get_bind()
-        def progress_cb(val): pass
-        def log_cb(msg): pass
+        def progress_cb(val, message=None):
+            logger.debug(f"[IMPORT_SERVICE_CB] Progress: {val}% - {message}")
+            pass
+        
+        def log_cb(msg): 
+            print(f"[IMPORT_SERVICE_CB] {msg}")
+            
+        logger.info(f"[IMPORT_SERVICE] Chamando preparar_dataframe_de_arquivo para {path.name}")
 
         df_mapeado, transf, idx = preparar_dataframe_de_arquivo(
             path=str(path),
@@ -238,8 +255,6 @@ class ImportService:
                     path=str(file_path),
                     engine=engine,
                     cliente_id=cliente_id,
-                    ec_id=ec_id,
-                    usuario=usuario,
                     contexto=contexto,
                     tipo_origem=tipo,
                     progress_callback=progress_cb,
@@ -373,7 +388,13 @@ class ImportService:
                     task.progress = min(scaled_progress, 99)
                     if message:
                         task.message = message
-                    db.commit()
+                    try:
+                        logger.debug(f"[ASYNC] Atualizando progresso no DB: {task.progress}% - {task.message}")
+                        db.commit()
+                        logger.debug("[ASYNC] Progresso atualizado.")
+                    except Exception as e_commit:
+                        db.rollback()
+                        logger.error(f"[ASYNC] Erro ao commitar progresso: {e_commit}")
 
                 # RUN HEAVY SYNC WORK IN THREADPOOL
                 # This is CRITICAL to keep the FastAPI event loop free for other requests (like Status)

@@ -3,6 +3,7 @@ import { apiClient } from './client';
 export interface SistemaStatus {
   api: string;
   database: string;
+  db_engine: string;
   metricas: {
     total_clientes: number;
     total_importacoes: number;

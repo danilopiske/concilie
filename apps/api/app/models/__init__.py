@@ -16,6 +16,7 @@ from app.models.import_task import ImportTask
 from app.models.log import LogCorrecao
 from app.models.notificacao import Notificacao
 from app.models.recebiveis import Recebivel, RecebivelFiltrado
+from app.models.modelo_relatorio import ModeloRelatorio
 from app.models.relatorio_tag import RelatorioTag
 from app.models.relatorio_task import RelatorioTask
 from app.models.taxa import Taxa
@@ -55,6 +56,7 @@ __all__ = [
     "ImportTask",
     "CalculoTask",
     "RelatorioTask",
+    "ModeloRelatorio",
     "RelatorioTag",
     "ExtratoCliente",
     "AlertaConfig",

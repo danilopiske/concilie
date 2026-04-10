@@ -79,7 +79,7 @@ export default function BandeirasPage() {
       width: '100px',
       render: (_, bandeira) => (
         <Button
-          variant="text"
+          variant="danger"
           size="sm"
           onClick={() => handleDeleteClick(bandeira)}
         >

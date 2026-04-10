@@ -12,6 +12,7 @@ import {
   DashboardResumo,
   dashboardApi,
 } from '@/lib/api/dashboard';
+import { sistemaApi, type SistemaStatus } from '@/lib/api/sistema';
 
 const PERIODOS = [
   { label: '7 dias', value: 7 },
@@ -23,6 +24,7 @@ export default function DashboardPage() {
   const [resumo, setResumo] = useState<DashboardResumo | null>(null);
   const [atividade, setAtividade] = useState<AtividadeRecenteResponse | null>(null);
   const [atividadeSemanal, setAtividadeSemanal] = useState<AtividadeSemanalResponse | null>(null);
+  const [sistemaStatus, setSistemaStatus] = useState<SistemaStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [periodo, setPeriodo] = useState(30);
@@ -31,14 +33,16 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const [r, a, s] = await Promise.all([
+      const [r, a, s, st] = await Promise.all([
         dashboardApi.getResumo(p),
         dashboardApi.getAtividadeRecente(),
         dashboardApi.getAtividadeSemanal(),
+        sistemaApi.getStatus(),
       ]);
       setResumo(r);
       setAtividade(a);
       setAtividadeSemanal(s);
+      setSistemaStatus(st);
     } catch {
       setError('Erro ao carregar dados do dashboard.');
     } finally {
@@ -58,6 +62,15 @@ export default function DashboardPage() {
     <div className="max-w-7xl mx-auto pb-10 space-y-6">
       {/* KPIs Executivos */}
       <KpiPanel />
+
+      {/* Status do Banco */}
+      {sistemaStatus && (
+        <div className="flex items-center gap-2 text-xs text-gray-500 -mt-2">
+          <span className={`w-2 h-2 rounded-full ${sistemaStatus.database === 'ok' ? 'bg-green-500' : 'bg-red-500'}`} />
+          <span className="font-medium uppercase text-gray-600">{sistemaStatus.db_engine}</span>
+          <span>{sistemaStatus.database === 'ok' ? 'online' : 'offline'}</span>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between border-b pb-4">

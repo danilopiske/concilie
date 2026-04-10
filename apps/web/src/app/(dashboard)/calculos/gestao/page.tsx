@@ -160,10 +160,9 @@ export default function GestaoCalculosPage() {
                                           >
                                               <Search className="w-4 h-4" />
                                           </Button>
-                                          <Button 
-                                            variant="secondary" 
+                                          <Button
+                                            variant="danger"
                                             size="sm"
-                                            className="text-red-600 hover:text-red-800"
                                             onClick={() => handleDelete(item.calc_id)}
                                             title="Excluir cálculo"
                                           >

@@ -105,7 +105,7 @@ export const calculoApi = {
   },
 
   deleteCalculo: async (calcId: string): Promise<void> => {
-    await apiClient.delete(`calculos/${calcId}`);
+    await apiClient.delete(`calculos/deletar/${calcId}`);
   },
 
   analisePeriodos: async (processamentoId: string, threshold = 0.5): Promise<AnalisePeriodosResponse> => {

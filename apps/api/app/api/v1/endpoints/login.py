@@ -88,7 +88,12 @@ def login_access_token(
     except Exception:
         pass
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "id": user.id,
+        "username": user.usuario
+    }
 
 
 @router.post("/logout")

@@ -31,7 +31,13 @@ def _resolve_token(request: Request, bearer: Optional[str]) -> str:
         logger.info("Token encontrado no Cookie 'access_token'")
         return cookie
 
-    logger.warning("Token não encontrado no header nem no cookie")
+    # Suporte para download direto via link (token na query string)
+    token_query = request.query_params.get("token")
+    if token_query:
+        logger.info("Token encontrado na Query String")
+        return token_query
+
+    logger.warning("Token não encontrado no header, cookie ou query string")
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
 
@@ -84,10 +90,10 @@ def get_current_user(
 
 
 def get_user_perfil(user: Usuario) -> str:
-    """Retorna o perfil do usuário (default 'admin' para retrocompatibilidade)."""
+    """Retorna o perfil do usuário (default 'visualizador' por segurança)."""
     if user.permissao:
         return user.permissao.perfil
-    return "admin"
+    return "visualizador"
 
 
 def require_role(roles: List[str]):

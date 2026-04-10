@@ -17,6 +17,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -27,8 +28,10 @@ export default function DashboardLayout({
     }
   }, [user, loading, router]);
 
-  // Sincronizar estado do sidebar (ouvir mudanças no localStorage)
+  // Sincronizar estado do sidebar e marcar como montado
   useEffect(() => {
+    setMounted(true);
+    
     const handleStorageChange = () => {
       const saved = localStorage.getItem('sidebar-collapsed');
       if (saved !== null) {
@@ -45,7 +48,7 @@ export default function DashboardLayout({
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  if (loading) {
+  if (loading || !mounted) {
       return (
           <div className="min-h-screen flex items-center justify-center bg-gray-50">
               <Loading />

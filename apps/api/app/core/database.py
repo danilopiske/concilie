@@ -34,20 +34,26 @@ def get_database_url() -> str:
 # Create engine with tuned pool performance
 db_url = get_database_url()
 db_type = settings.DATABASE_TYPE
-p_size = 20 if db_type == "mysql" else 5
-m_overflow = 10 if db_type == "mysql" else 10
+is_mysql = db_type == "mysql"
+
+# Configurações de pool (apenas para MySQL)
+engine_kwargs = {
+    "pool_pre_ping": True,
+    "pool_recycle": 3600,
+    "echo": settings.DEBUG_SQL if hasattr(settings, "DEBUG_SQL") else False,
+}
+
+if is_mysql:
+    engine_kwargs["pool_size"] = 20
+    engine_kwargs["max_overflow"] = 10
+else:
+    # SQLite usa NullPool ou StaticPool por padrão, pool_size pode dar erro
+    pass
 
 db_logger = logging.getLogger(__name__)
-db_logger.info(f"Database: {db_type} | pool_size={p_size}")
+db_logger.info(f"Database: {db_type} | is_mysql={is_mysql}")
 
-engine = create_engine(
-    db_url,
-    pool_pre_ping=True,
-    pool_size=p_size,
-    max_overflow=m_overflow,
-    pool_recycle=3600,
-    echo=settings.DEBUG_SQL if hasattr(settings, "DEBUG_SQL") else False,
-)
+engine = create_engine(db_url, **engine_kwargs)
 
 # SQLite optimization: WAL mode (Write-Ahead Logging)
 @event.listens_for(engine, "connect")
@@ -70,7 +76,11 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception as e:
+            # Conexão pode ter caído durante operações longas (WinError 10053, Lost connection)
+            db_logger.warning(f"Erro ao fechar sessão DB (conexão possivelmente encerrada): {e}")
 
 
 def init_db():

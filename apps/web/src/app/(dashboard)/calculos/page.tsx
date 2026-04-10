@@ -291,7 +291,8 @@ export default function CalculosToolPage() {
                     variant="secondary"
                     className="w-48"
                   >
-                    {!loadingAnalise && <><Activity className="w-4 h-4 mr-2" /> Analisar Períodos</>}
+                    <Activity className="w-4 h-4 mr-2" /> 
+                    {loadingAnalise ? 'Analisando...' : 'Analisar Períodos'}
                   </Button>
 
                   <Button
@@ -301,7 +302,8 @@ export default function CalculosToolPage() {
                     variant="secondary"
                     className="w-40"
                   >
-                    {!loadingPreview && <><Search className="w-4 h-4 mr-2" /> Preview</>}
+                    <Search className="w-4 h-4 mr-2" /> 
+                    {loadingPreview ? 'Carregando...' : 'Preview'}
                   </Button>
 
                    <Button
@@ -311,7 +313,8 @@ export default function CalculosToolPage() {
                     variant="primary"
                     className="w-48"
                   >
-                    {!loadingAsync && <><Play className="w-4 h-4 mr-2" /> Calcular Taxas</>}
+                    <Play className="w-4 h-4 mr-2" /> 
+                    {loadingAsync ? 'Processando...' : 'Calcular Taxas'}
                   </Button>
               </div>
 

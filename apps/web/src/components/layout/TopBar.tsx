@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CircleCheck, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { NotificacaoBell } from './NotificacaoBell';
 
 interface NavItem {
   label: string;
@@ -79,6 +80,7 @@ export function TopBar() {
 
           {/* User Info + Logout */}
           <div className="flex items-center gap-4">
+            <NotificacaoBell />
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <p className="text-sm font-medium text-white">{user?.usuario || 'Admin'}</p>

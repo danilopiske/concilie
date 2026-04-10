@@ -29,18 +29,16 @@ from app.services.reconciliation_core import ReconciliationCore
 
 router = APIRouter()
 
-@router.get("/analise-periodos/{processamento_id}", response_model=AnalisePeriodosResponse)
+@router.get("/analise-periodos/{processamento_id:path}", response_model=AnalisePeriodosResponse)
 def analise_periodos(
     processamento_id: str,
-    threshold: float = Query(0.5, ge=0.0, le=1.0, description="Percentual mínimo da mediana para classificar como 'reduzido'"),
+    threshold: float = Query(0.5, ge=0.0, le=1.0),
     db: Session = Depends(get_db),
 ):
-    """
-    Analisa a distribuição de transações por período (mês) para um processamento.
-    Detecta meses ausentes ou com volume reduzido de transações.
-    """
+    print(f"DEBUG: analise_periodos for {processamento_id} (threshold={threshold})")
     repo = CalculoRepository(db)
     return repo.analisar_periodos(processamento_id, threshold)
+
 
 
 @router.post("/preview", response_model=CalculoStats)
@@ -487,7 +485,7 @@ def export_calculo_excel(calc_id: str, db: Session = Depends(get_db)):
     )
 
 
-@router.delete("/{calc_id:path}")
+@router.delete("/deletar/{calc_id:path}")
 async def delete_calculo(
     calc_id: str,
     db: Session = Depends(get_db)

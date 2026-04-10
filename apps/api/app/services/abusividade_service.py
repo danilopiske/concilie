@@ -44,8 +44,22 @@ class AbusividadeService:
         # Enriquecer com desvio contratual se disponível
         _cid = cliente_id
         if _cid is None:
-            proc = self.db.query(Processamento).filter(Processamento.id == int(processamento_id)).first()
-            _cid = proc.cliente_id if proc else None
+            try:
+                # Se for um ID numérico, busca no banco
+                p_id_str = str(processamento_id)
+                if p_id_str.isdigit():
+                    proc = self.db.query(Processamento).get(int(p_id_str))
+                else:
+                    # Muitos calc_ids começam com o ID do processamento (ex: 123_anual...)
+                    first_part = p_id_str.split('_')[0]
+                    if first_part.isdigit():
+                        proc = self.db.query(Processamento).get(int(first_part))
+                    else:
+                        proc = None
+                
+                _cid = proc.cliente_id if proc else None
+            except Exception:
+                _cid = None
 
         if _cid:
             try:

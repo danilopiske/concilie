@@ -27,9 +27,8 @@ export function useAuth() {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       });
 
-      // Cookie HttpOnly é setado automaticamente pelo backend
-      // Armazena apenas dados de exibição (sem token sensível)
-      const userData = { id: 0, usuario };
+      const { id, username } = response.data;
+      const userData = { id: id || 0, usuario: username || usuario };
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
       

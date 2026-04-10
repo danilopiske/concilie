@@ -20,6 +20,8 @@ async def upload_arquivo_preview(
     usuario: str = Form("api_user"),
     db: Session = Depends(get_db)
 ):
+    # Debug log to console
+    print(f"\n[ENDPOINT] /upload | Context: '{contexto}' | EC: {ec_id} | Tipo: {tipo}")
     """
     Passo 1: Upload e Preview
     - Salva arquivo temporário

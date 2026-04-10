@@ -105,14 +105,14 @@ export default function ContextosPage() {
       render: (_, contexto) => (
         <div className="flex gap-2">
           <Button
-            variant="text"
+            variant="secondary"
             size="sm"
             onClick={() => handleEditContexto(contexto)}
           >
             Editar
           </Button>
           <Button
-            variant="text"
+            variant="danger"
             size="sm"
             onClick={() => handleDeleteClick(contexto)}
           >

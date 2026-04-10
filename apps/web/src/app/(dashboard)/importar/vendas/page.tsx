@@ -184,6 +184,12 @@ export default function ImportarVendasPage() {
       setFileId(response.file_id);
       setUploadResult(response);
       
+      if (response.total_rows_preview === 0) {
+        setError(`Atenção: Os arquivos foram lidos (${response.total_files}), mas nenhuma linha foi mapeada. Verifique se o Layout '${layout}' possui regras de De-Para ativas.`);
+        setSuccess(null);
+        return;
+      }
+
       if (response.is_partial) {
         setSuccess(`Preview do lote: Sorteados ${response.files_in_preview} de ${response.total_files} arquivos para amostra (~${response.total_rows_preview} linhas). Ao clicar em "Gravar", os arquivos originais inteiros serão processados.`);
       } else {
@@ -265,11 +271,11 @@ export default function ImportarVendasPage() {
             </Alert>
           )}
 
-          {success && !task && (
+          {(success || task?.status === 'SUCCESS') && (
             <Alert variant="success">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-                <span>{success}</span>
+                <span>{success || task?.message || 'Importação concluída com sucesso!'}</span>
               </div>
             </Alert>
           )}

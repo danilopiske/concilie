@@ -99,11 +99,11 @@ export default function DeParaPage() {
       label: 'Ações',
       render: (_, row) => (
         <div className="flex gap-2">
-            <Button size="sm" variant="text" onClick={() => handleOpenModal(row)}>
-            ✏️ Editar
+            <Button size="sm" variant="secondary" onClick={() => handleOpenModal(row)}>
+              Editar
             </Button>
-            <Button size="sm" variant="text" className="text-red-600" onClick={() => handleDelete(row.id)}>
-            🗑️ Excluir
+            <Button size="sm" variant="danger" onClick={() => handleDelete(row.id)}>
+              Excluir
             </Button>
         </div>
       )

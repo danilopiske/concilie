@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     # Auth
     SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production-only-for-local")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080
 
     # AI
     OPENAI_API_KEY: str = ""

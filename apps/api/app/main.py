@@ -71,9 +71,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    logger.debug("[IN]  [%s] %s", request.method, request.url.path)
+    logger.info("[IN]  [%s] %s", request.method, request.url.path)
     response = await call_next(request)
-    logger.debug("[OUT] [%s] %s", response.status_code, request.url.path)
+    logger.info("[OUT] [%s] %s", response.status_code, request.url.path)
     return response
 
 
@@ -126,3 +126,4 @@ async def debug_database_info(_: str = Depends(get_current_user)):
             settings.DEBUG_SQL if hasattr(settings, "DEBUG_SQL") else False
         ),
     }
+# Force reload 19:59

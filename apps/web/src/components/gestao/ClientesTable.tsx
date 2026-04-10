@@ -70,7 +70,7 @@ export function ClientesTable({ clientes, onEdit, onDelete, onViewECs }: Cliente
           </Button>
           <Button
             size="sm"
-            variant="primary"
+            variant="secondary"
             onClick={() => onEdit(cliente)}
           >
             Editar
