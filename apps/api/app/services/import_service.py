@@ -120,8 +120,6 @@ class ImportService:
             total_lines_preview = len(df_norm)
 
             if total_lines_preview == 0:
-                print(f"\n[IMPORT_SERVICE] PREVIEW EMPTY for {original_names} | Context: {contexto}")
-                
                 logger.warning(f"Nenhuma linha mapeada no preview para {len(original_names)} arquivos no contexto {contexto}")
                 raise HTTPException(
                     status_code=400,
@@ -168,8 +166,8 @@ class ImportService:
             logger.debug(f"[IMPORT_SERVICE_CB] Progress: {val}% - {message}")
             pass
         
-        def log_cb(msg): 
-            print(f"[IMPORT_SERVICE_CB] {msg}")
+        def log_cb(msg):
+            logger.info(f"[IMPORT_SERVICE_CB] {msg}")
             
         logger.info(f"[IMPORT_SERVICE] Chamando preparar_dataframe_de_arquivo para {path.name}")
 
