@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DECIMAL, BigInteger, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import DECIMAL, BigInteger, Column, DateTime, ForeignKey, Integer, String, Text
 
 from app.models.base import Base
 
@@ -31,6 +31,7 @@ class Venda(Base):
     adquirente = Column("Adquirente", String(100))
 
     data_processamento = Column(DateTime, default=datetime.now)
+    arquivo_origem = Column(Text)
 
 class VendaFiltrada(Base):
     __tablename__ = "vendas_filtradas"
@@ -48,8 +49,8 @@ class VendaFiltrada(Base):
     valor_liquido = Column("Valor_líquido_da_venda", DECIMAL(18, 2))
 
     # Dados do Cartão
-    nsu = Column("NSU", String(100))
-    autorizacao = Column("Código_de_autorização", String(100))
+    nsu = Column("NSU", Text)
+    autorizacao = Column("Código_de_autorização", Text)
     bandeira = Column("Bandeira", String(100))
     forma_pagamento = Column("Forma_de_pagamento", String(100))
 
@@ -58,3 +59,4 @@ class VendaFiltrada(Base):
     adquirente = Column("Adquirente", String(100))
 
     data_processamento = Column(DateTime, default=datetime.now)
+    arquivo_origem = Column(Text)

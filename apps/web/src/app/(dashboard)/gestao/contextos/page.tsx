@@ -1,8 +1,3 @@
-/**
- * Página de Gestão de Contextos
- * Migrado de modules/ui_gestao.py - tela de contextos
- * Refatorado para seguir UI Design System
- */
 'use client';
 
 import { useState } from 'react';
@@ -23,6 +18,29 @@ export default function ContextosPage() {
   const [confirmDelete, setConfirmDelete] = useState<Contexto | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Seleção em massa
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkToggling, setBulkToggling] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+
+  const allSelected = contextos.length > 0 && selectedIds.size === contextos.length;
+  const someSelected = selectedIds.size > 0;
+
+  const toggleSelectAll = () => {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(contextos.map(c => c.id)));
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleNovoContexto = () => {
     setSelectedContexto(null);
     setIsFormModalOpen(true);
@@ -40,31 +58,70 @@ export default function ContextosPage() {
 
   const handleConfirmDelete = async () => {
     if (!confirmDelete) return;
-
     try {
       setDeleting(true);
       setDeleteError(null);
       await gestaoApi.contextos.deletar(confirmDelete.id);
       setConfirmDelete(null);
+      setSelectedIds(prev => { const n = new Set(prev); n.delete(confirmDelete.id); return n; });
       refetch();
     } catch (err: unknown) {
       setDeleteError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao excluir contexto');
-      console.error(err);
     } finally {
       setDeleting(false);
     }
   };
 
-  const handleSaved = () => {
-    refetch();
+  const handleBulkDelete = async () => {
+    try {
+      setBulkDeleting(true);
+      setDeleteError(null);
+      await Promise.all([...selectedIds].map(id => gestaoApi.contextos.deletar(id)));
+      setSelectedIds(new Set());
+      setConfirmBulkDelete(false);
+      refetch();
+    } catch (err: unknown) {
+      setDeleteError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao excluir contextos');
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
-  // Definição das colunas da tabela
+  const handleBulkToggleAtivo = async (ativo: boolean) => {
+    try {
+      setBulkToggling(true);
+      setDeleteError(null);
+      await Promise.all([...selectedIds].map(id => gestaoApi.contextos.atualizar(id, { ativo })));
+      setSelectedIds(new Set());
+      refetch();
+    } catch (err: unknown) {
+      setDeleteError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao atualizar contextos');
+    } finally {
+      setBulkToggling(false);
+    }
+  };
+
   const columns: TableColumn<Contexto>[] = [
     {
-      key: 'id',
-      label: 'ID',
-      width: '80px',
+      key: 'id' as keyof Contexto,
+      label: (
+        <input
+          type="checkbox"
+          checked={allSelected}
+          onChange={toggleSelectAll}
+          className="h-4 w-4 text-blue-600 rounded"
+        />
+      ) as unknown as string,
+      width: '48px',
+      render: (_, contexto) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(contexto.id)}
+          onChange={() => toggleSelect(contexto.id)}
+          className="h-4 w-4 text-blue-600 rounded"
+          onClick={e => e.stopPropagation()}
+        />
+      ),
     },
     {
       key: 'nome',
@@ -83,12 +140,6 @@ export default function ContextosPage() {
       render: (value) => value ? new Date(value).toLocaleDateString('pt-BR') : '-',
     },
     {
-      key: 'atualizado_em',
-      label: 'Atualizado em',
-      width: '150px',
-      render: (value) => value ? new Date(value).toLocaleDateString('pt-BR') : '-',
-    },
-    {
       key: 'ativo',
       label: 'Status',
       width: '120px',
@@ -101,21 +152,13 @@ export default function ContextosPage() {
     {
       key: 'actions',
       label: 'Ações',
-      width: '150px',
+      width: '160px',
       render: (_, contexto) => (
         <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleEditContexto(contexto)}
-          >
+          <Button variant="secondary" size="sm" onClick={() => handleEditContexto(contexto)}>
             Editar
           </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => handleDeleteClick(contexto)}
-          >
+          <Button variant="danger" size="sm" onClick={() => handleDeleteClick(contexto)}>
             Excluir
           </Button>
         </div>
@@ -135,7 +178,6 @@ export default function ContextosPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Breadcrumb */}
       <Breadcrumb
         items={[
           { label: 'Gestão', href: '/gestao' },
@@ -143,12 +185,9 @@ export default function ContextosPage() {
         ]}
       />
 
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Gestão de Contextos
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900">Gestão de Contextos</h1>
           <p className="text-sm text-gray-600 mt-1">
             Configure os contextos para classificação de transações
           </p>
@@ -165,14 +204,48 @@ export default function ContextosPage() {
         </div>
       </div>
 
-      {/* Error Alert */}
       {deleteError && (
         <Alert variant="error" onClose={() => setDeleteError(null)}>
           {deleteError}
         </Alert>
       )}
 
-      {/* Table */}
+      {/* Barra de ações em massa */}
+      {someSelected && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+          <span className="text-sm font-medium text-blue-800">
+            {selectedIds.size} {selectedIds.size === 1 ? 'contexto selecionado' : 'contextos selecionados'}
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handleBulkToggleAtivo(true)}
+            disabled={bulkToggling}
+          >
+            Ativar selecionados
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handleBulkToggleAtivo(false)}
+            disabled={bulkToggling}
+          >
+            Desativar selecionados
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => setConfirmBulkDelete(true)}
+            disabled={bulkDeleting}
+          >
+            Excluir selecionados
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setSelectedIds(new Set())}>
+            Cancelar seleção
+          </Button>
+        </div>
+      )}
+
       <Card>
         <Table
           variant="simple"
@@ -182,12 +255,11 @@ export default function ContextosPage() {
         />
       </Card>
 
-      {/* Modals */}
       <ContextoFormModal
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
         contexto={selectedContexto}
-        onSaved={handleSaved}
+        onSaved={() => refetch()}
       />
 
       <ConfirmDialog
@@ -200,6 +272,18 @@ export default function ContextosPage() {
         cancelText="Cancelar"
         variant="danger"
         loading={deleting}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmBulkDelete}
+        onClose={() => setConfirmBulkDelete(false)}
+        onConfirm={handleBulkDelete}
+        title="Confirmar Exclusão em Massa"
+        message={`Deseja realmente excluir ${selectedIds.size} contextos? Esta ação não pode ser desfeita.`}
+        confirmText="Excluir todos"
+        cancelText="Cancelar"
+        variant="danger"
+        loading={bulkDeleting}
       />
     </div>
   );

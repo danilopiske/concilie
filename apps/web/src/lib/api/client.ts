@@ -34,12 +34,15 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (error.response?.status === 401) {
-      // Remover token inválido
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('access_token');
-        window.location.href = '/login';
-      }
+    const status = error.response?.status;
+    const detail = error.response?.data?.detail ?? '';
+    const isAuthError =
+      status === 401 ||
+      (status === 403 && typeof detail === 'string' && detail.toLowerCase().includes('credentials'));
+    if (isAuthError && typeof window !== 'undefined') {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }

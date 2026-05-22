@@ -29,6 +29,19 @@ class BandeiraDisponivelRepository(BaseRepository[BandeiraDisponivel]):
             .first()
         )
 
+    def atualizar(self, bandeira_id: int, dados: dict) -> Optional[BandeiraDisponivel]:
+        """Update bandeira disponivel"""
+        bandeira = self.db.query(BandeiraDisponivel).filter(BandeiraDisponivel.id == bandeira_id).first()
+        if not bandeira:
+            return None
+        if "nome" in dados and dados["nome"] is not None:
+            bandeira.nome = dados["nome"].strip().upper()
+        if "padrao" in dados and dados["padrao"] is not None:
+            bandeira.padrao = dados["padrao"]
+        self.db.commit()
+        self.db.refresh(bandeira)
+        return bandeira
+
 
 class BandeiraClienteRepository:
     def __init__(self, db: Session):

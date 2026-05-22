@@ -24,7 +24,7 @@ export function FormasPagamentoReport({ processamentoId }: FormasPagamentoReport
       try {
         setLoading(true);
         const result = await analistaApi.getFormasPagamento(processamentoId);
-        setData(result);
+        setData(result.sort((a, b) => String(a.forma_pagamento).localeCompare(String(b.forma_pagamento), 'pt-BR')));
       } catch (err) {
         setError('Erro ao carregar formas de pagamento');
         console.error(err);
@@ -49,6 +49,7 @@ export function FormasPagamentoReport({ processamentoId }: FormasPagamentoReport
           { key: 'valor_medio', label: 'Ticket Médio', render: (v) => formatCurrency(v) },
           { key: 'taxa_perc_media', label: 'Taxa Média', render: (v) => formatPercent(v) },
           { key: 'taxa_valor_total', label: 'Total Taxas', render: (v) => formatCurrency(v) },
+          { key: 'vl_rr_total', label: 'Total RR', render: (v) => formatCurrency(v ?? 0) },
         ]} 
         data={data}
         emptyMessage="Nenhuma forma de pagamento encontrada"

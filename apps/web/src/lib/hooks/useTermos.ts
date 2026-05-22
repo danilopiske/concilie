@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { listarTermos, adicionarTermo, excluirTermo, TermoFiltravel, TermoFiltravelCreate } from '@/lib/api/termos';
+import { listarTermos, adicionarTermo, atualizarTermo, excluirTermo, TermoFiltravel, TermoFiltravelCreate } from '@/lib/api/termos';
 
 type ApiErr = { response?: { data?: { detail?: string } } };
 
@@ -72,12 +72,26 @@ export function useTermos({ ec, contexto, tipo }: UseTermosProps) {
     }
   };
 
+  const atualizar = async (termoId: number, dados: { termo?: string; tipo?: string }) => {
+    try {
+      setError(null);
+      const updated = await atualizarTermo(termoId, dados);
+      setTermos((prev) => prev.map((t) => (t.id === termoId ? updated : t)));
+      return updated;
+    } catch (err: unknown) {
+      const errorMsg = (err as ApiErr)?.response?.data?.detail || 'Erro ao atualizar termo';
+      setError(errorMsg);
+      throw new Error(errorMsg);
+    }
+  };
+
   return {
     termos,
     loading,
     error,
     refetch: fetchTermos,
     adicionar,
+    atualizar,
     excluir,
   };
 }

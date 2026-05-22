@@ -7,10 +7,12 @@ from app.core.database import get_db
 from app.repositories.analista_repository import AnalistaRepository
 from app.schemas.analista import (
     AgregacaoBandeira,
+    AgregacaoBandeiraForma,
     AgregacaoFormaPagamento,
     AgregacaoFormaPagamentoAno,
     AgregacaoPeriodo,
     AgregacaoRecebivel,
+    ConformidadeBandeiraForma,
 )
 
 router = APIRouter()
@@ -43,3 +45,13 @@ def get_recebiveis(processamento_id: str, db: Session = Depends(get_db)):
 def get_formas_por_ano(processamento_id: str, db: Session = Depends(get_db)):
     repo = AnalistaRepository(db)
     return repo.get_formas_por_ano(processamento_id)
+
+@router.get("/{processamento_id:path}/bandeira-forma", response_model=List[AgregacaoBandeiraForma])
+def get_bandeira_forma(processamento_id: str, db: Session = Depends(get_db)):
+    repo = AnalistaRepository(db)
+    return repo.get_bandeira_forma(processamento_id)
+
+@router.get("/{processamento_id:path}/conformidade", response_model=List[ConformidadeBandeiraForma])
+def get_conformidade(processamento_id: str, db: Session = Depends(get_db)):
+    repo = AnalistaRepository(db)
+    return repo.get_conformidade_bandeira_forma(processamento_id)

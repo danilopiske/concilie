@@ -197,7 +197,7 @@ export default function ProcessamentosPage() {
       render: (_, row) => (
         <div className="flex items-center gap-1">
           <Link
-            href={`/importar/processamentos/${row.id}`}
+            href={`/importar/processamentos/detalhes?id=${encodeURIComponent(row.id)}`}
             className="inline-flex items-center justify-center h-8 w-8 rounded text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
             title="Ver detalhes"
           >

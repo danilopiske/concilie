@@ -19,6 +19,9 @@ import { RecebiveisReport } from './_components/RecebiveisReport';
 import { PeriodosReport } from './_components/PeriodosReport';
 import { AnaliseAnualReport } from './_components/AnaliseAnualReport';
 import { AbusividadeReport } from './_components/AbusividadeReport';
+import { BandeiraFormaReport } from './_components/BandeiraFormaReport';
+import { ConformidadeReport } from './_components/ConformidadeReport';
+import { ArquivosImportados } from '@/components/shared/ArquivosImportados';
 
 export default function AnalisePage() {
   const [processamentos, setProcessamentos] = useState<Processamento[]>([]);
@@ -88,6 +91,10 @@ export default function AnalisePage() {
         </PanelBody>
       </Panel>
 
+      {selectedProcessamento && (
+        <ArquivosImportados processamentoId={selectedProcessamento} />
+      )}
+
       {!selectedProcessamento ? (
          <div className="p-10 text-center border-2 border-dashed border-gray-300 rounded text-gray-500">
              Selecione um processamento acima para iniciar a análise.
@@ -101,17 +108,20 @@ export default function AnalisePage() {
                   <TabsTrigger value="anual">Análise Anual</TabsTrigger>
                   <TabsTrigger value="recebiveis">Recebíveis</TabsTrigger>
                   <TabsTrigger value="abusividade">Abusividade</TabsTrigger>
+                  <TabsTrigger value="conformidade">Conformidade</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="geral" className="space-y-4">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {/* Envolver os reports em containers simples, pois eles já usam Card/Table */}
                       <div className="border border-gray-200 rounded p-2">
                         <BandeirasReport processamentoId={selectedProcessamento} />
                       </div>
                       <div className="border border-gray-200 rounded p-2">
                         <FormasPagamentoReport processamentoId={selectedProcessamento} />
                       </div>
+                  </div>
+                  <div className="border border-gray-200 rounded p-2">
+                    <BandeiraFormaReport processamentoId={selectedProcessamento} />
                   </div>
                 </TabsContent>
 
@@ -134,6 +144,10 @@ export default function AnalisePage() {
 
                 <TabsContent value="abusividade">
                   <AbusividadeReport processamentoId={selectedProcessamento} />
+                </TabsContent>
+
+                <TabsContent value="conformidade">
+                  <ConformidadeReport processamentoId={selectedProcessamento} />
                 </TabsContent>
               </Tabs>
           </div>

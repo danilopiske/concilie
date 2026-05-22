@@ -101,7 +101,7 @@ def deletar_processamentos(
     return {"success": repo.deletar_lista(ids), "count": len(ids)}
 
 
-@router.get("/{processamento_id}/financeiro")
+@router.get("/{processamento_id:path}/financeiro")
 def sumario_financeiro(
     processamento_id: str,
     db: Session = Depends(get_db),
@@ -150,7 +150,46 @@ def sumario_financeiro(
     }
 
 
-@router.get("/{processamento_id}/detalhes")
+@router.get("/{processamento_id:path}/arquivos")
+def listar_arquivos_importados(
+    processamento_id: str,
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
+    """Retorna os arquivos distintos importados para um processamento."""
+    from sqlalchemy import text
+
+    resultado = []
+
+    for tabela in ("vendas_processadas", "recebiveis_processados"):
+        try:
+            rows = db.execute(
+                text(f"""
+                    SELECT arquivo_origem, COUNT(*) as total_linhas
+                    FROM {tabela}
+                    WHERE processamentoid = :pid AND arquivo_origem IS NOT NULL
+                    GROUP BY arquivo_origem
+                    ORDER BY total_linhas DESC
+                """),
+                {"pid": processamento_id},
+            ).fetchall()
+            for row in rows:
+                raw = row.arquivo_origem or ""
+                # Remove prefixo UUID (formato: uuid_nomearquivo)
+                partes = raw.split("_", 1)
+                nome = partes[1] if len(partes) == 2 and len(partes[0]) == 36 else raw
+                resultado.append({
+                    "nome_arquivo": nome,
+                    "arquivo_origem_raw": raw,
+                    "tabela": tabela,
+                    "total_linhas": row.total_linhas,
+                })
+        except Exception:
+            pass
+
+    return resultado
+
+
+@router.get("/{processamento_id:path}/detalhes")
 def detalhes_processamento(
     processamento_id: str,
     db: Session = Depends(get_db),

@@ -87,12 +87,12 @@ def status_parquet(processamento_id: str, adquirente: Optional[str] = None) -> d
         with open(meta, "r", encoding="utf-8") as f:
             dados = json.load(f)
         return {
-            "exists": True,
+            "existe": True,
             "gerado_em": dados.get("gerado_em"),
             "calc_tipo": dados.get("calc_tipo"),
             "adquirente": dados.get("adquirente"),
         }
-    return {"exists": False, "gerado_em": None, "calc_tipo": None, "adquirente": None}
+    return {"existe": False, "gerado_em": None, "calc_tipo": None, "adquirente": None}
 
 
 # ---------------------------------------------------------------------------
@@ -864,6 +864,12 @@ def _gerar_excel_xlsx(
         col_adq = next((c for c in df_vc.columns if "adquirente" in c.lower()), None)
         if col_adq:
             df_vc = df_vc[df_vc[col_adq].astype(str).str.lower() == adquirente_filtro.lower()]
+
+    # Excluir registros marcados como Ignorar
+    col_tratar = next((c for c in df_vc.columns if "tratar" in c.lower()), None)
+    if col_tratar and not df_vc.empty:
+        df_vc = df_vc[df_vc[col_tratar].astype(str).str.lower() != "ignorar"]
+
     # Extrair stats reais ANTES de remover colunas auxiliares
     def _xreal(col, fallback=0.0):
         return df_vc[col].iloc[0] if not df_vc.empty and col in df_vc.columns else fallback
@@ -966,6 +972,18 @@ def _gerar_excel_xlsx(
         ("7. Vendas Filtradas",            df_vf_excel),
         ("8. Recebíveis Filtrados",        df_rf_excel),
     ]
+
+    # Abas dinâmicas: uma aba por bandeira + forma de pagamento
+    if not df_vc.empty:
+        col_bandeira = next((c for c in df_vc.columns if "bandeira" in c.lower()), None)
+        col_forma = next((c for c in df_vc.columns if "forma" in c.lower() and "pagamento" in c.lower()), None)
+        if col_bandeira and col_forma:
+            grupos = df_vc.groupby([col_bandeira, col_forma], dropna=False, sort=True)
+            for idx, ((bandeira, forma), df_grp) in enumerate(grupos):
+                bandeira_str = str(bandeira).strip() if bandeira and str(bandeira) != "nan" else "Outros"
+                forma_str = str(forma).strip() if forma and str(forma) != "nan" else "Outros"
+                nome_aba = f"{9 + idx}. {bandeira_str} - {forma_str}"[:31]
+                abas.append((nome_aba, df_grp.reset_index(drop=True)))
 
     HEADER_FILL = PatternFill("solid", fgColor="1F4E79")
     HEADER_FONT = Font(bold=True, color="FFFFFF", size=10)

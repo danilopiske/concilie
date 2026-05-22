@@ -404,12 +404,26 @@ def load_vendas_calculos_cached(
     cache_file = _cache_path(calc_id, calc_tipo)
     cache_ttl_hours = 24
 
+    _BANDEIRA_MAP = {
+        "MASTERCARD": "Mastercard", "VISA": "Visa", "ELO": "Elo",
+        "HIPERCARD": "Hipercard", "AMEX": "Amex", "AMERICAN EXPRESS": "American Express",
+        "CABAL": "Cabal", "BANESCARD": "Banescard", "DINERS": "Diners",
+        "DISCOVER": "Discover", "PIX": "Pix", "HIPER": "Hiper",
+    }
+
+    def _normalizar_bandeira(df: pl.DataFrame) -> pl.DataFrame:
+        if "bandeira" not in df.columns:
+            return df
+        return df.with_columns(
+            pl.col("bandeira").replace(_BANDEIRA_MAP).alias("bandeira")
+        )
+
     # Cache hit — verificar se ainda é válido
     if os.path.exists(cache_file):
         age_hours = (time.time() - os.path.getmtime(cache_file)) / 3600
         if age_hours < cache_ttl_hours:
             print(f"[CACHE] Hit: {cache_file} ({age_hours:.1f}h atrás)")
-            df = pl.read_parquet(cache_file)
+            df = _normalizar_bandeira(pl.read_parquet(cache_file))
             if columns:
                 df = df.select([c for c in columns if c in df.columns])
             return df
@@ -419,14 +433,16 @@ def load_vendas_calculos_cached(
     # Cache miss — buscar do MySQL
     print(f"[CACHE] Miss para calc_id={calc_id}, calc_tipo={calc_tipo}. Carregando do MySQL...")
     sql = """
-        SELECT id_venda, data_venda, bandeira, forma_pagamento,
-               tx_rr_venda, vl_rr_venda, vl_venda, tx_venda, desc_venda,
-               vl_liq_venda, tx_calc, desc_calc, vl_liq_calc, perda,
-               adquirente, nsu, cod_autorizacao, perda_rr, ec_id
-        FROM vendas_calculos
-        WHERE calc_id = %s AND calc_tipo = %s
+        SELECT vc.id_venda, vc.data_venda, vc.bandeira, vc.forma_pagamento,
+               vc.tx_rr_venda, vc.vl_rr_venda, vc.vl_venda, vc.tx_venda, vc.desc_venda,
+               vc.vl_liq_venda, vc.tx_calc, vc.desc_calc, vc.vl_liq_calc, vc.perda,
+               vc.adquirente, vc.nsu, vc.cod_autorizacao, vc.perda_rr, vc.ec_id,
+               vp.Tratar_ou_Ignorar
+        FROM vendas_calculos vc
+        LEFT JOIN vendas_processadas vp ON vc.id_venda = vp.id
+        WHERE vc.calc_id = %s AND vc.calc_tipo = %s
     """
-    df = read_sql_polars(sql, engine, params=(calc_id, calc_tipo))
+    df = _normalizar_bandeira(read_sql_polars(sql, engine, params=(calc_id, calc_tipo)))
 
     if not df.is_empty():
         print(f"[CACHE] Salvando {len(df)} rows em {cache_file}...")
@@ -1253,15 +1269,40 @@ def calcular_tabela_consolidada_mensal(
     print(f"[DEBUG] Calculando tabela consolidada mensal (Polars) para: {processamento_id}")
 
     # 1. Preparar perdas via Polars
-    if not df_vendas_processadas.empty and not df_vendas_calculos.empty:
-        pl_proc = pl.from_pandas(df_vendas_processadas[["id", "Data_da_venda"]]) if isinstance(df_vendas_processadas, pd.DataFrame) else df_vendas_processadas
-        pl_calc = pl.from_pandas(df_vendas_calculos[["id_venda", "perda", "perda_rr"]]) if isinstance(df_vendas_calculos, pd.DataFrame) else df_vendas_calculos
+    _is_empty_proc = (df_vendas_processadas.is_empty() if isinstance(df_vendas_processadas, pl.DataFrame) else df_vendas_processadas.empty)
+    _cols_proc = set(df_vendas_processadas.columns) if not _is_empty_proc else set()
+    _date_col = next((c for c in ["Data_da_venda", "data_da_venda", "data_venda", "Data"] if c in _cols_proc), None)
+    # Caso unificado: df_main já tem id_venda + data + perda na mesma estrutura
+    _has_unified = _date_col is not None and {"id_venda", "perda", "perda_rr"}.issubset(_cols_proc)
+    _is_empty_calc = (df_vendas_calculos.is_empty() if isinstance(df_vendas_calculos, pl.DataFrame) else df_vendas_calculos.empty)
+    _has_split = _date_col is not None and "id" in _cols_proc and {"id_venda", "perda", "perda_rr"}.issubset(set(df_vendas_calculos.columns) if not _is_empty_calc else set())
 
+    if _has_unified:
+        if isinstance(df_vendas_processadas, pd.DataFrame):
+            pl_base = pl.from_pandas(df_vendas_processadas[[_date_col, "perda", "perda_rr"]].rename(columns={_date_col: "Data_da_venda"}))
+        else:
+            _rename = {_date_col: "Data_da_venda"} if _date_col != "Data_da_venda" else {}
+            pl_base = df_vendas_processadas.select([_date_col, "perda", "perda_rr"]).rename(_rename)
+        perdas_semestre = (
+            pl_base
+            .with_columns([pl.col("Data_da_venda").cast(pl.Date).alias("data")])
+            .with_columns([
+                (pl.col("data").dt.year().cast(pl.String) + "-" +
+                 pl.when(pl.col("data").dt.month() <= 6).then(pl.lit("1")).otherwise(pl.lit("2"))
+                ).alias("Ano-Semestre")
+            ])
+            .group_by("Ano-Semestre")
+            .agg([
+                pl.col("perda").sum().alias("perda_mdr"),
+                pl.col("perda_rr").sum().alias("perda_rr")
+            ])
+        )
+    elif _has_split:
+        pl_proc = pl.from_pandas(df_vendas_processadas[["id", _date_col]].rename(columns={_date_col: "Data_da_venda"})) if isinstance(df_vendas_processadas, pd.DataFrame) else df_vendas_processadas
+        pl_calc = pl.from_pandas(df_vendas_calculos[["id_venda", "perda", "perda_rr"]]) if isinstance(df_vendas_calculos, pd.DataFrame) else df_vendas_calculos
         perdas_semestre = (
             pl_proc.join(pl_calc, left_on="id", right_on="id_venda")
-            .with_columns([
-                pl.col("Data_da_venda").cast(pl.Date).alias("data")
-            ])
+            .with_columns([pl.col("Data_da_venda").cast(pl.Date).alias("data")])
             .with_columns([
                 (pl.col("data").dt.year().cast(pl.String) + "-" +
                  pl.when(pl.col("data").dt.month() <= 6).then(pl.lit("1")).otherwise(pl.lit("2"))
@@ -2601,7 +2642,7 @@ def gerar_relatorio_html(
     if df_cached.is_empty() and calc_tipo:
         base_id = _get_base_id(processamento_id)
         debug_log(f"Cache vazio para calc_tipo={calc_tipo}. Tentando sem filtro de tipo com base_id={base_id}...")
-        sql_fallback = "SELECT id_venda, data_venda, bandeira, forma_pagamento, tx_rr_venda, vl_rr_venda, vl_venda, tx_venda, desc_venda, vl_liq_venda, tx_calc, desc_calc, vl_liq_calc, perda, adquirente, nsu, cod_autorizacao, perda_rr, ec_id FROM vendas_calculos WHERE calc_id LIKE %s"
+        sql_fallback = "SELECT vc.id_venda, vc.data_venda, vc.bandeira, vc.forma_pagamento, vc.tx_rr_venda, vc.vl_rr_venda, vc.vl_venda, vc.tx_venda, vc.desc_venda, vc.vl_liq_venda, vc.tx_calc, vc.desc_calc, vc.vl_liq_calc, vc.perda, vc.adquirente, vc.nsu, vc.cod_autorizacao, vc.perda_rr, vc.ec_id, vp.Tratar_ou_Ignorar FROM vendas_calculos vc LEFT JOIN vendas_processadas vp ON vc.id_venda = vp.id WHERE vc.calc_id LIKE %s"
         df_cached = read_sql_polars(sql_fallback, engine, params=(f"{base_id}%",))
 
     # Usar nomes de colunas estáveis internamente
@@ -2624,6 +2665,14 @@ def gerar_relatorio_html(
         lf_filtered = lf_filtered.filter(pl.col(data_col).cast(pl.Date) <= dt_fim)
     
     df_pl_raw = lf_filtered.collect()
+
+    # Excluir registros marcados como "Ignorar" pelo usuário
+    if "Tratar_ou_Ignorar" in df_pl_raw.columns:
+        antes = len(df_pl_raw)
+        df_pl_raw = df_pl_raw.filter(
+            pl.col("Tratar_ou_Ignorar").is_null() | (pl.col("Tratar_ou_Ignorar") != "Ignorar")
+        )
+        debug_log(f"Filtro Tratar_ou_Ignorar: {antes} -> {len(df_pl_raw)} rows ({antes - len(df_pl_raw)} ignorados)")
 
     debug_log(f"Main query result (Full for Charts): {len(df_pl_raw)} rows")
     
@@ -3135,13 +3184,26 @@ def gerar_relatorio_html(
     
     dataframes_excel = {
         "1. Vendas Completas": df_join,
+    }
+
+    # Abas analíticas por Bandeira + Forma de Pagamento
+    _band_col = next((c for c in ["bandeira", "Bandeira"] if c in df_join.columns), None)
+    _forma_col = next((c for c in ["forma_pagamento", "Forma_de_pagamento", "Forma de Pagamento"] if c in df_join.columns), None)
+    if _band_col and _forma_col:
+        _grupos = df_join.groupby([_band_col, _forma_col], sort=True)
+        for (_band, _forma), _grp in _grupos:
+            _nome_aba = f"{_band} - {_forma}"[:31]
+            dataframes_excel[_nome_aba] = _grp.reset_index(drop=True)
+        print(f"[DEBUG] Excel analítico: {len(_grupos)} abas por bandeira+forma geradas")
+
+    dataframes_excel.update({
         "2. Perdas por Semestre": df_perdas_sumarizado,
         "3. Taxas Min-Max": df_taxas_sumarizado,
         "4. Contagem Transações": df_contagem_sumarizado,
         "5. Sumário Recebíveis": df_recebiveis_sumarizado,
         "6. Dados Bancários": df_dados_bancarios,
         "7. Top 3 Maiores Valores": evidencias.get("maiores_valores", pd.DataFrame()),
-    }
+    })
 
     if incluir_filtradas and not df_vendas_filtradas.empty:
         dataframes_excel["8. Vendas Filtradas"] = df_vendas_filtradas
@@ -4050,18 +4112,42 @@ def gerar_relatorio_mensal_html(
     # 7. Excel (ZERO SQL)
     gc.collect()
     excel_filename = f"relatorio_mensal_{processamento_id}_{timestamp}"
+
+    # Normalizar bandeira para evitar duplicidade de abas por casing (ex: MASTERCARD vs Mastercard)
+    _band_col_norm = next((c for c in ["bandeira", "Bandeira"] if c in df_join.columns), None)
+    if _band_col_norm:
+        _band_map = {
+            "MASTERCARD": "Mastercard", "VISA": "Visa", "ELO": "Elo",
+            "HIPERCARD": "Hipercard", "AMEX": "Amex", "AMERICAN EXPRESS": "American Express",
+            "CABAL": "Cabal", "BANESCARD": "Banescard", "DINERS": "Diners",
+            "DISCOVER": "Discover", "PIX": "Pix", "HIPER": "Hiper",
+        }
+        df_join[_band_col_norm] = df_join[_band_col_norm].replace(_band_map)
+
     _excel_row_limit = 100000
     df_join_excel = df_join.head(_excel_row_limit) if len(df_join) > _excel_row_limit else df_join
     if len(df_join) > _excel_row_limit:
-        print(f"[WARNING] Mensal: Dataset com {len(df_join)} linhas. Truncando para {_excel_row_limit} para o Excel.")
+        print(f"[WARNING] Mensal: Dataset com {len(df_join)} linhas. Truncando Vendas Completas para {_excel_row_limit}.")
     dataframes_excel = {
         "1. Vendas Completas": df_join_excel,
+    }
+
+    # Abas analíticas por Bandeira + Forma de Pagamento — usa dataset COMPLETO (sem limite de linhas)
+    _band_col = next((c for c in ["bandeira", "Bandeira"] if c in df_join.columns), None)
+    _forma_col = next((c for c in ["forma_pagamento", "Forma_de_pagamento", "Forma de Pagamento"] if c in df_join.columns), None)
+    if _band_col and _forma_col:
+        _grupos = df_join.groupby([_band_col, _forma_col], sort=True)
+        for (_band, _forma), _grp in _grupos:
+            _nome_aba = f"{_band} - {_forma}"[:31]
+            dataframes_excel[_nome_aba] = _grp.reset_index(drop=True)
+
+    dataframes_excel.update({
         "2. Análise Consolidada": df_tabela_consolidada,
         "3. Perdas Semestre": df_perdas,
         "4. Taxas Min-Max": df_min_max_taxas,
         "5. Contagem Transações": df_contagem_taxas,
         "6. Dados Bancários": df_dados_bancarios
-    }
+    })
     excel_path = gerar_excel_relatorio(dataframes_excel, excel_filename)
 
     # 8. Relatório Sintético

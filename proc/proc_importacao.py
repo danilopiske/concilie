@@ -58,6 +58,11 @@ def classificar_e_gravar_recebiveis(
             cols_dedup = [c for c in df.columns if c not in cols_ignorar]
             
             if cols_dedup:
+                # Normalizar código de autorização (remover zeros à esquerda) para dedup cross-arquivo
+                for col in df.columns:
+                    if "autoriza" in str(col).lower():
+                        df[col] = df[col].astype(str).str.lstrip("0").str.strip()
+                        df[col] = df[col].replace("", np.nan)
                 len_antes = len(df)
                 df = df.drop_duplicates(subset=cols_dedup).copy()
                 len_depois = len(df)
@@ -197,8 +202,23 @@ def classificar_e_gravar_recebiveis(
                 # ⚠️ CRÍTICO: Converter E arredondar para 2 casas decimais
                 df_filt_db[col] = pd.to_numeric(df_filt_db[col], errors="coerce").round(2)
     
+        # Filtrar linhas de rodapé/totais onde ec_id não é inteiro válido
+        if 'ec_id' in df_proc_db.columns:
+            mask = pd.to_numeric(df_proc_db['ec_id'], errors='coerce').notna()
+            removed = (~mask).sum()
+            if removed:
+                print(f"[DEBUG][RECEB] Removendo {removed} linha(s) de rodapé em df_proc_db.")
+            df_proc_db = df_proc_db[mask].copy()
+
+        if 'ec_id' in df_filt_db.columns:
+            mask = pd.to_numeric(df_filt_db['ec_id'], errors='coerce').notna()
+            removed = (~mask).sum()
+            if removed:
+                print(f"[DEBUG][RECEB] Removendo {removed} linha(s) de rodapé em df_filt_db.")
+            df_filt_db = df_filt_db[mask].copy()
+
         n_proc, n_filt = len(df_proc_db), len(df_filt_db)
-    
+
         # Inserir dados nas respectivas tabelas (igual às vendas)
         if n_proc:
             if progress_callback: progress_callback(70, "Gravando recebíveis processados...")
@@ -2993,7 +3013,7 @@ def preparar_dataframe_de_arquivo(
                     "PRE PAGO" in v or "PREPAGO" in v or "PRE-PAGO" in v or "PRE PAGO" in v
                 ) and "DEBITO" in v:
                     return "DEBITO A VISTA"
-                return valor
+                return v
     
             valores_antes = df_final["Forma_de_pagamento"].unique()
             df_final["Forma_de_pagamento"] = df_final["Forma_de_pagamento"].apply(
@@ -3035,6 +3055,7 @@ def aplicar_regras_depara(
         # IMPORTANTE: Agora mapeamento é dict de LISTAS para suportar 1:N
         mapeamento = {}  # {origem: [destino1, destino2, ...]}
         transformacoes = {}
+        formulas_depara = {}  # {destino: formula_str} para tipo_preenchimento='formula'
 
         if regras:
             print(f"[DEBUG][aplicar_regras_depara] Primeiras 3 regras: {regras[:3]}")
@@ -3048,6 +3069,7 @@ def aplicar_regras_depara(
                     )
 
                 # Regras já vêm filtradas por ativo=1 do banco
+                tipo_preench = regra.get("tipo_preenchimento", "importado")
                 if origem_nome and destino_nome:
                     # Converter para string se não for
                     origem = (
@@ -3060,6 +3082,12 @@ def aplicar_regras_depara(
                         if not isinstance(destino_nome, str)
                         else destino_nome.strip()
                     )
+
+                    # Regras com tipo_preenchimento='formula': guardar separado
+                    if tipo_preench == "formula":
+                        formulas_depara[destino] = origem
+                        print(f"[DEBUG][aplicar_regras_depara] Fórmula registrada: '{destino}' = '{origem}'")
+                        continue
 
                     # Acumular múltiplos destinos para a mesma origem
                     if origem not in mapeamento:
@@ -3450,7 +3478,7 @@ def aplicar_regras_depara(
 
                 # 🔥 NORMALIZAR BANDEIRA
                 if bandeira in ["MC", "MAESTRO"]:
-                    bandeira = "MASTERCARD"
+                    bandeira = "Mastercard"
 
                 # 🔥 NORMALIZAR FORMA DE PAGAMENTO
                 tem_pre_pago = (
@@ -3472,7 +3500,7 @@ def aplicar_regras_depara(
                 bandeira = texto
                 # 🔥 NORMALIZAR BANDEIRA
                 if bandeira in ["MC", "MAESTRO"]:
-                    bandeira = "MASTERCARD"
+                    bandeira = "Mastercard"
                 forma = None
 
         return bandeira, forma
@@ -3533,6 +3561,51 @@ def aplicar_regras_depara(
                     print(
                         f"[DEBUG][aplicar_regras_depara]    '{orig_col_name}' → '{destino}' ({len(df_limpo[orig_col_name].dropna())} valores não-nulos)"
                     )
+
+    # Aplicar fórmulas depara (tipo_preenchimento='formula')
+    if formulas_depara:
+        import re as _re
+
+        def _eval_formula_depara(df_src, formula_str):
+            """Avalia fórmula com referências {col_name} contra colunas do DataFrame."""
+            tokens = _re.split(r'(\s*[+\-*/]\s*)', formula_str)
+            result = None
+            op = None
+            for token in tokens:
+                token = token.strip()
+                if not token:
+                    continue
+                if token in ('+', '-', '*', '/'):
+                    op = token
+                else:
+                    col_match = _re.match(r'^\{(.+)\}$', token)
+                    if col_match:
+                        col_name = col_match.group(1)
+                        val = df_src[col_name].fillna(0) if col_name in df_src.columns else pd.Series(0, index=df_src.index)
+                    else:
+                        try:
+                            val = float(token)
+                        except ValueError:
+                            val = pd.Series(0, index=df_src.index)
+                    if result is None:
+                        result = val
+                    elif op == '+':
+                        result = result + val
+                    elif op == '-':
+                        result = result - val
+                    elif op == '*':
+                        result = result * val
+                    elif op == '/':
+                        result = result / val.replace(0, float('nan'))
+                    op = None
+            return result if result is not None else pd.Series(0, index=df_src.index)
+
+        for destino_formula, formula_str in formulas_depara.items():
+            try:
+                df_resultado[destino_formula] = _eval_formula_depara(df_limpo, formula_str)
+                print(f"[DEBUG][aplicar_regras_depara] Fórmula aplicada: '{destino_formula}' = '{formula_str}'")
+            except Exception as e:
+                print(f"[DEBUG][aplicar_regras_depara] Erro na fórmula '{destino_formula}': {e}")
 
     # FILTRO DE DADOS INVÁLIDOS: Remover apenas linhas que são claramente cabeçalhos
     if not df_resultado.empty:
@@ -3622,7 +3695,25 @@ def normalizar_dataframe_vendas(
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     with PerformanceTimer("POLARS", "Normalização Vendas (Pandas Pipeline)", {"rows": len(df), "contexto": contexto}):
         df = df.copy()
-    
+
+        # Normalizar casing da coluna Bandeira para evitar duplicidade de abas no relatório
+        _BANDEIRA_NORM_MAP = {
+            "MASTERCARD": "Mastercard", "VISA": "Visa", "ELO": "Elo",
+            "HIPERCARD": "Hipercard",
+            "AMEX": "American Express", "AMERICAN EXPRESS": "American Express",
+            "Amex": "American Express",
+            "CABAL": "Cabal", "BANESCARD": "Banescard", "DINERS": "Diners",
+            "DISCOVER": "Discover", "PIX": "Pix", "HIPER": "Hiper",
+        }
+        _band_col = next((c for c in ["Bandeira", "bandeira"] if c in df.columns), None)
+        if _band_col:
+            df[_band_col] = (
+                df[_band_col].astype(str).str.strip()
+                .replace(_BANDEIRA_NORM_MAP)
+                # Garante que qualquer variação restante de amex/amex é unificada
+                .apply(lambda x: "American Express" if str(x).strip().upper() in ("AMEX", "AMERICAN EXPRESS") else x)
+            )
+
         # --- INÍCIO DO CÓDIGO DE NORMALIZAÇÃO ---
         # Limpeza de valores infinitos e fora do range permitido em todo o DataFrame
         print(f"[DEBUG] Limpando valores infinitos do DataFrame...")
@@ -4213,27 +4304,69 @@ def classificar_e_gravar_vendas(
                     if "ec_id" not in _df.columns or _df["ec_id"].isna().all():
                         _df["ec_id"] = str(ec_id)
 
+            # --- NORMALIZAÇÃO DE COLUNAS NUMÉRICAS (NSU / Código_de_autorização) ---
+            # Converte para Int64 se todos os valores forem numéricos,
+            # eliminando zeros à esquerda ("004417" → 4417) e garantindo
+            # que o dedup abaixo reconheça "004417" == "4417" como duplicata.
+            _NUMERIC_ID_COLS = ["NSU", "Código_de_autorização"]
+            for _df in (df_proc, df_filt):
+                if _df is None or _df.empty:
+                    continue
+                for _col in _NUMERIC_ID_COLS:
+                    if _col not in _df.columns:
+                        continue
+                    _converted = pd.to_numeric(_df[_col], errors="coerce")
+                    if _converted.notna().sum() > 0 and _converted.isna().sum() == _df[_col].isna().sum():
+                        _df[_col] = _converted.astype("Int64")
+
             # --- DEDUPLICAÇÃO EM MEMÓRIA (PYTHON) ---
             cols_ignorar = {"id", "data_processamento", "usuario_processamento", "arquivo_origem", "processamentoid"}
             n_proc, n_filt = len(df_proc), len(df_filt)
 
+            # Colunas-chave para deduplicação: NSU + Código_de_autorização + Data_da_venda
+            # Usar todas as colunas gerava falsos negativos quando arquivos de tipos diferentes
+            # (ex: Faturamento Contábil vs Vendas_cielo_historico) representam a mesma transação
+            # com formatações distintas (case, sinal do desconto, zeros à esquerda, etc.)
+            _DEDUP_KEY_COLS = ["NSU", "Código_de_autorização", "Data_da_venda"]
+
             if n_proc:
-                cols_dedup_proc = [c for c in df_proc.columns if c not in cols_ignorar]
+                cols_dedup_proc = [c for c in _DEDUP_KEY_COLS if c in df_proc.columns]
+                if not cols_dedup_proc:
+                    cols_dedup_proc = [c for c in df_proc.columns if c not in cols_ignorar]
                 len_antes = len(df_proc)
                 df_proc = df_proc.drop_duplicates(subset=cols_dedup_proc).copy()
                 n_proc = len(df_proc)
                 if len_antes > n_proc:
                     print(f"[DEBUG][DEDUP] Removidas {len_antes - n_proc} duplicadas (Vendas Processadas) em memória.")
-            
+
             print(f"[RECORD][VENDAS] Preparado para inserção bulk: {n_proc} linhas")
 
             if n_filt:
-                cols_dedup_filt = [c for c in df_filt.columns if c not in cols_ignorar]
+                cols_dedup_filt = [c for c in _DEDUP_KEY_COLS if c in df_filt.columns]
+                if not cols_dedup_filt:
+                    cols_dedup_filt = [c for c in df_filt.columns if c not in cols_ignorar]
                 len_antes = len(df_filt)
                 df_filt = df_filt.drop_duplicates(subset=cols_dedup_filt).copy()
                 n_filt = len(df_filt)
                 if len_antes > n_filt:
                     print(f"[DEBUG][DEDUP] Removidas {len_antes - n_filt} duplicadas (Vendas Filtradas) em memória.")
+
+            # Filtrar linhas de rodapé/totais onde ec_id não é inteiro válido (ex: "Total", copyright)
+            if n_proc and 'ec_id' in df_proc.columns:
+                mask_proc = pd.to_numeric(df_proc['ec_id'], errors='coerce').notna()
+                removidos_proc = (~mask_proc).sum()
+                if removidos_proc:
+                    print(f"[DEBUG][VENDAS] Removendo {removidos_proc} linha(s) de rodapé (ec_id não-inteiro) em df_proc.")
+                df_proc = df_proc[mask_proc].copy()
+                n_proc = len(df_proc)
+
+            if n_filt and 'ec_id' in df_filt.columns:
+                mask_filt = pd.to_numeric(df_filt['ec_id'], errors='coerce').notna()
+                removidos_filt = (~mask_filt).sum()
+                if removidos_filt:
+                    print(f"[DEBUG][VENDAS] Removendo {removidos_filt} linha(s) de rodapé (ec_id não-inteiro) em df_filt.")
+                df_filt = df_filt[mask_filt].copy()
+                n_filt = len(df_filt)
 
             # Inserir dados nas respectivas tabelas
             if n_proc:

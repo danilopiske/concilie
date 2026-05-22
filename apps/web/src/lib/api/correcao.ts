@@ -52,5 +52,10 @@ export const correcaoService = {
   excluirFiltradas: async (req: RemoverRequest): Promise<{ linhas_afetadas: number }> => {
     const { data } = await api.post<{ linhas_afetadas: number }>('/correcao/excluir-filtradas', req);
     return data;
+  },
+
+  restaurarFiltradas: async (req: RemoverRequest): Promise<{ linhas_afetadas: number }> => {
+    const { data } = await api.post<{ linhas_afetadas: number }>('/correcao/restaurar-filtradas', req);
+    return data;
   }
 };

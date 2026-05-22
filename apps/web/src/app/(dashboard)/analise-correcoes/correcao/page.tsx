@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Processamento } from '@/lib/types/importacao';
 import { ResumoResponse, ResumoItem, HistoricoItem } from '@/lib/types/correcao';
 import { formatCurrency } from '@/lib/utils/formatters';
+import { ArquivosImportados } from '@/components/shared/ArquivosImportados';
 import { 
   Wrench, 
   List, 
@@ -482,6 +483,10 @@ export default function CorrecaoToolPage() {
               </div>
           </PanelBody>
       </Panel>
+
+      {selectedProcessamento && (
+        <ArquivosImportados processamentoId={selectedProcessamento} />
+      )}
 
       {/* 2. Resumo do Processamento (Instruções) */}
       <Panel>

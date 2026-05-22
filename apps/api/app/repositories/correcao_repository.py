@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from sqlalchemy import delete, func, insert, select, or_
+from sqlalchemy import collate, delete, func, insert, select, or_
 from sqlalchemy.orm import Session
 
 from app.models.log import LogCorrecao
@@ -17,13 +17,14 @@ class CorrecaoRepository:
     def listar_resumo(self, processamento_id: str) -> ResumoResponse:
 
         def get_summary(model, column, value_col):
+            col_bin = collate(column, 'utf8mb4_bin')
             return self.db.query(
-                column.label("valor"),
+                col_bin.label("valor"),
                 func.count().label("quantidade"),
                 func.sum(value_col).label("valor_total")
             ).filter(
                 model.processamentoid == processamento_id
-            ).group_by(column).all()
+            ).group_by(col_bin).all()
 
         formas = get_summary(Venda, Venda.forma_pagamento, Venda.valor_venda)
         bandeiras = get_summary(Venda, Venda.bandeira, Venda.valor_venda)
@@ -207,7 +208,7 @@ class CorrecaoRepository:
                     Venda.processamentoid, Venda.cliente_id, Venda.ec_id, Venda.data_venda,
                     Venda.valor_venda, Venda.valor_liquido, Venda.nsu, Venda.autorizacao,
                     Venda.bandeira, Venda.forma_pagamento, Venda.status, Venda.adquirente,
-                    Venda.data_processamento
+                    Venda.data_processamento, Venda.arquivo_origem
                 ).filter(Venda.processamentoid == processamento_id)
 
                 conds = []
@@ -221,7 +222,7 @@ class CorrecaoRepository:
                             VendaFiltrada.data_venda, VendaFiltrada.valor_venda, VendaFiltrada.valor_liquido,
                             VendaFiltrada.nsu, VendaFiltrada.autorizacao, VendaFiltrada.bandeira,
                             VendaFiltrada.forma_pagamento, VendaFiltrada.status, VendaFiltrada.adquirente,
-                            VendaFiltrada.data_processamento
+                            VendaFiltrada.data_processamento, VendaFiltrada.arquivo_origem
                         ],
                         q_select.filter(or_(*conds))
                     )
@@ -348,15 +349,102 @@ class CorrecaoRepository:
                 f.write(f"Error in deletar_filtradas: {str(e)}\n{traceback.format_exc()}")
             raise e
 
+    def restaurar_filtradas(self, processamento_id: str, campo: str, valores: List[str], usuario: str = "sistema") -> int:
+        """Move registros de volta de filtradas → processadas."""
+        has_na = "N/A" in valores
+        v_rest = [v for v in valores if v != "N/A"]
+
+        if campo == 'lancamento':
+            q_select = self.db.query(
+                RecebivelFiltrado.processamentoid, RecebivelFiltrado.lancamento,
+                RecebivelFiltrado.valor_recebivel, RecebivelFiltrado.valor_liquido,
+                RecebivelFiltrado.data_pagamento, RecebivelFiltrado.data_recebivel,
+                RecebivelFiltrado.recebivel_id, RecebivelFiltrado.adquirente,
+                RecebivelFiltrado.descricao, RecebivelFiltrado.banco,
+                RecebivelFiltrado.agencia, RecebivelFiltrado.conta,
+                RecebivelFiltrado.cliente_id, RecebivelFiltrado.ec_id,
+                RecebivelFiltrado.data_processamento, RecebivelFiltrado.usuario_processamento,
+                RecebivelFiltrado.arquivo_origem
+            ).filter(RecebivelFiltrado.processamentoid == processamento_id)
+
+            conds = []
+            if v_rest: conds.append(RecebivelFiltrado.lancamento.in_(v_rest))
+            if has_na: conds.append(RecebivelFiltrado.lancamento.is_(None))
+
+            if conds:
+                stmt = insert(Recebivel).from_select(
+                    [
+                        "processamentoid", "lancamento", "valor_recebivel", "valor_liquido",
+                        "data_pagamento", "data_recebivel", "recebivel_id", "adquirente",
+                        "descricao", "banco", "agencia", "conta", "cliente_id", "ec_id",
+                        "data_processamento", "usuario_processamento", "arquivo_origem"
+                    ],
+                    q_select.filter(or_(*conds))
+                )
+                self.db.execute(stmt)
+                result = self.db.query(RecebivelFiltrado).filter(
+                    RecebivelFiltrado.processamentoid == processamento_id
+                ).filter(or_(*conds)).delete(synchronize_session=False)
+            else:
+                result = 0
+
+            self._registrar_log(processamento_id, 'restauracao_lancamento_recebiveis', ", ".join(valores), None, result, usuario)
+
+        else:
+            column_map = {
+                "forma_pagamento": VendaFiltrada.forma_pagamento,
+                "bandeira": VendaFiltrada.bandeira,
+                "status": VendaFiltrada.status
+            }
+            target_col = column_map.get(campo)
+            if not target_col:
+                raise ValueError(f"Campo inválido: {campo}")
+
+            q_select = self.db.query(
+                VendaFiltrada.processamentoid, VendaFiltrada.cliente_id, VendaFiltrada.ec_id,
+                VendaFiltrada.data_venda, VendaFiltrada.valor_venda, VendaFiltrada.valor_liquido,
+                VendaFiltrada.nsu, VendaFiltrada.autorizacao, VendaFiltrada.bandeira,
+                VendaFiltrada.forma_pagamento, VendaFiltrada.status, VendaFiltrada.adquirente,
+                VendaFiltrada.data_processamento, VendaFiltrada.arquivo_origem
+            ).filter(VendaFiltrada.processamentoid == processamento_id)
+
+            conds = []
+            if v_rest: conds.append(target_col.in_(v_rest))
+            if has_na: conds.append(target_col.is_(None))
+
+            if conds:
+                stmt = insert(Venda).from_select(
+                    [
+                        Venda.processamentoid, Venda.cliente_id, Venda.ec_id,
+                        Venda.data_venda, Venda.valor_venda, Venda.valor_liquido,
+                        Venda.nsu, Venda.autorizacao, Venda.bandeira,
+                        Venda.forma_pagamento, Venda.status, Venda.adquirente,
+                        Venda.data_processamento, Venda.arquivo_origem
+                    ],
+                    q_select.filter(or_(*conds))
+                )
+                self.db.execute(stmt)
+                result = self.db.query(VendaFiltrada).filter(
+                    VendaFiltrada.processamentoid == processamento_id
+                ).filter(or_(*conds)).delete(synchronize_session=False)
+            else:
+                result = 0
+
+            self._registrar_log(processamento_id, f'restauracao_{campo}', ", ".join(valores), None, result, usuario)
+
+        self.db.commit()
+        return result
+
     def listar_resumo_filtradas(self, processamento_id: str) -> ResumoResponse:
         def get_summary(model, column, value_col):
+            col_bin = collate(column, 'utf8mb4_bin')
             return self.db.query(
-                column.label("valor"),
+                col_bin.label("valor"),
                 func.count().label("quantidade"),
                 func.sum(value_col).label("valor_total")
             ).filter(
                 model.processamentoid == processamento_id
-            ).group_by(column).all()
+            ).group_by(col_bin).all()
 
         formas = get_summary(VendaFiltrada, VendaFiltrada.forma_pagamento, VendaFiltrada.valor_venda)
         bandeiras = get_summary(VendaFiltrada, VendaFiltrada.bandeira, VendaFiltrada.valor_venda)

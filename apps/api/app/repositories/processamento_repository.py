@@ -188,9 +188,30 @@ class ProcessamentoRepository:
         for pid in ids:
             logger.info(f"--- Iniciando deleção rápida do Processamento: {pid} ---")
             try:
-                # 1. Remover registros das tabelas filhas (Bulk Delete)
+                # 1a. Garantir que vendas_calculos seja limpa pelas DUAS chaves possíveis:
+                #     calc_id = pid  (caminho normal)
+                #     id_venda IN (SELECT id FROM vendas_processadas WHERE processamentoid = pid)
+                #     Necessário porque calc_id pode diferir do processamentoid em alguns registros.
+                res = self.db.execute(
+                    text("DELETE FROM vendas_calculos WHERE calc_id = :pid"),
+                    {"pid": pid}
+                )
+                logger.info(f"[{pid}] vendas_calculos por calc_id: {res.rowcount} linhas")
+
+                res = self.db.execute(
+                    text("""
+                        DELETE vc FROM vendas_calculos vc
+                        INNER JOIN vendas_processadas vp ON vp.id = vc.id_venda
+                        WHERE vp.processamentoid = :pid
+                    """),
+                    {"pid": pid}
+                )
+                logger.info(f"[{pid}] vendas_calculos por id_venda: {res.rowcount} linhas")
+
+                # 1b. Remover registros das demais tabelas filhas
                 for table, col_fk in tables_map:
-                    # DELETE direto é MUITO mais rápido que SELECT + DELETE em loop
+                    if table == "vendas_calculos":
+                        continue  # já tratada acima
                     delete_sql = text(f"DELETE FROM {table} WHERE {col_fk} = :pid")
                     res = self.db.execute(delete_sql, {"pid": pid})
                     logger.info(f"[{pid}] Removidos registros de {table}. Linhas afetadas: {res.rowcount}")

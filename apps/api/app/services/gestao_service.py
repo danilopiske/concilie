@@ -46,6 +46,9 @@ class GestaoService:
             {"nome": nome.strip().upper(), "padrao": padrao}
         )
 
+    def atualizar_bandeira_disponivel(self, bandeira_id: int, dados: dict):
+        return self.bandeira_disp_repo.atualizar(bandeira_id, dados)
+
     def deletar_bandeira_disponivel(self, bandeira_id: int):
         return self.bandeira_disp_repo.delete(bandeira_id)
 
@@ -66,6 +69,9 @@ class GestaoService:
 
     def adicionar_termo(self, ec: str, termo: str, tipo: str, contexto: str = "padrao"):
         return self.termo_repo.adicionar(ec, termo, tipo, contexto)
+
+    def atualizar_termo(self, termo_id: int, dados: dict):
+        return self.termo_repo.atualizar(termo_id, dados)
 
     def excluir_termo(self, termo_id: int):
         return self.termo_repo.excluir(termo_id)

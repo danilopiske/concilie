@@ -2,7 +2,9 @@
 Reconciliation engine using Polars for high-performance tax calculation.
 Migrated from modules/reconciliation_core.py — no legacy sys.path dependency.
 """
+import glob
 import logging
+import os
 import time
 from contextlib import contextmanager
 from datetime import datetime
@@ -14,6 +16,21 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_str(col: pl.Expr) -> pl.Expr:
+    """Lowercase + strip + remove Portuguese accents for consistent joins."""
+    return (
+        col.fill_null("Desconhecida")
+        .str.to_lowercase()
+        .str.strip_chars()
+        .str.replace_all(r"[áàâã]", "a")
+        .str.replace_all(r"[éê]", "e")
+        .str.replace_all(r"í", "i")
+        .str.replace_all(r"[óôõ]", "o")
+        .str.replace_all(r"ú", "u")
+        .str.replace_all(r"ç", "c")
+    )
 
 
 @contextmanager
@@ -98,9 +115,9 @@ class ReconciliationCore:
                 # 2. Normalizar e Preparar Dados
                 df_vendas = df_vendas.with_columns([
                     pl.col("Data_da_venda").cast(pl.String).str.slice(0, 10).str.to_date().alias("Data_da_venda"),
-                    pl.col("Bandeira").fill_null("Desconhecida").str.to_lowercase().str.strip_chars().alias("bandeira_clean"),
-                    pl.col("Forma_de_pagamento").fill_null("Desconhecida").str.to_lowercase().str.strip_chars().alias("forma_pgto_clean"),
-                    pl.col("Adquirente").fill_null("Desconhecida").str.to_lowercase().str.strip_chars().alias("adquirente_clean"),
+                    _normalize_str(pl.col("Bandeira")).alias("bandeira_clean"),
+                    _normalize_str(pl.col("Forma_de_pagamento")).alias("forma_pgto_clean"),
+                    _normalize_str(pl.col("Adquirente")).alias("adquirente_clean"),
                     pl.lit(custom_calc_id or proc_id).alias("calc_id"),
                     pl.lit(tipo_taxa).alias("calc_tipo"),
                     pl.lit("sistema_polars").alias("calc_usuario"),
@@ -135,9 +152,9 @@ class ReconciliationCore:
 
                     if not df_taxas.is_empty():
                         df_taxas = df_taxas.with_columns([
-                            pl.col("bandeira").str.to_lowercase().str.strip_chars().alias("bandeira_clean"),
-                            pl.col("forma_pagamento").str.to_lowercase().str.strip_chars().alias("forma_pgto_clean"),
-                            pl.col("contexto").str.to_lowercase().str.strip_chars().alias("adquirente_clean"),
+                            _normalize_str(pl.col("bandeira")).alias("bandeira_clean"),
+                            _normalize_str(pl.col("forma_pagamento")).alias("forma_pgto_clean"),
+                            pl.col("contexto").str.to_lowercase().str.strip_chars().alias("contexto_clean"),
                             pl.col("data_ini").cast(pl.Date, strict=False),
                             pl.col("data_fim").cast(pl.Date, strict=False),
                             pl.col("ec").cast(pl.String).alias("ec_str"),
@@ -145,26 +162,56 @@ class ReconciliationCore:
 
                         df_vendas = df_vendas.with_columns(pl.col("ec_id").cast(pl.String).alias("ec_id_str"))
 
-                        df_joined = df_vendas.join(
-                            df_taxas.filter(pl.col("bandeira_clean").is_not_null()),
-                            left_on=["ec_id_str", "adquirente_clean", "bandeira_clean", "forma_pgto_clean"],
-                            right_on=["ec_str", "adquirente_clean", "bandeira_clean", "forma_pgto_clean"],
-                            how="left",
-                            suffix="_taxa",
-                        ).filter(
-                            (pl.col("tx_calc").is_null())
-                            & (pl.col("Data_da_venda") >= pl.col("data_ini"))
-                            & (pl.col("Data_da_venda") <= pl.col("data_fim"))
-                        )
-
-                        if not df_joined.is_empty():
-                            df_vendas = df_vendas.join(
-                                df_joined.select(["id_venda", "taxa"]),
-                                on="id_venda",
+                        def _apply_taxas(df_v: pl.DataFrame, df_t: pl.DataFrame) -> pl.DataFrame:
+                            """Tenta match por adquirente exato; fallback para contexto='padrao'."""
+                            # Passe 1: match exato por adquirente
+                            df_t_especifica = df_t.filter(pl.col("contexto_clean") != "padrao")
+                            joined1 = df_v.join(
+                                df_t_especifica.filter(pl.col("bandeira_clean").is_not_null()),
+                                left_on=["ec_id_str", "adquirente_clean", "bandeira_clean", "forma_pgto_clean"],
+                                right_on=["ec_str", "contexto_clean", "bandeira_clean", "forma_pgto_clean"],
                                 how="left",
-                            ).with_columns([
-                                pl.coalesce([pl.col("taxa"), pl.col("tx_calc")]).alias("tx_calc")
-                            ]).drop(["taxa"])
+                                suffix="_taxa",
+                            ).filter(
+                                (pl.col("tx_calc").is_null())
+                                & (pl.col("Data_da_venda") >= pl.col("data_ini"))
+                                & (pl.col("Data_da_venda") <= pl.col("data_fim"))
+                            )
+                            if not joined1.is_empty():
+                                df_v = df_v.join(
+                                    joined1.select(["id_venda", "taxa"]),
+                                    on="id_venda",
+                                    how="left",
+                                ).with_columns([
+                                    pl.coalesce([pl.col("taxa"), pl.col("tx_calc")]).alias("tx_calc")
+                                ]).drop(["taxa"])
+
+                            # Passe 2: fallback contexto='padrao' para os ainda sem taxa
+                            df_t_padrao = df_t.filter(pl.col("contexto_clean") == "padrao")
+                            if not df_t_padrao.is_empty():
+                                joined2 = df_v.join(
+                                    df_t_padrao.filter(pl.col("bandeira_clean").is_not_null()),
+                                    left_on=["ec_id_str", "bandeira_clean", "forma_pgto_clean"],
+                                    right_on=["ec_str", "bandeira_clean", "forma_pgto_clean"],
+                                    how="left",
+                                    suffix="_taxa",
+                                ).filter(
+                                    (pl.col("tx_calc").is_null())
+                                    & (pl.col("Data_da_venda") >= pl.col("data_ini"))
+                                    & (pl.col("Data_da_venda") <= pl.col("data_fim"))
+                                )
+                                if not joined2.is_empty():
+                                    df_v = df_v.join(
+                                        joined2.select(["id_venda", "taxa"]),
+                                        on="id_venda",
+                                        how="left",
+                                    ).with_columns([
+                                        pl.coalesce([pl.col("taxa"), pl.col("tx_calc")]).alias("tx_calc")
+                                    ]).drop(["taxa"])
+
+                            return df_v
+
+                        df_vendas = _apply_taxas(df_vendas, df_taxas)
 
                 # 5. Lógica de LOG (Min Taxa do Período)
                 logger.info("[RECON-CORE] Aplicando lógica de LOG...")
@@ -196,23 +243,40 @@ class ReconciliationCore:
                 df_vendas = df_vendas.with_columns([
                     (pl.col("Valor_da_venda") * pl.col("tx_calc").fill_null(0) / 100).alias("desc_calc"),
                     (pl.col("Valor_da_venda") * pl.col("tx_rr_calc").fill_null(0) / 100).alias("vl_rr_calc"),
+                    # desc_venda real: 1) Valor_descontado abs (MDR real cobrado)  2) Taxas_Perc  3) derivar do líquido
+                    pl.when(pl.col("Valor_descontado").is_not_null() & (pl.col("Valor_descontado") != 0))
+                    .then(pl.col("Valor_descontado").abs())
+                    .when(pl.col("Taxas_Perc").is_not_null() & (pl.col("Taxas_Perc") != 0))
+                    .then(pl.col("Valor_da_venda") * pl.col("Taxas_Perc") / 100)
+                    .otherwise(
+                        pl.col("Valor_da_venda") - pl.col("Valor_líquido_da_venda") - pl.col("Valor_RR").fill_null(0)
+                    )
+                    .alias("desc_venda_real"),
                 ]).with_columns([
                     (pl.col("Valor_da_venda") - pl.col("desc_calc")).alias("vl_liq_calc"),
-                    pl.when((pl.col("Taxas_Perc").is_null()) | (pl.col("Taxas_Perc") == 0))
+                    # perda = só MDR: taxa contratada − o que a adquirente realmente cobrou
+                    pl.when(
+                        (pl.col("tx_calc").is_null()) | (pl.col("tx_calc") == 0)
+                    )
                     .then(0.0)
-                    .otherwise(pl.col("Valor_líquido_da_venda") - (pl.col("Valor_da_venda") - pl.col("desc_calc")))
+                    .otherwise(pl.col("desc_calc") - pl.col("desc_venda_real"))
                     .alias("perda"),
                 ])
 
                 if tem_receba_rapido:
+                    # Perda = o que o contrato permite - o que foi cobrado; nunca positivo
                     df_vendas = df_vendas.with_columns([
-                        (pl.col("vl_rr_calc") - pl.col("Valor_RR").fill_null(0)).alias("perda_rr")
+                        pl.min_horizontal(
+                            pl.col("vl_rr_calc") - pl.col("Valor_RR").fill_null(0.0),
+                            pl.lit(0.0)
+                        ).alias("perda_rr")
                     ])
                 else:
+                    # RR não incluso no cálculo: todo Valor_RR cobrado é perda integral (negativo)
                     df_vendas = df_vendas.with_columns([
                         pl.lit(0.0).alias("tx_rr_calc"),
                         pl.lit(0.0).alias("vl_rr_calc"),
-                        pl.lit(0.0).alias("perda_rr"),
+                        (pl.col("Valor_RR").fill_null(0.0) * -1.0).alias("perda_rr"),
                     ])
 
                 # 7. Limpeza e Escrita Final
@@ -232,7 +296,7 @@ class ReconciliationCore:
                     pl.col("cod_autor_orig").alias("cod_autorizacao"),
                     pl.col("Valor_da_venda").alias("vl_venda"),
                     pl.col("Taxas_Perc").alias("tx_venda"),
-                    (pl.col("Valor_da_venda") * pl.col("Taxas_Perc").fill_null(0) / 100).alias("desc_venda"),
+                    pl.col("desc_venda_real").alias("desc_venda"),
                     pl.col("Valor_líquido_da_venda").alias("vl_liq_venda"),
                     pl.col("Taxas_RR").alias("tx_rr_venda"),
                     pl.col("Valor_RR").alias("vl_rr_venda"),
@@ -258,6 +322,16 @@ class ReconciliationCore:
                             index=False,
                             chunksize=10000,
                         )
+
+                # Invalidar cache Parquet do relatório para este calc_id
+                _cache_dir = os.path.join(os.path.dirname(__file__), "..", "..", "relatorios_cache")
+                _safe = "".join(c if c.isalnum() or c in "_-" else "_" for c in (custom_calc_id or proc_id))
+                for _f in glob.glob(os.path.join(_cache_dir, f"{_safe}*.parquet")):
+                    try:
+                        os.remove(_f)
+                        logger.info("[RECON-CORE] Cache invalidado: %s", os.path.basename(_f))
+                    except OSError:
+                        pass
 
                 t_total = time.time() - t_start
                 logger.info("[RECON-CORE] Concluído com Sucesso em %.2fs!", t_total)

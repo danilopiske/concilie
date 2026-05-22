@@ -262,9 +262,32 @@
         .metric-row .value {
             color: #666;
         }
+
+        #print-btn {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 9999;
+            background: #223a6b;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        }
+        #print-btn:hover { background: #1a2d55; }
+        #print-btn:disabled { background: #888; cursor: wait; }
+
+        @media print {
+            #print-btn { display: none !important; }
+        }
     </style>
 </head>
 <body>
+    <button id="print-btn">🖨️ Imprimir / Salvar PDF</button>
     <div class="container">
         <div class="header">
             <h1>Relatório Sintético de Conciliação</h1>
@@ -428,5 +451,26 @@
             </p>
         </div>
     </div>
+
+    <script>
+    (function () {
+        var btn = document.getElementById('print-btn');
+
+        btn.addEventListener('click', function () {
+            btn.textContent = '⏳ Preparando...';
+            btn.disabled = true;
+            window.onafterprint = function () {
+                btn.textContent = '🖨️ Imprimir / Salvar PDF';
+                btn.disabled = false;
+                window.onafterprint = null;
+            };
+            window.print();
+            setTimeout(function () {
+                btn.textContent = '🖨️ Imprimir / Salvar PDF';
+                btn.disabled = false;
+            }, 3000);
+        });
+    })();
+    </script>
 </body>
 </html>

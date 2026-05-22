@@ -47,6 +47,17 @@ export async function adicionarTermo(
 }
 
 /**
+ * Atualizar termo filtrável
+ */
+export async function atualizarTermo(
+  termoId: number,
+  dados: { termo?: string; tipo?: string }
+): Promise<TermoFiltravel> {
+  const { data } = await apiClient.put<TermoFiltravel>(`/gestao/termos/${termoId}`, dados);
+  return data;
+}
+
+/**
  * Excluir termo filtrável
  */
 export async function excluirTermo(termoId: number): Promise<void> {

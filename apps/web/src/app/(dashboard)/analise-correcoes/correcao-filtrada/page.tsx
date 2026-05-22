@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Trash2,
   Edit2,
+  Undo2,
 } from 'lucide-react';
 
 export default function CorrecaoFiltradaPage() {
@@ -40,6 +41,7 @@ export default function CorrecaoFiltradaPage() {
 
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [actionItem, setActionItem] = useState<{ campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento'; item: ResumoItem } | null>(null);
   const [newValue, setNewValue] = useState('');
   const [processingAction, setProcessingAction] = useState(false);
@@ -126,6 +128,49 @@ export default function CorrecaoFiltradaPage() {
       setActionItem({ campo, item });
     }
     setDeleteDialogOpen(true);
+  };
+
+  const handleRestore = (
+    campo: 'forma_pagamento' | 'bandeira' | 'status' | 'lancamento',
+    item: ResumoItem | 'selected'
+  ) => {
+    if (item === 'selected') {
+      const selected = selectedItems[campo];
+      if (!selected || selected.length === 0) {
+        alert('Selecione ao menos um item');
+        return;
+      }
+      setActionItem({ campo, item: { valor: selected.join(', '), quantidade: 0, valor_total: 0 } });
+    } else {
+      setActionItem({ campo, item });
+    }
+    setRestoreDialogOpen(true);
+  };
+
+  const confirmRestore = async () => {
+    if (!actionItem || !selectedProcessamento) return;
+    try {
+      setProcessingAction(true);
+      const isBatch = actionItem.item.quantidade === 0 && actionItem.item.valor.includes(', ');
+      const valores = isBatch ? selectedItems[actionItem.campo] : [actionItem.item.valor];
+      await correcaoService.restaurarFiltradas({
+        processamento_id: selectedProcessamento,
+        campo: actionItem.campo,
+        valores,
+        usuario: user?.usuario,
+      });
+      setSuccess('Registros restaurados para processadas com sucesso!');
+    } catch (err: unknown) {
+      const apiErr = err as { response?: { data?: { detail?: string } }; message?: string };
+      setError(`Erro ao restaurar: ${apiErr.response?.data?.detail || apiErr.message || 'Erro desconhecido'}`);
+      return;
+    } finally {
+      setProcessingAction(false);
+      setRestoreDialogOpen(false);
+      setActionItem(null);
+      setSelectedItems(prev => ({ ...prev, [actionItem.campo]: [] }));
+    }
+    await fetchResumo(selectedProcessamento);
   };
 
   const confirmEdit = async () => {
@@ -239,9 +284,12 @@ export default function CorrecaoFiltradaPage() {
       {
         key: 'acoes',
         label: 'Ações',
-        width: '220px',
+        width: '310px',
         render: (_, item) => (
           <div className="flex gap-2 justify-end">
+            <Button variant="secondary" size="sm" onClick={() => handleRestore(campo, item)} className="text-green-700 border-green-200 hover:bg-green-50">
+              <Undo2 className="w-4 h-4" /> Restaurar
+            </Button>
             <Button variant="secondary" size="sm" onClick={() => handleEdit(campo, item)}>
               <Edit2 className="w-4 h-4" /> Editar
             </Button>
@@ -260,6 +308,14 @@ export default function CorrecaoFiltradaPage() {
             <span>{title}</span>
             {selected.length > 0 && (
               <div className="flex gap-2 mr-4">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleRestore(campo, 'selected')}
+                  className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 shadow-none border"
+                >
+                  <Undo2 className="w-4 h-4 mr-1" /> Restaurar {selected.length}
+                </Button>
                 <Button variant="primary" size="sm" onClick={() => handleEdit(campo, 'selected')}>
                   <Edit2 className="w-4 h-4 mr-1" /> Mapear {selected.length}
                 </Button>
@@ -433,6 +489,18 @@ export default function CorrecaoFiltradaPage() {
         confirmText={processingAction ? 'Excluindo...' : 'Sim, Excluir Permanentemente'}
         loading={processingAction}
         variant="danger"
+      />
+
+      {/* Restore Confirmation */}
+      <ConfirmDialog
+        isOpen={restoreDialogOpen}
+        onClose={() => { setRestoreDialogOpen(false); setActionItem(null); }}
+        onConfirm={confirmRestore}
+        title="Restaurar para Processadas"
+        message={`Deseja restaurar todos os registros de "${actionItem?.item.valor}" de volta para vendas/recebíveis processados?`}
+        confirmText={processingAction ? 'Restaurando...' : 'Sim, Restaurar'}
+        loading={processingAction}
+        variant="info"
       />
     </div>
   );

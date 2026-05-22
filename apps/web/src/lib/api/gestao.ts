@@ -101,6 +101,11 @@ export const gestaoApi = {
       return data;
     },
 
+    async atualizar(bandeiraId: number, bandeira: Partial<BandeiraCreate>): Promise<BandeiraDisponivel> {
+      const { data } = await apiClient.put<BandeiraDisponivel>(`/gestao/bandeiras-disponiveis/${bandeiraId}`, bandeira);
+      return data;
+    },
+
     async deletar(bandeiraId: number): Promise<void> {
       await apiClient.delete(`/gestao/bandeiras-disponiveis/${bandeiraId}`);
     },
@@ -127,6 +132,11 @@ export const gestaoApi = {
 
     async adicionar(ecId: string | number, termo: TermoCreate): Promise<TermoFiltravel> {
       const { data } = await apiClient.post<TermoFiltravel>(`/gestao/ecs/${ecId}/termos`, termo);
+      return data;
+    },
+
+    async atualizar(termoId: number, dados: { termo?: string; tipo?: string }): Promise<TermoFiltravel> {
+      const { data } = await apiClient.put<TermoFiltravel>(`/gestao/termos/${termoId}`, dados);
       return data;
     },
 

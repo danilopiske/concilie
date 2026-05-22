@@ -92,6 +92,25 @@ def excluir_filtradas(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.post("/restaurar-filtradas")
+def restaurar_filtradas(
+    request: RemoverRequest,
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
+):
+    """Restaura registros de filtradas de volta para processadas."""
+    repo = CorrecaoRepository(db)
+    try:
+        count = repo.restaurar_filtradas(
+            request.processamento_id,
+            request.campo,
+            request.valores
+        )
+        invalidar_parquet(request.processamento_id)
+        return {"message": "Registros restaurados para processadas com sucesso", "linhas_afetadas": count}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @router.get("/resumo-filtradas", response_model=ResumoResponse)
 def obter_resumo_filtradas(
     processamento_id: str,

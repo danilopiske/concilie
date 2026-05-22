@@ -13,10 +13,11 @@ from app.schemas.bandeira import (
     BandeiraClienteUpdate,
     BandeiraDisponivelCreate,
     BandeiraDisponivelResponse,
+    BandeiraDisponivelUpdate,
 )
 from app.schemas.contexto import ContextoCreate, ContextoResponse
 from app.schemas.taxa import TaxaCreate, TaxaResponse
-from app.schemas.termo import TermoFiltravelCreate, TermoFiltravelResponse
+from app.schemas.termo import TermoFiltravelCreate, TermoFiltravelResponse, TermoFiltravelUpdate
 from app.services.gestao_service import GestaoService
 
 router = APIRouter()
@@ -54,6 +55,21 @@ async def criar_bandeira_disponivel(
     """Create bandeira disponivel"""
     service = GestaoService(db)
     return service.criar_bandeira_disponivel(bandeira.nome, bandeira.padrao)
+
+
+@router.put("/bandeiras-disponiveis/{bandeira_id}", response_model=BandeiraDisponivelResponse)
+async def atualizar_bandeira_disponivel(
+    bandeira_id: int,
+    bandeira: BandeiraDisponivelUpdate,
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
+):
+    """Update bandeira disponivel"""
+    service = GestaoService(db)
+    result = service.atualizar_bandeira_disponivel(bandeira_id, bandeira.model_dump(exclude_none=True))
+    if not result:
+        raise HTTPException(status_code=404, detail="Bandeira não encontrada")
+    return result
 
 
 @router.delete("/bandeiras-disponiveis/{bandeira_id}", status_code=204)
@@ -102,6 +118,21 @@ async def adicionar_termo(
     """Add termo"""
     service = GestaoService(db)
     return service.adicionar_termo(ec, termo.termo, termo.tipo, termo.contexto)
+
+
+@router.put("/termos/{termo_id}", response_model=TermoFiltravelResponse)
+async def atualizar_termo(
+    termo_id: int,
+    termo: TermoFiltravelUpdate,
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_role(["admin", "operador"])),
+):
+    """Update termo"""
+    service = GestaoService(db)
+    result = service.atualizar_termo(termo_id, termo.model_dump(exclude_none=True))
+    if not result:
+        raise HTTPException(status_code=404, detail="Termo não encontrado")
+    return result
 
 
 @router.delete("/termos/{termo_id}", status_code=204)

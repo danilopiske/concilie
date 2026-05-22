@@ -122,7 +122,7 @@ export const importacaoApi = {
       progress: number;
       message: string;
       updated_at: string;
-    }>(`importacao-async/task/${taskId}`);
+    }>(`importacao-async/task/${taskId}`, { timeout: 10000 });
     return data;
   },
 

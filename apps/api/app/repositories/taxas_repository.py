@@ -50,15 +50,13 @@ class TaxasRepository:
 
     def atualizar(self, taxa_id: int, taxa: TaxaUpdate) -> bool:
         taxa_dict = taxa.model_dump(exclude_unset=True)
+        if not taxa_dict:
+            return True
         if "taxa" in taxa_dict and taxa_dict["taxa"] is not None:
             taxa_dict["taxa"] = float(taxa_dict["taxa"])
+        set_clause = ", ".join(f"{k}=:{k}" for k in taxa_dict.keys())
         taxa_dict["id"] = taxa_id
-        sql = (
-            "UPDATE taxas SET ec=:ec, bandeira=:bandeira, forma_pagamento=:forma_pagamento, "
-            "parcelado=:parcelado, parcelas_ini=:parcelas_ini, parcelas_fim=:parcelas_fim, "
-            "data_ini=:data_ini, data_fim=:data_fim, taxa=:taxa, contexto=:contexto "
-            "WHERE id=:id"
-        )
+        sql = f"UPDATE taxas SET {set_clause} WHERE id=:id"
         try:
             exec_sql(self.engine, sql, taxa_dict)
             return True

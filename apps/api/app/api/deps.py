@@ -61,14 +61,16 @@ def get_current_user(
         if token_data is None:
             logger.warning("Token sem 'sub'")
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
+                status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
+                headers={"WWW-Authenticate": "Bearer"},
             )
     except (JWTError, ValidationError) as e:
         logger.warning(f"Erro JWT: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     from app.repositories.usuario_repository import UsuarioRepository

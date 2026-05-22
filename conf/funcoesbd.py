@@ -162,23 +162,25 @@ def recebiveis_processados_bulk_insert(engine: Engine, df, progress_callback=Non
     valid_cols = [c["name"] for c in inspector.get_columns("recebiveis_processados")]
     total_rows = len(df)
     inserted = 0
-    chunksize = 1000 # Further reduced chunksize to 1000 to minimize lock contention
+    chunksize = 1000
 
-    for i in range(0, total_rows, chunksize):
-        chunk = df.iloc[i : i + chunksize]
-        chunk.to_sql(
-            name="recebiveis_processados",
-            con=engine,
-            index=False,
-            if_exists="append",
-            chunksize=chunksize,
-            dtype=dtype_map if dtype_map else None,
-        )
-        inserted += len(chunk)
-        if progress_callback:
-            progress = int((inserted / total_rows) * 100)
-            progress_callback(progress, f"Gravando recebíveis processados ({inserted}/{total_rows})...")
-        print(f"[DEBUG][BULK_INSERT] Inseridos {inserted}/{total_rows} recebíveis processados...")
+    with engine.connect() as conn:
+        for i in range(0, total_rows, chunksize):
+            chunk = df.iloc[i : i + chunksize]
+            chunk.to_sql(
+                name="recebiveis_processados",
+                con=conn,
+                index=False,
+                if_exists="append",
+                chunksize=chunksize,
+                dtype=dtype_map if dtype_map else None,
+            )
+            conn.commit()
+            inserted += len(chunk)
+            if progress_callback:
+                progress = int((inserted / total_rows) * 100)
+                progress_callback(progress, f"Gravando recebíveis processados ({inserted}/{total_rows})...")
+            print(f"[DEBUG][BULK_INSERT] Inseridos {inserted}/{total_rows} recebíveis processados...")
 
     return inserted
 
@@ -216,23 +218,25 @@ def recebiveis_filtrados_bulk_insert(engine: Engine, df, progress_callback=None)
     valid_cols = [c["name"] for c in inspector.get_columns("recebiveis_filtrados")]
     total_rows = len(df)
     inserted = 0
-    chunksize = 1000 # Further reduced chunksize to 1000 to minimize lock contention
+    chunksize = 1000
 
-    for i in range(0, total_rows, chunksize):
-        chunk = df.iloc[i : i + chunksize]
-        chunk.to_sql(
-            name="recebiveis_filtrados",
-            con=engine,
-            index=False,
-            if_exists="append",
-            chunksize=chunksize,
-            dtype=dtype_map if dtype_map else None,
-        )
-        inserted += len(chunk)
-        if progress_callback:
-            progress = int((inserted / total_rows) * 100)
-            progress_callback(progress, f"Gravando recebíveis filtrados ({inserted}/{total_rows})...")
-        print(f"[DEBUG][BULK_INSERT] Inseridos {inserted}/{total_rows} recebíveis filtrados...")
+    with engine.connect() as conn:
+        for i in range(0, total_rows, chunksize):
+            chunk = df.iloc[i : i + chunksize]
+            chunk.to_sql(
+                name="recebiveis_filtrados",
+                con=conn,
+                index=False,
+                if_exists="append",
+                chunksize=chunksize,
+                dtype=dtype_map if dtype_map else None,
+            )
+            conn.commit()
+            inserted += len(chunk)
+            if progress_callback:
+                progress = int((inserted / total_rows) * 100)
+                progress_callback(progress, f"Gravando recebíveis filtrados ({inserted}/{total_rows})...")
+            print(f"[DEBUG][BULK_INSERT] Inseridos {inserted}/{total_rows} recebíveis filtrados...")
 
     return inserted
 
@@ -1162,23 +1166,25 @@ def vendas_processadas_bulk_insert(engine: Engine, df, progress_callback=None) -
     total_rows = len(df)
     inserted = 0
     chunksize = 1000 # Further reduced chunksize to prevent lock timeouts and long-running transactions
-    
-    for i in range(0, total_rows, chunksize):
-        chunk = df.iloc[i : i + chunksize]
-        chunk.to_sql(
-            name="vendas_processadas",
-            con=engine,
-            index=False,
-            if_exists="append",
-            chunksize=chunksize,
-            method="multi", # Optimization for bulk insert
-            dtype=dtype_map if dtype_map else None,
-        )
-        inserted += len(chunk)
-        if progress_callback:
-            progress = int((inserted / total_rows) * 100)
-            progress_callback(progress, f"Gravando vendas processadas ({inserted}/{total_rows})...")
-        print(f"[DEBUG][BULK_INSERT] Inseridas {inserted}/{total_rows} vendas processadas...")
+
+    with engine.connect() as conn:
+        for i in range(0, total_rows, chunksize):
+            chunk = df.iloc[i : i + chunksize]
+            chunk.to_sql(
+                name="vendas_processadas",
+                con=conn,
+                index=False,
+                if_exists="append",
+                chunksize=chunksize,
+                method="multi",
+                dtype=dtype_map if dtype_map else None,
+            )
+            conn.commit()
+            inserted += len(chunk)
+            if progress_callback:
+                progress = int((inserted / total_rows) * 100)
+                progress_callback(progress, f"Gravando vendas processadas ({inserted}/{total_rows})...")
+            print(f"[DEBUG][BULK_INSERT] Inseridas {inserted}/{total_rows} vendas processadas...")
 
     return inserted
 
@@ -1223,23 +1229,25 @@ def vendas_filtradas_bulk_insert(engine: Engine, df, progress_callback=None) -> 
 
     total_rows = len(df)
     inserted = 0
-    chunksize = 1000 # Further reduced chunksize to prevent lock timeouts and long-running transactions
-    
-    for i in range(0, total_rows, chunksize):
-        chunk = df.iloc[i : i + chunksize]
-        chunk.to_sql(
-            name="vendas_filtradas",
-            con=engine,
-            index=False,
-            if_exists="append",
-            chunksize=chunksize,
-            dtype=dtype_map if dtype_map else None,
-        )
-        inserted += len(chunk)
-        if progress_callback:
-            progress = int((inserted / total_rows) * 100)
-            progress_callback(progress, f"Gravando vendas filtradas ({inserted}/{total_rows})...")
-        print(f"[DEBUG][BULK_INSERT] Inseridas {inserted}/{total_rows} vendas filtradas...")
+    chunksize = 1000
+
+    with engine.connect() as conn:
+        for i in range(0, total_rows, chunksize):
+            chunk = df.iloc[i : i + chunksize]
+            chunk.to_sql(
+                name="vendas_filtradas",
+                con=conn,
+                index=False,
+                if_exists="append",
+                chunksize=chunksize,
+                dtype=dtype_map if dtype_map else None,
+            )
+            conn.commit()
+            inserted += len(chunk)
+            if progress_callback:
+                progress = int((inserted / total_rows) * 100)
+                progress_callback(progress, f"Gravando vendas filtradas ({inserted}/{total_rows})...")
+            print(f"[DEBUG][BULK_INSERT] Inseridas {inserted}/{total_rows} vendas filtradas...")
 
     return inserted
 
@@ -1273,14 +1281,16 @@ def vendas_diversas_bulk_insert(engine: Engine, df) -> int:
     valid_cols = [c["name"] for c in inspector.get_columns("vendas_diversas")]
     df = df[[c for c in df.columns if c in valid_cols]]
 
-    df.to_sql(
-        name="vendas_diversas",
-        con=engine,
-        index=False,
-        if_exists="append",
-        chunksize=10000,
-        dtype=dtype_map if dtype_map else None,
-    )
+    with engine.connect() as conn:
+        df.to_sql(
+            name="vendas_diversas",
+            con=conn,
+            index=False,
+            if_exists="append",
+            chunksize=10000,
+            dtype=dtype_map if dtype_map else None,
+        )
+        conn.commit()
     return len(df)
 
 
@@ -1290,14 +1300,16 @@ def vendas_remover_duplicadas(
     if nome_tabela not in {"vendas_processadas", "vendas_filtradas", "vendas_diversas"}:
         raise ValueError("Tabela inválida para remoção de duplicadas.")
 
-    colunas_a_ignorar = {
-        "id",
-        "data_processamento",
-        "usuario_processamento",
-        "arquivo_origem",
-    }
-    colunas_para_groupby = [
-        f"`{col}`" for col in df_cols if col not in colunas_a_ignorar
+    # Deduplicar apenas pelas colunas-chave de negócio.
+    # Usar todas as colunas gerava falsos negativos: o mesmo NSU importado de dois
+    # tipos de arquivo (ex: Faturamento Contábil vs Vendas_cielo_historico) tem
+    # formatações distintas (case, sinal do desconto, zeros à esquerda) que fazem
+    # o GROUP BY tratar registros idênticos como linhas diferentes.
+    _KEY_COLS = {"NSU", "Código_de_autorização", "Data_da_venda"}
+    cols_chave_disponiveis = [f"`{col}`" for col in df_cols if col in _KEY_COLS]
+    colunas_para_groupby = cols_chave_disponiveis if cols_chave_disponiveis else [
+        f"`{col}`" for col in df_cols
+        if col not in {"id", "data_processamento", "usuario_processamento", "arquivo_origem"}
     ]
 
     if not colunas_para_groupby:

@@ -37,6 +37,13 @@ export interface SumarioFinanceiro {
   tem_dados: boolean;
 }
 
+export interface ArquivoImportado {
+  nome_arquivo: string;
+  arquivo_origem_raw: string;
+  tabela: string;
+  total_linhas: number;
+}
+
 export interface ProcessamentoListParams {
   cliente_id?: number;
   periodo?: number;
@@ -49,20 +56,27 @@ export interface ProcessamentoListParams {
 export const processamentosApi = {
   getDetalhes: async (processamentoId: string): Promise<ProcessamentoDetalhes> => {
     const response = await apiClient.get<ProcessamentoDetalhes>(
-      `/processamentos/${processamentoId}/detalhes`
+      `/processamentos/${encodeURIComponent(processamentoId)}/detalhes`
     );
     return response.data;
   },
 
   getSumarioFinanceiro: async (processamentoId: string): Promise<SumarioFinanceiro> => {
     const response = await apiClient.get<SumarioFinanceiro>(
-      `/processamentos/${processamentoId}/financeiro`
+      `/processamentos/${encodeURIComponent(processamentoId)}/financeiro`
     );
     return response.data;
   },
 
   listar: async (params?: ProcessamentoListParams) => {
     const response = await apiClient.get('/processamentos/', { params });
+    return response.data;
+  },
+
+  getArquivos: async (processamentoId: string): Promise<ArquivoImportado[]> => {
+    const response = await apiClient.get<ArquivoImportado[]>(
+      `/processamentos/${encodeURIComponent(processamentoId)}/arquivos`
+    );
     return response.data;
   },
 

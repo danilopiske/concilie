@@ -12,12 +12,14 @@ export interface AgregacaoBandeira extends AgregacaoBase {
   bandeira: string;
   taxa_perc_media?: number;
   taxa_valor_total?: number;
+  vl_rr_total?: number;
 }
 
 export interface AgregacaoFormaPagamento extends AgregacaoBase {
   forma_pagamento: string;
   taxa_perc_media?: number;
   taxa_valor_total?: number;
+  vl_rr_total?: number;
 }
 
 export interface AgregacaoPeriodo extends AgregacaoBase {
@@ -29,6 +31,33 @@ export interface AgregacaoRecebivel {
   tipo_recebivel: string;
   quantidade: number;
   valor_total: number;
+}
+
+export interface AgregacaoBandeiraForma {
+  bandeira: string;
+  forma_pagamento: string;
+  quantidade: number;
+  valor_total: number;
+  valor_medio?: number;
+  taxa_perc_media?: number;
+  taxa_valor_total?: number;
+  vl_rr_total?: number;
+}
+
+export interface ConformidadeBandeiraForma {
+  bandeira: string;
+  forma_pagamento: string;
+  quantidade: number;
+  faturamento: number;
+  cielo_liquido: number;
+  cielo_taxa_media?: number;
+  cielo_retido: number;
+  calc_liquido: number;
+  calc_taxa_media?: number;
+  calc_retido: number;
+  nao_conformidade: number;
+  nao_conformidade_perc?: number;
+  perda_rr?: number;
 }
 
 export interface AgregacaoFormaPagamentoAno {
@@ -67,7 +96,17 @@ export const analistaApi = {
   getFormasPorAno: async (processamentoId: string) => {
     const { data } = await apiClient.get<AgregacaoFormaPagamentoAno[]>(`/analista/${processamentoId}/formas-por-ano`);
     return data;
-  }
+  },
+
+  getBandeiraForma: async (processamentoId: string) => {
+    const { data } = await apiClient.get<AgregacaoBandeiraForma[]>(`/analista/${processamentoId}/bandeira-forma`);
+    return data;
+  },
+
+  getConformidade: async (processamentoId: string) => {
+    const { data } = await apiClient.get<ConformidadeBandeiraForma[]>(`/analista/${processamentoId}/conformidade`);
+    return data;
+  },
 };
 
 export const analistaFiltradaApi = {
