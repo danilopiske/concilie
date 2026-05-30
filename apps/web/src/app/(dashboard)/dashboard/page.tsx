@@ -33,18 +33,18 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const [r, a, s, st] = await Promise.all([
+      const [r, a, s] = await Promise.all([
         dashboardApi.getResumo(p),
         dashboardApi.getAtividadeRecente(),
         dashboardApi.getAtividadeSemanal(),
-        sistemaApi.getStatus(),
       ]);
       setResumo(r);
       setAtividade(a);
       setAtividadeSemanal(s);
-      setSistemaStatus(st);
-    } catch {
-      setError('Erro ao carregar dados do dashboard.');
+      sistemaApi.getStatus().then(setSistemaStatus).catch(() => {});
+    } catch (err: any) {
+      const detalhe = err?.response?.data?.detail || err?.message || '';
+      setError(`Erro ao carregar dados do dashboard.${detalhe ? ` (${detalhe})` : ''}`);
     } finally {
       setLoading(false);
     }

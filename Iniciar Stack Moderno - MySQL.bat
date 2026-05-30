@@ -14,6 +14,10 @@ powershell -ExecutionPolicy Bypass -File "%~dp0scripts\OptimizeOS.ps1"
 
 set "API_PATH=apps\api"
 
+echo [!] Verificando Docker no WSL...
+wsl bash -c "[ -S /var/run/docker.sock ] || (dockerd --host=unix:///var/run/docker.sock > /dev/null 2>&1 & sleep 3)"
+echo [OK] Docker verificado
+
 REM Verificar se está configurado para MySQL
 if not exist "apps\api\.env" (
     echo [ERRO] Arquivo .env nao encontrado!

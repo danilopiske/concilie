@@ -173,11 +173,13 @@ function buildSlashExtension(tags: RelatorioTag[]): Extension {
 
 interface RelatorioEditorProps {
   initialContent: string;
-  tags: RelatorioTag[];
+  tags?: RelatorioTag[];
   onChange?: (html: string) => void;
+  onSave?: (html: string) => Promise<void>;
+  saveLabel?: string;
 }
 
-export function RelatorioEditor({ initialContent, tags, onChange }: RelatorioEditorProps) {
+export function RelatorioEditor({ initialContent, tags = [], onChange, onSave, saveLabel = 'Salvar' }: RelatorioEditorProps) {
   // Build extension once on mount; TipTap does not support runtime extension updates
   // without destroying/recreating the editor, so tags are captured at initialization.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,6 +235,14 @@ export function RelatorioEditor({ initialContent, tags, onChange }: RelatorioEdi
         <span className="ml-auto text-xs text-gray-400 flex items-center">
           Digite <kbd className="mx-1 px-1 bg-gray-200 rounded text-xs">/</kbd> para inserir tag
         </span>
+        {onSave && (
+          <button
+            onClick={() => onSave(editor.getHTML())}
+            className="ml-2 px-3 py-1 text-sm rounded bg-primary text-white hover:bg-primary/90"
+          >
+            {saveLabel}
+          </button>
+        )}
       </div>
 
       {/* Editor Area */}
@@ -243,3 +253,5 @@ export function RelatorioEditor({ initialContent, tags, onChange }: RelatorioEdi
     </div>
   );
 }
+
+export default RelatorioEditor;

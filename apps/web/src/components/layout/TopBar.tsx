@@ -23,6 +23,7 @@ const NAV_MODULES: NavItem[] = [
   { label: 'Análise', href: '/analise-correcoes' },
   { label: 'Cálculos', href: '/calculos' },
   { label: 'Relatórios', href: '/relatorios' },
+  { label: 'Conversor', href: '/conversor' },
   { label: 'Config', href: '/configuracoes' },
 ];
 

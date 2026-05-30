@@ -1,4 +1,17 @@
 services:
+  # --- MySQL ---
+  mysql:
+    image: mysql:8.0
+    container_name: financial-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: C0nc!l!3@123#
+      MYSQL_DATABASE: concilie
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - financial-network
+
   # --- API (FastAPI) ---
   api:
     build:
@@ -7,14 +20,21 @@ services:
     container_name: financial-api
     restart: unless-stopped
     env_file:
-      - .env
+      - apps/api/.env
+    environment:
+      MYSQL_SERVER: mysql
+    depends_on:
+      - mysql
+      - redis
+    ports:
+      - "8000:8000"
     volumes:
       - ./data:/app/data
       - ./temp_uploads:/app/temp_uploads
     networks:
       - financial-network
 
-  # --- WEB (Next.js + Nginx) ---
+  # --- WEB (Next.js) ---
   web:
     build:
       context: .
@@ -22,8 +42,20 @@ services:
     container_name: financial-web
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "3002:3000"
     depends_on:
+      - api
+    networks:
+      - financial-network
+
+  # --- Cloudflare Tunnel ---
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: financial-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --protocol http2 run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - web
       - api
     networks:
       - financial-network
@@ -39,3 +71,6 @@ services:
 networks:
   financial-network:
     driver: bridge
+
+volumes:
+  mysql-data:

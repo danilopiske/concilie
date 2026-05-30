@@ -218,6 +218,7 @@ export default function AbusividadePage() {
           <div className="p-4">
             <RelatorioEditor
               initialContent={editorContent}
+              tags={[]}
               onChange={setEditorContent}
             />
           </div>

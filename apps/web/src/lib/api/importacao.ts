@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import { DeParaRule, DeParaCreate, Processamento } from '@/lib/types/importacao';
+export type { Processamento };
 
 export const importacaoApi = {
   depara: {

@@ -7,7 +7,7 @@ import axios, { AxiosInstance } from 'axios';
 // Frontend runs on 3000, Backend on 8000.
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
 
-export const apiClient: AxiosInstance = axios.create({
+const apiClient: AxiosInstance = axios.create({
   baseURL: `${API_URL}/api/v1`,
   timeout: 300000, // 5 minutes default timeout
   withCredentials: true, // envia cookie HttpOnly automaticamente
@@ -47,3 +47,6 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export { apiClient };
+export default apiClient;

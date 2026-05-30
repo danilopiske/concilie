@@ -71,7 +71,7 @@ export default function ProcessamentosPage() {
   const fetchHistory = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await importacaoApi.processamentos.listar({ periodo, cliente_id: clienteId });
+      const data = await importacaoApi.processamentos.listar(clienteId);
       setProcessamentos(data);
     } catch (err) {
       setError('Erro ao carregar histórico de processamentos');

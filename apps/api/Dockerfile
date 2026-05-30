@@ -9,15 +9,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalar Poetry
-RUN pip install poetry==1.8.3
+RUN pip install "poetry>=1.8.3,<3"
 
-# Copiar os arquivos de dependência
-COPY pyproject.toml poetry.lock ./
+# Copiar os arquivos de dependência da API (não da raiz do monorepo)
+COPY apps/api/pyproject.toml apps/api/poetry.lock ./
 
-# Instalar dependências (incluindo gunicorn para produção)
-RUN poetry config virtualenvs.create false \
-    && poetry install --only main --no-interaction \
-    && pip install gunicorn uvicorn
+# Instalar dependências
+RUN poetry config virtualenvs.create false && \
+    poetry lock && \
+    poetry install --only main --no-interaction --no-root && \
+    pip install gunicorn uvicorn
 
 # --- SOLUÇÃO PARA L-01 (Módulos Legados) ---
 # Copiamos as pastas da raiz que a API ainda utiliza

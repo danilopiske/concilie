@@ -10,7 +10,7 @@ export default function AlertasConfigPage() {
   const [erro, setErro] = useState<string | null>(null);
 
   // Form state
-  const [tipoSelecionado, setTipoSelecionado] = useState(TIPOS_ALERTA[0].value);
+  const [tipoSelecionado, setTipoSelecionado] = useState<string>(TIPOS_ALERTA[0].value);
   const [threshold, setThreshold] = useState('');
   const [descricao, setDescricao] = useState('');
   const [salvando, setSalvando] = useState(false);

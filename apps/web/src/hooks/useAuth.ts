@@ -45,7 +45,7 @@ export function useAuth() {
     setUser(null);
     // Limpa o cookie via backend (ou expira localmente via max-age=0)
     try {
-      await apiClient.post('/login/logout');
+      await apiClient.post('/logout');
     } catch {
       // silencioso — mesmo sem endpoint de logout, o cookie expira naturalmente
     }

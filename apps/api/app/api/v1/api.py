@@ -8,6 +8,7 @@ from app.api import deps
 from app.api.v1.endpoints import (
     abusividade,
     ai,
+    conversor,
     alertas_config,
     analista,
     analista_filtrado,
@@ -83,3 +84,4 @@ api_router.include_router(auditoria.router, prefix="/auditoria", tags=["auditori
 api_router.include_router(alertas_config.router, prefix="/alertas-config", tags=["alertas-config"], dependencies=_auth)
 api_router.include_router(divergencias.router, prefix="/divergencias", tags=["divergencias"], dependencies=_auth)
 api_router.include_router(recuperacao.router, prefix="/recuperacao", tags=["recuperacao"], dependencies=_auth)
+api_router.include_router(conversor.router, prefix="/conversor", tags=["conversor"], dependencies=_auth)

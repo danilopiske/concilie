@@ -31,6 +31,7 @@ import {
   Activity,
   Shield,
   TrendingUp,
+  FileOutput,
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -116,6 +117,14 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     items: [
       { label: 'Gerar Relatórios', href: '/relatorios', icon: FileBarChart },
       { label: 'Gestão de Relatórios', href: '/relatorios/gestao', icon: History },
+    ],
+  },
+  {
+    title: 'Conversor',
+    modulePrefix: '/conversor',
+    modulo: 'conversor',
+    items: [
+      { label: 'Rede', href: '/conversor/rede', icon: FileOutput },
     ],
   },
   {

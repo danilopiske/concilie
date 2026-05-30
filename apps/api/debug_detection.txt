@@ -2034,3 +2034,1839 @@ Ext: .xlsx
 is_multisheet_rede_file called at 2026-03-25 20:41:22.989514
 Path: temp_uploads\1f41d011-6ec4-4c74-8377-391842748e4a\981f9483-bb7c-46ad-8474-343b4c465ca6_Relatórios - Cobrança de Aluguel (1).xlsx
 Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:46:14.265670
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\46ecf1d0-b8d4-4a27-a319-bb7828173d69_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:46:15.088036
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\46ecf1d0-b8d4-4a27-a319-bb7828173d69_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:46:16.526273
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\9460ae2d-bb3f-4950-9599-e19f6fa89fb3_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:46:17.100937
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\9460ae2d-bb3f-4950-9599-e19f6fa89fb3_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:46:18.581862
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\bc1556bc-ad9c-41b0-bcb5-09dcf61e64d6_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:46:18.899741
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\bc1556bc-ad9c-41b0-bcb5-09dcf61e64d6_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:46:20.175827
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\48ebb4a4-4409-4bce-96f3-c08ed631993e_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:46:20.696080
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\48ebb4a4-4409-4bce-96f3-c08ed631993e_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:46:22.097231
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\22324866-bd0d-48bc-a0f1-9cc3411e44b2_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:46:22.684394
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\22324866-bd0d-48bc-a0f1-9cc3411e44b2_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:47:59.180008
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\22324866-bd0d-48bc-a0f1-9cc3411e44b2_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:47:59.650967
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\22324866-bd0d-48bc-a0f1-9cc3411e44b2_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:48:10.322868
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\46ecf1d0-b8d4-4a27-a319-bb7828173d69_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:48:10.648630
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\46ecf1d0-b8d4-4a27-a319-bb7828173d69_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:48:16.690630
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\48ebb4a4-4409-4bce-96f3-c08ed631993e_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:48:17.139946
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\48ebb4a4-4409-4bce-96f3-c08ed631993e_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:48:26.438314
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\9460ae2d-bb3f-4950-9599-e19f6fa89fb3_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:48:26.965596
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\9460ae2d-bb3f-4950-9599-e19f6fa89fb3_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:48:36.268553
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\bc1556bc-ad9c-41b0-bcb5-09dcf61e64d6_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:48:36.692475
+Path: temp_uploads\68a8a3ee-4993-4948-b661-0dfbca172a6b\bc1556bc-ad9c-41b0-bcb5-09dcf61e64d6_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:52:49.476778
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\15a32a5b-5a11-40eb-adf0-c38d5d735386_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:52:49.982149
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\15a32a5b-5a11-40eb-adf0-c38d5d735386_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:52:51.465683
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\57d752d6-d723-425b-b25b-fe2c9582c70d_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:52:52.208882
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\57d752d6-d723-425b-b25b-fe2c9582c70d_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:52:53.552451
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\db1c1dce-a03b-4e0e-b7ba-bfa94a06f340_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:52:54.129160
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\db1c1dce-a03b-4e0e-b7ba-bfa94a06f340_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:52:55.613884
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\3f48c420-c41c-4c83-9247-2ce737c2c683_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:52:56.274101
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\3f48c420-c41c-4c83-9247-2ce737c2c683_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:52:57.721569
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\66d83211-e30b-4be9-9475-6cf2b28184fe_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:52:58.246793
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\66d83211-e30b-4be9-9475-6cf2b28184fe_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:53:04.898688
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\15a32a5b-5a11-40eb-adf0-c38d5d735386_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:53:05.371389
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\15a32a5b-5a11-40eb-adf0-c38d5d735386_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:53:14.776627
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\3f48c420-c41c-4c83-9247-2ce737c2c683_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:53:15.300301
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\3f48c420-c41c-4c83-9247-2ce737c2c683_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:53:25.856594
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\57d752d6-d723-425b-b25b-fe2c9582c70d_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:53:26.490028
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\57d752d6-d723-425b-b25b-fe2c9582c70d_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:53:35.973211
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\66d83211-e30b-4be9-9475-6cf2b28184fe_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:53:36.657172
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\66d83211-e30b-4be9-9475-6cf2b28184fe_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:53:46.281626
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\d2737aaf-0a34-49bd-9508-c05d355ea94d_Vendas_cielo_historico_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:53:47.246955
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\d2737aaf-0a34-49bd-9508-c05d355ea94d_Vendas_cielo_historico_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:54:02.318845
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\db1c1dce-a03b-4e0e-b7ba-bfa94a06f340_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:54:02.906671
+Path: temp_uploads\def84aad-0530-4fdd-9915-a2b60e72aa38\db1c1dce-a03b-4e0e-b7ba-bfa94a06f340_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:58:46.606464
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\e4c35215-5769-4491-84e4-6d71611d31c6_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:58:48.151614
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\e4c35215-5769-4491-84e4-6d71611d31c6_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:58:52.152513
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\db930701-f237-4853-b9d8-c1dd7e8174a7_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:58:53.598762
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\db930701-f237-4853-b9d8-c1dd7e8174a7_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:58:56.741416
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\0c947014-7bd1-4774-9ad4-b92e3da9df7d_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:58:57.653280
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\0c947014-7bd1-4774-9ad4-b92e3da9df7d_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:59:00.538756
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\ec503266-53d7-4c7c-ab52-49aa90bbce1a_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:59:01.898073
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\ec503266-53d7-4c7c-ab52-49aa90bbce1a_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:59:04.568103
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\b4c3c6b3-72dd-4a60-b515-21883eb148a8_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 21:59:05.451137
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\b4c3c6b3-72dd-4a60-b515-21883eb148a8_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:02:15.085286
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\0c947014-7bd1-4774-9ad4-b92e3da9df7d_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:02:15.583497
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\0c947014-7bd1-4774-9ad4-b92e3da9df7d_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:02:25.123535
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\437e6c4d-8b64-4e63-857e-592993c33163_Vendas_cielo_historico_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:02:25.734622
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\437e6c4d-8b64-4e63-857e-592993c33163_Vendas_cielo_historico_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:02:38.802555
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\b4c3c6b3-72dd-4a60-b515-21883eb148a8_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:02:39.257305
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\b4c3c6b3-72dd-4a60-b515-21883eb148a8_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:02:49.910174
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\db930701-f237-4853-b9d8-c1dd7e8174a7_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:02:50.415904
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\db930701-f237-4853-b9d8-c1dd7e8174a7_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:03:01.996403
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\e4c35215-5769-4491-84e4-6d71611d31c6_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:03:02.460070
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\e4c35215-5769-4491-84e4-6d71611d31c6_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:03:13.590020
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\ec503266-53d7-4c7c-ab52-49aa90bbce1a_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:03:14.315502
+Path: temp_uploads\bc9b32d6-b4a0-4f66-a0d5-e3df09823bec\ec503266-53d7-4c7c-ab52-49aa90bbce1a_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:04:50.424296
+Path: temp_uploads\4426b5ae-b945-414a-925d-5a527eccb623\07708e61-98b7-4cd6-bba9-eb82485ce5f4_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:04:50.847756
+Path: temp_uploads\4426b5ae-b945-414a-925d-5a527eccb623\07708e61-98b7-4cd6-bba9-eb82485ce5f4_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:05:14.190393
+Path: temp_uploads\4426b5ae-b945-414a-925d-5a527eccb623\07708e61-98b7-4cd6-bba9-eb82485ce5f4_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:05:14.784671
+Path: temp_uploads\4426b5ae-b945-414a-925d-5a527eccb623\07708e61-98b7-4cd6-bba9-eb82485ce5f4_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:05:47.483426
+Path: temp_uploads\40505cfa-a5cf-4a2f-8f29-eb0c6ba241ad\d45ab177-cce8-4714-8e95-337449d2fcbb_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:05:47.822332
+Path: temp_uploads\40505cfa-a5cf-4a2f-8f29-eb0c6ba241ad\d45ab177-cce8-4714-8e95-337449d2fcbb_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:05:52.465012
+Path: temp_uploads\40505cfa-a5cf-4a2f-8f29-eb0c6ba241ad\d45ab177-cce8-4714-8e95-337449d2fcbb_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:05:52.788843
+Path: temp_uploads\40505cfa-a5cf-4a2f-8f29-eb0c6ba241ad\d45ab177-cce8-4714-8e95-337449d2fcbb_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:06:09.878748
+Path: temp_uploads\fc814f0b-f058-4d73-8183-20a580d13d17\97a4f0e0-3cf6-4cf3-8c17-0a46ed7a5a56_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:06:13.344897
+Path: temp_uploads\fc814f0b-f058-4d73-8183-20a580d13d17\97a4f0e0-3cf6-4cf3-8c17-0a46ed7a5a56_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:07:42.228986
+Path: temp_uploads\fc814f0b-f058-4d73-8183-20a580d13d17\97a4f0e0-3cf6-4cf3-8c17-0a46ed7a5a56_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:07:45.841468
+Path: temp_uploads\fc814f0b-f058-4d73-8183-20a580d13d17\97a4f0e0-3cf6-4cf3-8c17-0a46ed7a5a56_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:08:19.906295
+Path: temp_uploads\df7cb33e-dd04-4c4c-afa0-76fe2da92d85\ad78b0df-5e6a-4f87-b23f-bb046c170bc8_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:08:22.825633
+Path: temp_uploads\df7cb33e-dd04-4c4c-afa0-76fe2da92d85\ad78b0df-5e6a-4f87-b23f-bb046c170bc8_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:10:03.563311
+Path: C:\Users\Danilo\AppData\Local\Temp\tmp5ljoc162.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:11:53.977272
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:11:57.405972
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:13.455528
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:15.695819
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:16.904804
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:19.709504
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:23.320063
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:27.679522
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:33.744581
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:38.513286
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:40.455548
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:41.003093
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:51.466831
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:53.286343
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:12:57.343728
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:13:00.732261
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:13:12.619400
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:13:16.453703
+Path: temp_uploads\f6ccff20-738e-4b2d-9298-49681f129faa\64126b49-31ba-40a8-97ad-15ac0f8e1bff_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:29:17.156343
+Path: temp_uploads\e0e8f9d1-87d9-4207-bded-479fceb495e1\28f2f2c5-921b-444f-9422-24d110f7edf0_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:29:19.516576
+Path: temp_uploads\e0e8f9d1-87d9-4207-bded-479fceb495e1\28f2f2c5-921b-444f-9422-24d110f7edf0_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:29:25.714380
+Path: temp_uploads\e0e8f9d1-87d9-4207-bded-479fceb495e1\28f2f2c5-921b-444f-9422-24d110f7edf0_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:29:28.169356
+Path: temp_uploads\e0e8f9d1-87d9-4207-bded-479fceb495e1\28f2f2c5-921b-444f-9422-24d110f7edf0_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:31:37.993870
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\37ef0a0f-01a6-44cd-8ebd-1749ea88c5d5_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:31:38.262991
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\37ef0a0f-01a6-44cd-8ebd-1749ea88c5d5_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:31:39.001183
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\5375d59f-3ea4-4b59-b97b-970f34a33f91_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:31:39.400997
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\5375d59f-3ea4-4b59-b97b-970f34a33f91_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:31:40.218757
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\0424af17-05fd-4f33-bf2a-d1298d28937a_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:31:40.578092
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\0424af17-05fd-4f33-bf2a-d1298d28937a_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:31:41.405405
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\5de9d171-47dd-4b16-affe-bf87a3e006eb_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:31:41.842098
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\5de9d171-47dd-4b16-affe-bf87a3e006eb_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:31:42.697355
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\c080948e-f381-4d77-98ab-16473f9b1581_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:31:43.198096
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\c080948e-f381-4d77-98ab-16473f9b1581_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:32:05.728527
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\0424af17-05fd-4f33-bf2a-d1298d28937a_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:32:06.084328
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\0424af17-05fd-4f33-bf2a-d1298d28937a_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:32:08.132325
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\37ef0a0f-01a6-44cd-8ebd-1749ea88c5d5_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:32:08.450890
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\37ef0a0f-01a6-44cd-8ebd-1749ea88c5d5_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:32:10.001312
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\5375d59f-3ea4-4b59-b97b-970f34a33f91_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:32:10.390171
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\5375d59f-3ea4-4b59-b97b-970f34a33f91_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:32:12.671331
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\5de9d171-47dd-4b16-affe-bf87a3e006eb_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:32:13.049832
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\5de9d171-47dd-4b16-affe-bf87a3e006eb_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:32:15.737031
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\c080948e-f381-4d77-98ab-16473f9b1581_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-27 22:32:16.245149
+Path: temp_uploads\19ee6271-dbe1-43dd-a2d1-0f470d375368\c080948e-f381-4d77-98ab-16473f9b1581_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:03.606048
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\648d02bb-5adc-4b31-911e-7b18b90664ca_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:04.298477
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\648d02bb-5adc-4b31-911e-7b18b90664ca_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:05.450498
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\a567fedc-fb7c-4c77-95a2-0d5fa5fdbb8c_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:05.980263
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\a567fedc-fb7c-4c77-95a2-0d5fa5fdbb8c_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:06.980721
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\329507cc-8422-44ad-8838-79882f5a6b82_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:07.516052
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\329507cc-8422-44ad-8838-79882f5a6b82_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:08.425430
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\da3cfb0f-3d36-4d1b-be97-fef1d9b0f95e_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:08.840802
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\da3cfb0f-3d36-4d1b-be97-fef1d9b0f95e_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:09.633720
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\dd8132d5-a13d-4f8c-b809-e077fac38ab8_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:10.139069
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\dd8132d5-a13d-4f8c-b809-e077fac38ab8_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:17.935472
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\329507cc-8422-44ad-8838-79882f5a6b82_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:18.421216
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\329507cc-8422-44ad-8838-79882f5a6b82_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:22.166054
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\648d02bb-5adc-4b31-911e-7b18b90664ca_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:22.619667
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\648d02bb-5adc-4b31-911e-7b18b90664ca_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:25.917235
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\a567fedc-fb7c-4c77-95a2-0d5fa5fdbb8c_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:26.359777
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\a567fedc-fb7c-4c77-95a2-0d5fa5fdbb8c_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:31.276628
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\bbadb62a-de3e-4e32-9bc4-2446874f2fe0_Recebiveis_cielo_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:31.920273
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\bbadb62a-de3e-4e32-9bc4-2446874f2fe0_Recebiveis_cielo_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:36.301007
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\da3cfb0f-3d36-4d1b-be97-fef1d9b0f95e_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:36.642161
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\da3cfb0f-3d36-4d1b-be97-fef1d9b0f95e_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:40.032009
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\dd8132d5-a13d-4f8c-b809-e077fac38ab8_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:40:40.708706
+Path: temp_uploads\eaa027d2-e4fc-4b61-9f3e-25e6d9df2e51\dd8132d5-a13d-4f8c-b809-e077fac38ab8_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:54:34.658509
+Path: temp_uploads\3c543203-440a-43e3-8fe7-c992f200edbb\9d03a311-8d84-4529-81e9-2723b4367262_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 07:54:35.153272
+Path: temp_uploads\3c543203-440a-43e3-8fe7-c992f200edbb\9d03a311-8d84-4529-81e9-2723b4367262_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 08:01:25.625485
+Path: temp_uploads\3c543203-440a-43e3-8fe7-c992f200edbb\9d03a311-8d84-4529-81e9-2723b4367262_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 08:01:26.478532
+Path: temp_uploads\3c543203-440a-43e3-8fe7-c992f200edbb\9d03a311-8d84-4529-81e9-2723b4367262_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 09:29:31.668123
+Path: temp_uploads\e04b4c00-a8bd-4a9b-8a65-46f6010eea0e\666b21e2-35f0-44b9-9f71-d5ab3fe27dfd_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 09:29:32.177969
+Path: temp_uploads\e04b4c00-a8bd-4a9b-8a65-46f6010eea0e\666b21e2-35f0-44b9-9f71-d5ab3fe27dfd_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 09:30:31.234936
+Path: temp_uploads\e04b4c00-a8bd-4a9b-8a65-46f6010eea0e\666b21e2-35f0-44b9-9f71-d5ab3fe27dfd_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-28 09:30:31.757339
+Path: temp_uploads\e04b4c00-a8bd-4a9b-8a65-46f6010eea0e\666b21e2-35f0-44b9-9f71-d5ab3fe27dfd_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 07:44:17.936079
+Path: temp_uploads\2cd98e68-643f-4990-ace1-bd6f2422dbd5\45c3daa0-b955-4ad2-8bd5-234f393f3968_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 07:44:18.449426
+Path: temp_uploads\2cd98e68-643f-4990-ace1-bd6f2422dbd5\45c3daa0-b955-4ad2-8bd5-234f393f3968_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 07:44:26.326690
+Path: temp_uploads\2cd98e68-643f-4990-ace1-bd6f2422dbd5\45c3daa0-b955-4ad2-8bd5-234f393f3968_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 07:44:26.695827
+Path: temp_uploads\2cd98e68-643f-4990-ace1-bd6f2422dbd5\45c3daa0-b955-4ad2-8bd5-234f393f3968_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 07:45:16.800803
+Path: temp_uploads\7f414f62-4c85-4cfe-8830-59e6c7f03bcd\7e8c999c-a3ea-4880-bd93-5d55fd652ed9_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 07:45:19.026616
+Path: temp_uploads\7f414f62-4c85-4cfe-8830-59e6c7f03bcd\7e8c999c-a3ea-4880-bd93-5d55fd652ed9_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 07:49:04.112048
+Path: temp_uploads\c0796c05-3e18-4593-a61a-eb1b367e0673\994500f2-d0d1-4c65-af09-97c171934a58_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 07:49:06.488330
+Path: temp_uploads\c0796c05-3e18-4593-a61a-eb1b367e0673\994500f2-d0d1-4c65-af09-97c171934a58_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 07:51:04.033657
+Path: temp_uploads\0af4bed6-9ef2-4bad-a634-7111df0e7f0c\37d5b5c5-a95c-4f5e-906d-2d2b3964177f_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 07:51:06.357878
+Path: temp_uploads\0af4bed6-9ef2-4bad-a634-7111df0e7f0c\37d5b5c5-a95c-4f5e-906d-2d2b3964177f_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:14:24.608601
+Path: temp_uploads\0af4bed6-9ef2-4bad-a634-7111df0e7f0c\37d5b5c5-a95c-4f5e-906d-2d2b3964177f_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:14:27.094999
+Path: temp_uploads\0af4bed6-9ef2-4bad-a634-7111df0e7f0c\37d5b5c5-a95c-4f5e-906d-2d2b3964177f_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:18:29.926679
+Path: temp_uploads\662543a0-d066-4844-878f-88b69325f012\c8f8ad7e-934d-4a7f-9a05-6f069df9986d_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:18:33.507569
+Path: temp_uploads\662543a0-d066-4844-878f-88b69325f012\c8f8ad7e-934d-4a7f-9a05-6f069df9986d_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:18:41.774866
+Path: temp_uploads\662543a0-d066-4844-878f-88b69325f012\c8f8ad7e-934d-4a7f-9a05-6f069df9986d_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:18:44.127440
+Path: temp_uploads\662543a0-d066-4844-878f-88b69325f012\c8f8ad7e-934d-4a7f-9a05-6f069df9986d_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:21:52.024450
+Path: temp_uploads\5d6a6dec-f576-42a6-a4a5-d85f7d1b9bf4\a063dd9d-f9fa-41b4-9903-b80ded21e89e_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:21:54.720608
+Path: temp_uploads\5d6a6dec-f576-42a6-a4a5-d85f7d1b9bf4\a063dd9d-f9fa-41b4-9903-b80ded21e89e_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:22:11.499732
+Path: temp_uploads\5b73ed16-8ef1-4484-b3c8-e1405327e57c\565326dd-44ce-4e46-8ddd-512f286d1f19_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:22:13.844717
+Path: temp_uploads\5b73ed16-8ef1-4484-b3c8-e1405327e57c\565326dd-44ce-4e46-8ddd-512f286d1f19_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:22:23.392847
+Path: temp_uploads\5b73ed16-8ef1-4484-b3c8-e1405327e57c\565326dd-44ce-4e46-8ddd-512f286d1f19_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:22:25.755604
+Path: temp_uploads\5b73ed16-8ef1-4484-b3c8-e1405327e57c\565326dd-44ce-4e46-8ddd-512f286d1f19_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:26:39.966645
+Path: temp_uploads\c27220b9-90ec-47d0-b1d7-7e9fba1bca40\1729ff62-ea87-4610-9d63-a3cea50819e3_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:26:42.533793
+Path: temp_uploads\c27220b9-90ec-47d0-b1d7-7e9fba1bca40\1729ff62-ea87-4610-9d63-a3cea50819e3_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:28:26.681727
+Path: temp_uploads\c27220b9-90ec-47d0-b1d7-7e9fba1bca40\1729ff62-ea87-4610-9d63-a3cea50819e3_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-04-29 08:28:29.212764
+Path: temp_uploads\c27220b9-90ec-47d0-b1d7-7e9fba1bca40\1729ff62-ea87-4610-9d63-a3cea50819e3_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:03:30.744534
+Path: temp_uploads\11579ece-b71e-4acb-aa30-f028669f6e36\017a5e3b-dcb9-41ef-9809-7badde6ca850_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:03:31.423605
+Path: temp_uploads\11579ece-b71e-4acb-aa30-f028669f6e36\017a5e3b-dcb9-41ef-9809-7badde6ca850_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:04:04.636441
+Path: temp_uploads\11579ece-b71e-4acb-aa30-f028669f6e36\017a5e3b-dcb9-41ef-9809-7badde6ca850_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:04:05.222510
+Path: temp_uploads\11579ece-b71e-4acb-aa30-f028669f6e36\017a5e3b-dcb9-41ef-9809-7badde6ca850_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:07:42.969889
+Path: temp_uploads\4ec38805-b23b-4f27-9b70-baeab9deb779\d336cb57-4b6e-4519-83b4-9fcbf9b5a072_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:07:47.725095
+Path: temp_uploads\4ec38805-b23b-4f27-9b70-baeab9deb779\d336cb57-4b6e-4519-83b4-9fcbf9b5a072_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:07:56.038332
+Path: temp_uploads\4ec38805-b23b-4f27-9b70-baeab9deb779\d336cb57-4b6e-4519-83b4-9fcbf9b5a072_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:07:59.597130
+Path: temp_uploads\4ec38805-b23b-4f27-9b70-baeab9deb779\d336cb57-4b6e-4519-83b4-9fcbf9b5a072_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:19:51.827789
+Path: temp_uploads\3cb31f0a-469a-4533-aac8-7f355496df7f\75637111-6588-4f96-bdc4-7892920f48fa_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:19:57.592855
+Path: temp_uploads\3cb31f0a-469a-4533-aac8-7f355496df7f\75637111-6588-4f96-bdc4-7892920f48fa_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:22:13.932809
+Path: temp_uploads\3cb31f0a-469a-4533-aac8-7f355496df7f\75637111-6588-4f96-bdc4-7892920f48fa_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:22:17.449271
+Path: temp_uploads\3cb31f0a-469a-4533-aac8-7f355496df7f\75637111-6588-4f96-bdc4-7892920f48fa_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:40:20.684691
+Path: temp_uploads\43f8934b-d8c7-4a96-b5ae-d839aebc6b21\f225dd80-bba1-40f6-9669-e87576fbed48_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:40:23.170336
+Path: temp_uploads\43f8934b-d8c7-4a96-b5ae-d839aebc6b21\f225dd80-bba1-40f6-9669-e87576fbed48_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:49:04.972439
+Path: temp_uploads\3af0cc76-1824-40b0-be39-b005a29687b8\1567c1da-74d6-477c-b422-46e566d16b8d_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:49:07.560870
+Path: temp_uploads\3af0cc76-1824-40b0-be39-b005a29687b8\1567c1da-74d6-477c-b422-46e566d16b8d_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:49:20.638935
+Path: temp_uploads\3af0cc76-1824-40b0-be39-b005a29687b8\1567c1da-74d6-477c-b422-46e566d16b8d_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-02 13:49:23.234895
+Path: temp_uploads\3af0cc76-1824-40b0-be39-b005a29687b8\1567c1da-74d6-477c-b422-46e566d16b8d_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 16:31:53.152871
+Path: temp_uploads\4ae9cb61-49c6-411a-822a-072f4cb06c09\9378cce6-27f5-4847-b186-3a2e7bc2dedf_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 16:31:54.061595
+Path: temp_uploads\4ae9cb61-49c6-411a-822a-072f4cb06c09\9378cce6-27f5-4847-b186-3a2e7bc2dedf_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 16:31:54.909872
+Path: temp_uploads\4ae9cb61-49c6-411a-822a-072f4cb06c09\a66c2269-d986-4dfe-93c6-45d52f824e1a_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 16:31:55.195319
+Path: temp_uploads\4ae9cb61-49c6-411a-822a-072f4cb06c09\a66c2269-d986-4dfe-93c6-45d52f824e1a_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 16:31:56.028455
+Path: temp_uploads\4ae9cb61-49c6-411a-822a-072f4cb06c09\7488827e-e44e-4f6c-9de9-412412d7b743_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 16:31:56.294694
+Path: temp_uploads\4ae9cb61-49c6-411a-822a-072f4cb06c09\7488827e-e44e-4f6c-9de9-412412d7b743_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 16:31:57.112417
+Path: temp_uploads\4ae9cb61-49c6-411a-822a-072f4cb06c09\2843f19f-46ba-4d5c-a153-b033ea578e27_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 16:31:57.416187
+Path: temp_uploads\4ae9cb61-49c6-411a-822a-072f4cb06c09\2843f19f-46ba-4d5c-a153-b033ea578e27_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 16:31:58.230162
+Path: temp_uploads\4ae9cb61-49c6-411a-822a-072f4cb06c09\b1687919-f996-425d-b001-2726318c9980_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 16:31:58.558284
+Path: temp_uploads\4ae9cb61-49c6-411a-822a-072f4cb06c09\b1687919-f996-425d-b001-2726318c9980_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 18:08:07.040169
+Path: temp_uploads\4742b72b-e0cc-4fef-bd7f-2fd46762d732\a68708ee-c39e-42a1-8c5d-2f004d5a386d_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 18:08:07.249875
+Path: temp_uploads\4742b72b-e0cc-4fef-bd7f-2fd46762d732\a68708ee-c39e-42a1-8c5d-2f004d5a386d_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 18:08:08.128001
+Path: temp_uploads\4742b72b-e0cc-4fef-bd7f-2fd46762d732\ee28400c-9f15-4261-be9b-52c10648c314_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 18:08:08.450445
+Path: temp_uploads\4742b72b-e0cc-4fef-bd7f-2fd46762d732\ee28400c-9f15-4261-be9b-52c10648c314_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 18:08:09.288674
+Path: temp_uploads\4742b72b-e0cc-4fef-bd7f-2fd46762d732\21e86813-728f-4aeb-8624-acad8b1b0c78_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 18:08:09.522287
+Path: temp_uploads\4742b72b-e0cc-4fef-bd7f-2fd46762d732\21e86813-728f-4aeb-8624-acad8b1b0c78_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 18:08:10.303745
+Path: temp_uploads\4742b72b-e0cc-4fef-bd7f-2fd46762d732\904d44cc-ca84-468e-b629-edb6ee5a8fdf_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 18:08:10.731464
+Path: temp_uploads\4742b72b-e0cc-4fef-bd7f-2fd46762d732\904d44cc-ca84-468e-b629-edb6ee5a8fdf_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 18:08:11.895390
+Path: temp_uploads\4742b72b-e0cc-4fef-bd7f-2fd46762d732\c6f4c412-f69b-4e3a-b4cb-fc1f690c1358_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-15 18:08:12.223064
+Path: temp_uploads\4742b72b-e0cc-4fef-bd7f-2fd46762d732\c6f4c412-f69b-4e3a-b4cb-fc1f690c1358_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 15:42:19.522307
+Path: temp_uploads\f15af2d7-d50e-40c0-b0db-61c42fc0882b\ccbf49ad-1cfe-48cb-b047-548b3f8d6db5_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 15:42:19.781124
+Path: temp_uploads\f15af2d7-d50e-40c0-b0db-61c42fc0882b\ccbf49ad-1cfe-48cb-b047-548b3f8d6db5_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 15:42:20.608257
+Path: temp_uploads\f15af2d7-d50e-40c0-b0db-61c42fc0882b\cdbaeea1-7bfc-4d0b-9256-2f943566079a_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 15:42:20.897477
+Path: temp_uploads\f15af2d7-d50e-40c0-b0db-61c42fc0882b\cdbaeea1-7bfc-4d0b-9256-2f943566079a_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 15:42:21.908200
+Path: temp_uploads\f15af2d7-d50e-40c0-b0db-61c42fc0882b\f4954cba-5f14-4a9a-9171-68a0c133a987_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 15:42:22.193005
+Path: temp_uploads\f15af2d7-d50e-40c0-b0db-61c42fc0882b\f4954cba-5f14-4a9a-9171-68a0c133a987_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 15:42:23.018438
+Path: temp_uploads\f15af2d7-d50e-40c0-b0db-61c42fc0882b\d37be59d-97e4-4a97-877b-695ee2af2b6a_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 15:42:23.334664
+Path: temp_uploads\f15af2d7-d50e-40c0-b0db-61c42fc0882b\d37be59d-97e4-4a97-877b-695ee2af2b6a_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 15:42:24.219384
+Path: temp_uploads\f15af2d7-d50e-40c0-b0db-61c42fc0882b\398029df-e17e-4325-b817-fa6d96610dde_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 15:42:24.592992
+Path: temp_uploads\f15af2d7-d50e-40c0-b0db-61c42fc0882b\398029df-e17e-4325-b817-fa6d96610dde_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 17:29:17.202355
+Path: temp_uploads\6848b124-5700-4e00-9f04-81e23f86a234\46dccc5f-effb-45c4-9426-5125cf4fd86b_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 17:29:17.526151
+Path: temp_uploads\6848b124-5700-4e00-9f04-81e23f86a234\46dccc5f-effb-45c4-9426-5125cf4fd86b_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 17:29:18.263588
+Path: temp_uploads\6848b124-5700-4e00-9f04-81e23f86a234\242121e5-b16e-45e0-a7b2-345eb86b6629_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 17:29:18.560807
+Path: temp_uploads\6848b124-5700-4e00-9f04-81e23f86a234\242121e5-b16e-45e0-a7b2-345eb86b6629_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 17:29:19.311084
+Path: temp_uploads\6848b124-5700-4e00-9f04-81e23f86a234\81098497-ec8d-4d4b-b131-99dd9bfc84cb_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 17:29:19.535474
+Path: temp_uploads\6848b124-5700-4e00-9f04-81e23f86a234\81098497-ec8d-4d4b-b131-99dd9bfc84cb_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 17:29:20.324512
+Path: temp_uploads\6848b124-5700-4e00-9f04-81e23f86a234\bc51a26d-f172-49d4-acb4-bb31976a5755_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 17:29:20.567799
+Path: temp_uploads\6848b124-5700-4e00-9f04-81e23f86a234\bc51a26d-f172-49d4-acb4-bb31976a5755_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 17:29:21.339373
+Path: temp_uploads\6848b124-5700-4e00-9f04-81e23f86a234\ab2d5864-c292-4bc1-8569-2e1448266e62_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 17:29:21.630628
+Path: temp_uploads\6848b124-5700-4e00-9f04-81e23f86a234\ab2d5864-c292-4bc1-8569-2e1448266e62_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 18:58:34.418172
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\3ce1ed74-676d-4f4a-900b-15c21e2af472_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 18:58:34.597195
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\3ce1ed74-676d-4f4a-900b-15c21e2af472_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 18:58:35.276171
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\ac0a9ee4-713d-4d6b-8525-f0a22fa04f12_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 18:58:35.562578
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\ac0a9ee4-713d-4d6b-8525-f0a22fa04f12_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 18:58:36.354188
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\71de6079-ce49-4bf7-b9bb-402202511cf7_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 18:58:36.590220
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\71de6079-ce49-4bf7-b9bb-402202511cf7_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 18:58:37.311567
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\6e570596-7190-49d3-9c22-441274e0735f_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 18:58:37.583087
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\6e570596-7190-49d3-9c22-441274e0735f_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 18:58:38.317838
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\91730b0b-9d89-491c-b3a3-e38df1d5a99a_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 18:58:38.629944
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\91730b0b-9d89-491c-b3a3-e38df1d5a99a_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:19:59.668157
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\3ce1ed74-676d-4f4a-900b-15c21e2af472_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:19:59.840264
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\3ce1ed74-676d-4f4a-900b-15c21e2af472_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:20:03.659300
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\6e570596-7190-49d3-9c22-441274e0735f_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:20:03.908443
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\6e570596-7190-49d3-9c22-441274e0735f_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:20:09.706346
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\71de6079-ce49-4bf7-b9bb-402202511cf7_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:20:09.941021
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\71de6079-ce49-4bf7-b9bb-402202511cf7_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:20:15.481586
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\91730b0b-9d89-491c-b3a3-e38df1d5a99a_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:20:15.805195
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\91730b0b-9d89-491c-b3a3-e38df1d5a99a_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:20:22.783036
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\ac0a9ee4-713d-4d6b-8525-f0a22fa04f12_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:20:23.075585
+Path: temp_uploads\9a4f494d-951c-45c3-af85-22d877bbc13c\ac0a9ee4-713d-4d6b-8525-f0a22fa04f12_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:33:29.685130
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\aa49ded9-02db-4242-a306-479a4276fe73_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:33:29.991896
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\aa49ded9-02db-4242-a306-479a4276fe73_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:33:30.801195
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\417c8dc5-4af1-4403-8b27-21bd0406d26f_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:33:31.116102
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\417c8dc5-4af1-4403-8b27-21bd0406d26f_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:33:31.893422
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\40975988-4788-44aa-84c3-32026e92566b_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:33:32.194991
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\40975988-4788-44aa-84c3-32026e92566b_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:33:33.006273
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\6f850397-c626-402f-b3a5-89443c9ff7e7_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:33:33.342779
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\6f850397-c626-402f-b3a5-89443c9ff7e7_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:33:34.150546
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\23b0dc10-5957-4134-969e-209bb958cab4_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:33:34.439529
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\23b0dc10-5957-4134-969e-209bb958cab4_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:01.801336
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\129c5d84-b61c-44de-97d2-4b08e23bb226_Vendas_cielo_historico_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:02.214736
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\129c5d84-b61c-44de-97d2-4b08e23bb226_Vendas_cielo_historico_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:11.114122
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\23b0dc10-5957-4134-969e-209bb958cab4_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:11.466664
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\23b0dc10-5957-4134-969e-209bb958cab4_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:21.400123
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\40975988-4788-44aa-84c3-32026e92566b_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:21.999286
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\40975988-4788-44aa-84c3-32026e92566b_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:32.682603
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\417c8dc5-4af1-4403-8b27-21bd0406d26f_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:33.297585
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\417c8dc5-4af1-4403-8b27-21bd0406d26f_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:45.163400
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\6f850397-c626-402f-b3a5-89443c9ff7e7_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:45.889419
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\6f850397-c626-402f-b3a5-89443c9ff7e7_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:58.909525
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\aa49ded9-02db-4242-a306-479a4276fe73_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:36:59.500728
+Path: temp_uploads\fb8977f3-3d94-409b-8085-9c7b9aa457e5\aa49ded9-02db-4242-a306-479a4276fe73_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:37:34.569317
+Path: temp_uploads\49f2291b-b56a-40ef-810e-db7739f821d3\aa6fa384-2de8-49fc-b11d-763a193a25d3_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:37:34.950229
+Path: temp_uploads\49f2291b-b56a-40ef-810e-db7739f821d3\aa6fa384-2de8-49fc-b11d-763a193a25d3_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:40:48.424028
+Path: temp_uploads\49f2291b-b56a-40ef-810e-db7739f821d3\aa6fa384-2de8-49fc-b11d-763a193a25d3_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:40:48.893130
+Path: temp_uploads\49f2291b-b56a-40ef-810e-db7739f821d3\aa6fa384-2de8-49fc-b11d-763a193a25d3_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:45:56.958789
+Path: temp_uploads\f482d225-4233-4d16-8d8e-962b21c1fd21\b2bc4d51-6dc5-4b3f-803f-a6b82c5b1881_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:45:59.377042
+Path: temp_uploads\f482d225-4233-4d16-8d8e-962b21c1fd21\b2bc4d51-6dc5-4b3f-803f-a6b82c5b1881_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:46:19.982060
+Path: temp_uploads\f482d225-4233-4d16-8d8e-962b21c1fd21\b2bc4d51-6dc5-4b3f-803f-a6b82c5b1881_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-16 19:46:22.064743
+Path: temp_uploads\f482d225-4233-4d16-8d8e-962b21c1fd21\b2bc4d51-6dc5-4b3f-803f-a6b82c5b1881_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:09:42.575124
+Path: temp_uploads\4e5894b3-b707-4aeb-b4aa-f1b1121d4433\79c28b6c-b3df-4f20-a0cd-fcc181a83ea0_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:09:44.888372
+Path: temp_uploads\4e5894b3-b707-4aeb-b4aa-f1b1121d4433\79c28b6c-b3df-4f20-a0cd-fcc181a83ea0_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:09:49.478223
+Path: temp_uploads\4e5894b3-b707-4aeb-b4aa-f1b1121d4433\79c28b6c-b3df-4f20-a0cd-fcc181a83ea0_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:09:51.604614
+Path: temp_uploads\4e5894b3-b707-4aeb-b4aa-f1b1121d4433\79c28b6c-b3df-4f20-a0cd-fcc181a83ea0_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:15:57.954421
+Path: temp_uploads\4083f298-4c30-4eb6-9606-de06581cdb0b\42fcada7-3a50-49a3-a2cb-097279902895_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:16:00.395118
+Path: temp_uploads\4083f298-4c30-4eb6-9606-de06581cdb0b\42fcada7-3a50-49a3-a2cb-097279902895_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:17:08.888228
+Path: temp_uploads\4083f298-4c30-4eb6-9606-de06581cdb0b\42fcada7-3a50-49a3-a2cb-097279902895_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:17:11.053882
+Path: temp_uploads\4083f298-4c30-4eb6-9606-de06581cdb0b\42fcada7-3a50-49a3-a2cb-097279902895_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:27.695235
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\d8309b4e-35c0-4972-8703-cb7a415ddc0d_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:27.990567
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\d8309b4e-35c0-4972-8703-cb7a415ddc0d_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:28.664158
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\401dd1ec-da48-47d4-860f-c4fdd2dfbd1d_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:29.066209
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\401dd1ec-da48-47d4-860f-c4fdd2dfbd1d_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:29.832900
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\5f3cb8b9-278a-4881-8802-ac5b5465017a_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:30.228237
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\5f3cb8b9-278a-4881-8802-ac5b5465017a_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:30.915493
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\e725d08a-41d0-4246-af5b-f888bad804aa_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:31.315426
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\e725d08a-41d0-4246-af5b-f888bad804aa_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:32.106905
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\ec034e02-2e64-4d1f-9046-adba4d29ede9_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:32.630394
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\ec034e02-2e64-4d1f-9046-adba4d29ede9_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:49.482129
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\401dd1ec-da48-47d4-860f-c4fdd2dfbd1d_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:49.843123
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\401dd1ec-da48-47d4-860f-c4fdd2dfbd1d_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:51.908935
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\5f3cb8b9-278a-4881-8802-ac5b5465017a_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:52.248164
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\5f3cb8b9-278a-4881-8802-ac5b5465017a_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:54.259159
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\d8309b4e-35c0-4972-8703-cb7a415ddc0d_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:54.502936
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\d8309b4e-35c0-4972-8703-cb7a415ddc0d_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:56.151912
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\e725d08a-41d0-4246-af5b-f888bad804aa_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:56.548772
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\e725d08a-41d0-4246-af5b-f888bad804aa_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:59.317094
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\ec034e02-2e64-4d1f-9046-adba4d29ede9_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 00:26:59.733279
+Path: temp_uploads\937c2157-813c-4e46-a39b-1600fec6633c\ec034e02-2e64-4d1f-9046-adba4d29ede9_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:48:48.288905
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\3e63c61b-c095-474d-a9e3-74efada7f0dd_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:48:48.962104
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\3e63c61b-c095-474d-a9e3-74efada7f0dd_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:48:49.737675
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\5cba6123-341d-4d43-a7d2-099ae52d746d_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:48:50.158586
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\5cba6123-341d-4d43-a7d2-099ae52d746d_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:48:50.965700
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\cd43bc87-a8e7-4d3b-ab8b-692900697ef3_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:48:51.398257
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\cd43bc87-a8e7-4d3b-ab8b-692900697ef3_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:48:52.204678
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\b56e694b-61cb-42b0-b4f5-cf7d1c74ba25_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:48:52.545765
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\b56e694b-61cb-42b0-b4f5-cf7d1c74ba25_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:48:53.233293
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\b52420ab-673f-450d-b644-84a93ea9c977_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:48:53.677860
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\b52420ab-673f-450d-b644-84a93ea9c977_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:51:47.658501
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\3e63c61b-c095-474d-a9e3-74efada7f0dd_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:51:48.090130
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\3e63c61b-c095-474d-a9e3-74efada7f0dd_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:51:51.066022
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\5cba6123-341d-4d43-a7d2-099ae52d746d_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:51:51.474727
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\5cba6123-341d-4d43-a7d2-099ae52d746d_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:51:54.707916
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\88895f60-2527-47aa-9217-c6e98680de43_Recebiveis_cielo_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:51:55.221731
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\88895f60-2527-47aa-9217-c6e98680de43_Recebiveis_cielo_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:51:59.330694
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\b52420ab-673f-450d-b644-84a93ea9c977_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:51:59.769631
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\b52420ab-673f-450d-b644-84a93ea9c977_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:52:03.699929
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\b56e694b-61cb-42b0-b4f5-cf7d1c74ba25_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:52:04.104686
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\b56e694b-61cb-42b0-b4f5-cf7d1c74ba25_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:52:07.116715
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\cd43bc87-a8e7-4d3b-ab8b-692900697ef3_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:52:07.484336
+Path: temp_uploads\94d0085a-c565-49a9-b5af-c7edab8f7fef\cd43bc87-a8e7-4d3b-ab8b-692900697ef3_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:53:20.909364
+Path: temp_uploads\6984d440-6a0e-49d8-923c-238fc4b0899d\1e9e716b-c2ae-44e4-b797-4456f0830bf9_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:53:21.355653
+Path: temp_uploads\6984d440-6a0e-49d8-923c-238fc4b0899d\1e9e716b-c2ae-44e4-b797-4456f0830bf9_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:53:24.275499
+Path: temp_uploads\6984d440-6a0e-49d8-923c-238fc4b0899d\1e9e716b-c2ae-44e4-b797-4456f0830bf9_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:53:24.758832
+Path: temp_uploads\6984d440-6a0e-49d8-923c-238fc4b0899d\1e9e716b-c2ae-44e4-b797-4456f0830bf9_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:56:58.636385
+Path: temp_uploads\936cd3ab-bde3-45f4-abe5-3a6a133585b8\dd292403-4189-45a9-8f33-4bb435fe889d_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:56:59.043485
+Path: temp_uploads\936cd3ab-bde3-45f4-abe5-3a6a133585b8\dd292403-4189-45a9-8f33-4bb435fe889d_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:56:59.918599
+Path: temp_uploads\936cd3ab-bde3-45f4-abe5-3a6a133585b8\eb42a126-3659-4e4c-a12c-e93bc5acd6a8_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 07:57:02.588644
+Path: temp_uploads\936cd3ab-bde3-45f4-abe5-3a6a133585b8\eb42a126-3659-4e4c-a12c-e93bc5acd6a8_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 08:00:37.448133
+Path: temp_uploads\936cd3ab-bde3-45f4-abe5-3a6a133585b8\dd292403-4189-45a9-8f33-4bb435fe889d_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 08:00:37.790681
+Path: temp_uploads\936cd3ab-bde3-45f4-abe5-3a6a133585b8\dd292403-4189-45a9-8f33-4bb435fe889d_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 08:00:41.126916
+Path: temp_uploads\936cd3ab-bde3-45f4-abe5-3a6a133585b8\eb42a126-3659-4e4c-a12c-e93bc5acd6a8_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-17 08:00:43.328182
+Path: temp_uploads\936cd3ab-bde3-45f4-abe5-3a6a133585b8\eb42a126-3659-4e4c-a12c-e93bc5acd6a8_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 07:21:19.280987
+Path: temp_uploads\9485f7fd-14c2-48e9-b1e0-f0395e91b547\040141ba-c2fd-451a-ac55-7cc889180ac1_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 07:21:19.780625
+Path: temp_uploads\9485f7fd-14c2-48e9-b1e0-f0395e91b547\040141ba-c2fd-451a-ac55-7cc889180ac1_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 07:22:16.855316
+Path: temp_uploads\9485f7fd-14c2-48e9-b1e0-f0395e91b547\040141ba-c2fd-451a-ac55-7cc889180ac1_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 07:22:17.196506
+Path: temp_uploads\9485f7fd-14c2-48e9-b1e0-f0395e91b547\040141ba-c2fd-451a-ac55-7cc889180ac1_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:06:04.797986
+Path: temp_uploads\4f63d727-847e-4bb0-a63e-1bba5168ae48\fd0a93ae-a94b-4f06-a7e1-e80e5d1a49d4_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:06:08.516446
+Path: temp_uploads\4f63d727-847e-4bb0-a63e-1bba5168ae48\fd0a93ae-a94b-4f06-a7e1-e80e5d1a49d4_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:08:12.365255
+Path: temp_uploads\4f63d727-847e-4bb0-a63e-1bba5168ae48\fd0a93ae-a94b-4f06-a7e1-e80e5d1a49d4_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:08:15.288833
+Path: temp_uploads\4f63d727-847e-4bb0-a63e-1bba5168ae48\fd0a93ae-a94b-4f06-a7e1-e80e5d1a49d4_Faturamento Contábil EC 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:17:18.626083
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\c6f61ab1-7546-48cd-a017-08da01570b9a_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:17:18.868886
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\c6f61ab1-7546-48cd-a017-08da01570b9a_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:17:19.954234
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\814adf9f-db74-4af5-a94b-bcadbeb1af5d_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:17:20.429313
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\814adf9f-db74-4af5-a94b-bcadbeb1af5d_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:17:21.628983
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\082f43a6-fb0e-42c2-a1a6-c2d6276553d8_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:17:22.129499
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\082f43a6-fb0e-42c2-a1a6-c2d6276553d8_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:17:23.393820
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\e43e4da3-d749-4dbc-8b5d-460d48d9513a_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:17:23.742364
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\e43e4da3-d749-4dbc-8b5d-460d48d9513a_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:17:24.987306
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\56a92139-a617-40f2-b908-5f99bf69d139_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:17:25.402712
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\56a92139-a617-40f2-b908-5f99bf69d139_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:19:12.224132
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\082f43a6-fb0e-42c2-a1a6-c2d6276553d8_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:19:12.540100
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\082f43a6-fb0e-42c2-a1a6-c2d6276553d8_Vendas_cielo_historico_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:19:21.665462
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\56a92139-a617-40f2-b908-5f99bf69d139_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:19:22.197396
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\56a92139-a617-40f2-b908-5f99bf69d139_Vendas_cielo_historico_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:19:33.746872
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\814adf9f-db74-4af5-a94b-bcadbeb1af5d_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:19:34.239757
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\814adf9f-db74-4af5-a94b-bcadbeb1af5d_Vendas_cielo_historico_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:19:45.209893
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\c6f61ab1-7546-48cd-a017-08da01570b9a_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:19:45.488232
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\c6f61ab1-7546-48cd-a017-08da01570b9a_Vendas_cielo_historico_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:19:53.608180
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\e43e4da3-d749-4dbc-8b5d-460d48d9513a_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:19:54.030378
+Path: temp_uploads\bc1cb339-2d49-4010-90bf-184660b2b624\e43e4da3-d749-4dbc-8b5d-460d48d9513a_Vendas_cielo_historico_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:21:50.899184
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\e005b99a-a11e-41b9-b053-160918931555_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:21:51.317342
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\e005b99a-a11e-41b9-b053-160918931555_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:21:52.513205
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\2f20256b-2403-4da8-a2b3-81c82dc52b4a_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:21:53.213330
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\2f20256b-2403-4da8-a2b3-81c82dc52b4a_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:21:54.446214
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\625dfe25-ef03-41e5-82bb-6c609b0a5144_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:21:54.881107
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\625dfe25-ef03-41e5-82bb-6c609b0a5144_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:21:56.025334
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\807985c8-a4c6-4d5b-81d3-c3a78ad8007b_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:21:56.445653
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\807985c8-a4c6-4d5b-81d3-c3a78ad8007b_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:21:57.816537
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\5bed1701-426a-4d3e-8b9d-ef44332b32eb_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:21:58.285405
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\5bed1701-426a-4d3e-8b9d-ef44332b32eb_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:26:10.302638
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\2f20256b-2403-4da8-a2b3-81c82dc52b4a_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:26:10.927876
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\2f20256b-2403-4da8-a2b3-81c82dc52b4a_Vendas_cielo_historico_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:26:22.676941
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\504ef34b-6cc3-4eaf-9baf-c6558d6ac9bb_Vendas_cielo_historico_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:26:23.262937
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\504ef34b-6cc3-4eaf-9baf-c6558d6ac9bb_Vendas_cielo_historico_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:26:37.856794
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\5bed1701-426a-4d3e-8b9d-ef44332b32eb_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:26:38.275874
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\5bed1701-426a-4d3e-8b9d-ef44332b32eb_Vendas_cielo_historico_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:26:51.236701
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\625dfe25-ef03-41e5-82bb-6c609b0a5144_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:26:51.687429
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\625dfe25-ef03-41e5-82bb-6c609b0a5144_Vendas_cielo_historico_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:27:03.741807
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\807985c8-a4c6-4d5b-81d3-c3a78ad8007b_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:27:04.154470
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\807985c8-a4c6-4d5b-81d3-c3a78ad8007b_Vendas_cielo_historico_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:27:17.717217
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\e005b99a-a11e-41b9-b053-160918931555_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:27:18.118132
+Path: temp_uploads\1e5edac1-dc6f-4059-9711-96e6eb998679\e005b99a-a11e-41b9-b053-160918931555_Vendas_cielo_historico_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:33:14.915816
+Path: temp_uploads\29185f4a-039c-4e24-be22-a1526e40486d\82c2f1e0-d5a2-48ba-81d1-385b6d6b9a77_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:33:15.517176
+Path: temp_uploads\29185f4a-039c-4e24-be22-a1526e40486d\82c2f1e0-d5a2-48ba-81d1-385b6d6b9a77_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:33:17.073635
+Path: temp_uploads\29185f4a-039c-4e24-be22-a1526e40486d\ae044b7c-b30b-43d3-b16b-2f06d364dece_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:33:17.399758
+Path: temp_uploads\29185f4a-039c-4e24-be22-a1526e40486d\ae044b7c-b30b-43d3-b16b-2f06d364dece_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:34:58.046584
+Path: temp_uploads\29185f4a-039c-4e24-be22-a1526e40486d\82c2f1e0-d5a2-48ba-81d1-385b6d6b9a77_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:34:58.508650
+Path: temp_uploads\29185f4a-039c-4e24-be22-a1526e40486d\82c2f1e0-d5a2-48ba-81d1-385b6d6b9a77_Vendas_cielo_historico_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:35:12.800634
+Path: temp_uploads\29185f4a-039c-4e24-be22-a1526e40486d\ae044b7c-b30b-43d3-b16b-2f06d364dece_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:35:13.173303
+Path: temp_uploads\29185f4a-039c-4e24-be22-a1526e40486d\ae044b7c-b30b-43d3-b16b-2f06d364dece_Vendas_cielo_historico_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:49:23.433917
+Path: temp_uploads\53a0ddbd-b47d-428d-b786-56562a2ed5f9\05928e8a-bef8-443f-a5ea-1f18a8409682_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:49:24.164099
+Path: temp_uploads\53a0ddbd-b47d-428d-b786-56562a2ed5f9\05928e8a-bef8-443f-a5ea-1f18a8409682_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:49:25.723138
+Path: temp_uploads\53a0ddbd-b47d-428d-b786-56562a2ed5f9\329e8bf4-7c3d-42db-813b-8ebe7e206e9c_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:49:29.105517
+Path: temp_uploads\53a0ddbd-b47d-428d-b786-56562a2ed5f9\329e8bf4-7c3d-42db-813b-8ebe7e206e9c_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:49:44.897723
+Path: temp_uploads\53a0ddbd-b47d-428d-b786-56562a2ed5f9\05928e8a-bef8-443f-a5ea-1f18a8409682_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:49:45.624587
+Path: temp_uploads\53a0ddbd-b47d-428d-b786-56562a2ed5f9\05928e8a-bef8-443f-a5ea-1f18a8409682_Recebiveis_cielo_detalhe-20260301-20260331-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:49:48.558074
+Path: temp_uploads\53a0ddbd-b47d-428d-b786-56562a2ed5f9\329e8bf4-7c3d-42db-813b-8ebe7e206e9c_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:49:51.852281
+Path: temp_uploads\53a0ddbd-b47d-428d-b786-56562a2ed5f9\329e8bf4-7c3d-42db-813b-8ebe7e206e9c_Relatório ciclo de vida da transação 1016597212    .xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:50:29.248360
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\e97d1b6d-7e16-4068-bdfd-6c3cf0c7caf6_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:50:29.622796
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\e97d1b6d-7e16-4068-bdfd-6c3cf0c7caf6_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:50:30.742525
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\88e3d5fd-d8ba-4038-a3b3-de0b761a2865_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:50:31.488074
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\88e3d5fd-d8ba-4038-a3b3-de0b761a2865_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:50:32.636975
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\69aaca4d-4655-4662-9819-d8c0a3c9437f_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:50:33.261995
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\69aaca4d-4655-4662-9819-d8c0a3c9437f_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:50:34.290421
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\61ac5b14-d04b-4cb0-8613-38fef07a7709_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:50:34.955604
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\61ac5b14-d04b-4cb0-8613-38fef07a7709_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:50:36.092523
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\3dddd10e-35d7-42c4-b852-f13c336053bd_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:50:36.787027
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\3dddd10e-35d7-42c4-b852-f13c336053bd_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:52:22.179571
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\3dddd10e-35d7-42c4-b852-f13c336053bd_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:52:22.839043
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\3dddd10e-35d7-42c4-b852-f13c336053bd_Recebiveis_cielo_detalhe-20241101-20241231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:52:26.727997
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\61ac5b14-d04b-4cb0-8613-38fef07a7709_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:52:27.275780
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\61ac5b14-d04b-4cb0-8613-38fef07a7709_Recebiveis_cielo_detalhe-20240901-20241031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:52:31.118158
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\69aaca4d-4655-4662-9819-d8c0a3c9437f_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:52:31.759088
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\69aaca4d-4655-4662-9819-d8c0a3c9437f_Recebiveis_cielo_detalhe-20240701-20240831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:52:35.414217
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\88e3d5fd-d8ba-4038-a3b3-de0b761a2865_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:52:36.008722
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\88e3d5fd-d8ba-4038-a3b3-de0b761a2865_Recebiveis_cielo_detalhe-20240501-20240630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:52:39.893856
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\e97d1b6d-7e16-4068-bdfd-6c3cf0c7caf6_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:52:40.320793
+Path: temp_uploads\9f560315-1e83-4067-bc8d-fe52dea655b7\e97d1b6d-7e16-4068-bdfd-6c3cf0c7caf6_Recebiveis_cielo_detalhe-20240329-20240430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:00.588707
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\048d59f1-1e67-4cbf-954d-1ccdbb40e44f_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:01.372898
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\048d59f1-1e67-4cbf-954d-1ccdbb40e44f_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:02.698062
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\6266f5cf-aaca-4875-b282-d5d2e5c492ee_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:03.345921
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\6266f5cf-aaca-4875-b282-d5d2e5c492ee_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:04.719488
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\378050d7-ba81-4b7d-8191-a8220749d42a_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:05.401015
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\378050d7-ba81-4b7d-8191-a8220749d42a_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:06.785573
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\0d7ca5ee-c3d1-474f-8683-9f1305cd736f_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:07.433922
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\0d7ca5ee-c3d1-474f-8683-9f1305cd736f_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:08.650819
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\6ceff4de-220b-476b-a2e4-543635654ed1_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:09.386664
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\6ceff4de-220b-476b-a2e4-543635654ed1_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:53:59.473232
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\048d59f1-1e67-4cbf-954d-1ccdbb40e44f_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:00.180415
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\048d59f1-1e67-4cbf-954d-1ccdbb40e44f_Recebiveis_cielo_detalhe-20250101-20250228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:04.578875
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\0d7ca5ee-c3d1-474f-8683-9f1305cd736f_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:05.131362
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\0d7ca5ee-c3d1-474f-8683-9f1305cd736f_Recebiveis_cielo_detalhe-20250701-20250831-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:09.306466
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\378050d7-ba81-4b7d-8191-a8220749d42a_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:10.034322
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\378050d7-ba81-4b7d-8191-a8220749d42a_Recebiveis_cielo_detalhe-20250501-20250630-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:15.034155
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\6266f5cf-aaca-4875-b282-d5d2e5c492ee_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:15.789350
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\6266f5cf-aaca-4875-b282-d5d2e5c492ee_Recebiveis_cielo_detalhe-20250301-20250430-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:21.218084
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\6ceff4de-220b-476b-a2e4-543635654ed1_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:21.989038
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\6ceff4de-220b-476b-a2e4-543635654ed1_Recebiveis_cielo_detalhe-20250901-20251031-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:27.922291
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\71f2f56c-bc62-4554-accf-58463d818ebb_Recebiveis_cielo_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:54:28.885546
+Path: temp_uploads\d851477d-6d34-4b8c-ac1e-12df3cb81916\71f2f56c-bc62-4554-accf-58463d818ebb_Recebiveis_cielo_detalhe-20251101-20251231-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:55:14.081166
+Path: temp_uploads\81d8e083-d259-4629-b636-ae34bbcf4846\befb1df3-1548-4dc8-a2f0-18c7a244b3cf_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:55:14.824999
+Path: temp_uploads\81d8e083-d259-4629-b636-ae34bbcf4846\befb1df3-1548-4dc8-a2f0-18c7a244b3cf_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:56:15.637480
+Path: temp_uploads\81d8e083-d259-4629-b636-ae34bbcf4846\befb1df3-1548-4dc8-a2f0-18c7a244b3cf_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
+
+is_multisheet_rede_file called at 2026-05-18 22:56:16.207230
+Path: temp_uploads\81d8e083-d259-4629-b636-ae34bbcf4846\befb1df3-1548-4dc8-a2f0-18c7a244b3cf_Recebiveis_cielo_detalhe-20260101-20260228-1-1-xlsx.xlsx
+Ext: .xlsx
