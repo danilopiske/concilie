@@ -24,6 +24,7 @@ const NAV_MODULES: NavItem[] = [
   { label: 'Cálculos', href: '/calculos' },
   { label: 'Relatórios', href: '/relatorios' },
   { label: 'Conversor', href: '/conversor' },
+  { label: 'IA', href: '/ia/db' },
   { label: 'Config', href: '/configuracoes' },
 ];
 

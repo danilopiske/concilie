@@ -8,6 +8,7 @@ from app.api import deps
 from app.api.v1.endpoints import (
     abusividade,
     ai,
+    db_ai,
     conversor,
     alertas_config,
     analista,
@@ -52,6 +53,7 @@ api_router.include_router(login.router, tags=["login"])
 _auth = [Depends(deps.get_current_user)]
 
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"], dependencies=_auth)
+api_router.include_router(db_ai.router, prefix="/ai", tags=["db-ai"], dependencies=_auth)
 api_router.include_router(clientes.router, prefix="/clientes", tags=["clientes"], dependencies=_auth)
 api_router.include_router(extratos_cliente.router, prefix="/clientes", tags=["extratos-cliente"], dependencies=_auth)
 api_router.include_router(taxas_contratadas.router, prefix="/clientes", tags=["taxas-contratadas"], dependencies=_auth)

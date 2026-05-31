@@ -3,6 +3,8 @@ Models Package
 """
 
 from app.models.abusividade_task import AbusividadeTask
+from app.models.chat_session import ChatSession
+from app.models.chat_message import ChatMessage
 from app.models.alerta_config import AlertaConfig
 from app.models.audit_log import AuditLog
 from app.models.bandeira import BandeiraCliente, BandeiraDisponivel
