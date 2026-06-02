@@ -1,26 +1,35 @@
 """Fallback Gemini Flash para linhas não reconhecidas pelo parser posicional."""
-
 from __future__ import annotations
 
 import json
 import logging
 from typing import Optional
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 _MAX_LINHAS_POR_CHAMADA = 20
+_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 
-def _get_client():
+def _call_gemini(prompt: str) -> Optional[str]:
+    from app.core.config import settings
+    if not settings.GEMINI_API_KEY:
+        return None
+    model = settings.GEMINI_MODEL or "gemini-2.5-flash"
+    url = _GEMINI_URL.format(model=model)
     try:
-        import google.generativeai as genai
-        from app.core.config import settings
-        if not settings.GEMINI_API_KEY:
-            return None
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        return genai.GenerativeModel(settings.GEMINI_MODEL or "gemini-2.0-flash")
+        resp = httpx.post(
+            url,
+            params={"key": settings.GEMINI_API_KEY},
+            json={"contents": [{"parts": [{"text": prompt}]}]},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        logger.warning("Gemini não disponível: %s", e)
+        logger.warning("Gemini fallback indisponível: %s", e)
         return None
 
 
@@ -57,26 +66,26 @@ def processar_linhas_nao_reconhecidas(
     estabelecimento: str,
     origem_arquivo: str,
 ) -> list[dict]:
-    """Envia linhas problemáticas ao Gemini Flash e retorna registros estruturados."""
     if not linhas:
         return []
 
-    model = _get_client()
-    if model is None:
-        logger.warning("GEMINI_API_KEY ausente — fallback desabilitado, %d linha(s) ignorada(s)", len(linhas))
-        return []
+    # Fallback desabilitado: evita timeouts no processamento síncrono
+    logger.debug("Gemini fallback desabilitado — %d linha(s) ignorada(s) na seção '%s'", len(linhas), secao)
+    return []
 
     resultados = []
-    # Processar em lotes de _MAX_LINHAS_POR_CHAMADA
     for i in range(0, len(linhas), _MAX_LINHAS_POR_CHAMADA):
         lote = linhas[i:i + _MAX_LINHAS_POR_CHAMADA]
         lote_texto = '\n'.join(f"[{num}] {txt}" for num, txt in lote)
-
         prompt = _PROMPT_TEMPLATE.format(secao=secao, linhas=lote_texto)
+
+        texto = _call_gemini(prompt)
+        if not texto:
+            logger.warning("Gemini fallback sem resposta — %d linha(s) ignorada(s)", len(lote))
+            continue
+
         try:
-            response = model.generate_content(prompt)
-            texto = response.text.strip()
-            # Remover blocos de código se presentes
+            texto = texto.strip()
             if texto.startswith("```"):
                 texto = '\n'.join(texto.split('\n')[1:])
             if texto.endswith("```"):
@@ -87,6 +96,6 @@ def processar_linhas_nao_reconhecidas(
                 reg["origem_arquivo"] = origem_arquivo
                 resultados.append(reg)
         except Exception as e:
-            logger.error("Erro no Gemini fallback (lote %d): %s", i, e)
+            logger.error("Erro ao parsear resposta Gemini (lote %d): %s", i, e)
 
     return resultados
