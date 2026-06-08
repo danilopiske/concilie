@@ -6,6 +6,7 @@ export interface Permissao {
   perfil: Perfil;
   contextos_ids: number[];
   clientes_ids: number[];
+  telas_permitidas: string[];
 }
 
 export const permissoesApi = {

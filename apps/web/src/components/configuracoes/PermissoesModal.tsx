@@ -4,8 +4,21 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { usuariosApi } from '@/lib/api/usuarios';
 import type { Usuario } from '@/lib/api/usuarios';
+import { TELAS_POR_USUARIO } from '@/hooks/usePermissoes';
 
 type Perfil = 'admin' | 'operador' | 'visualizador';
+
+const TELA_LABELS: Record<string, string> = {
+  gestao:       'Gestão',
+  importar:     'Importar',
+  analise:      'Análise e Correções',
+  calculos:     'Cálculos',
+  relatorios:   'Relatórios',
+  conversor:    'Conversor (Rede)',
+  ia:           'Assistente IA',
+  configuracoes:'Configurações',
+  dashboard:    'Notificações / Tarefas',
+};
 
 interface PermissoesModalProps {
   isOpen: boolean;
@@ -17,6 +30,7 @@ export function PermissoesModal({ isOpen, onClose, usuario }: PermissoesModalPro
   const [perfil, setPerfil] = useState<Perfil>('operador');
   const [contextosIds, setContextosIds] = useState<number[]>([]);
   const [clientesIds, setClientesIds] = useState<number[]>([]);
+  const [telasPermitidas, setTelasPermitidas] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +44,7 @@ export function PermissoesModal({ isOpen, onClose, usuario }: PermissoesModalPro
         setPerfil(p.perfil as Perfil);
         setContextosIds(p.contextos_ids);
         setClientesIds(p.clientes_ids);
+        setTelasPermitidas(p.telas_permitidas ?? []);
       })
       .catch(() => setError('Não foi possível carregar as permissões.'))
       .finally(() => setLoading(false));
@@ -44,6 +59,7 @@ export function PermissoesModal({ isOpen, onClose, usuario }: PermissoesModalPro
         perfil,
         contextos_ids: contextosIds,
         clientes_ids: clientesIds,
+        telas_permitidas: telasPermitidas,
       });
       onClose();
     } catch {
@@ -119,6 +135,34 @@ export function PermissoesModal({ isOpen, onClose, usuario }: PermissoesModalPro
                 }}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               />
+            </div>
+
+            {/* Telas especiais por usuário */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Módulos especiais
+                <span className="ml-1 text-xs text-gray-400">(liberados individualmente, admin sempre tem acesso)</span>
+              </label>
+              <div className="space-y-2">
+                {TELAS_POR_USUARIO.map((tela) => {
+                  const ativo = telasPermitidas.includes(tela);
+                  return (
+                    <label key={tela} className="flex items-center gap-3 cursor-pointer">
+                      <div
+                        onClick={() =>
+                          setTelasPermitidas(ativo
+                            ? telasPermitidas.filter(t => t !== tela)
+                            : [...telasPermitidas, tela])
+                        }
+                        className={`relative w-10 h-5 rounded-full transition-colors ${ativo ? 'bg-primary-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${ativo ? 'translate-x-5' : ''}`} />
+                      </div>
+                      <span className="text-sm text-gray-700">{TELA_LABELS[tela] ?? tela}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}

@@ -5,6 +5,7 @@ import { FileOutput } from 'lucide-react';
 import { RedeUploader } from '@/components/conversor/RedeUploader';
 import { ConversaoStatus } from '@/components/conversor/ConversaoStatus';
 import { converterRedeFiles } from '@/lib/api/conversor';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export default function ConverRedePage() {
   const [files, setFiles] = useState<File[]>([]);
@@ -40,6 +41,7 @@ export default function ConverRedePage() {
   };
 
   return (
+    <ProtectedRoute telaEspecifica="conversor">
     <div className="max-w-2xl mx-auto py-8 px-4">
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-blue-100 rounded-lg">
@@ -75,5 +77,6 @@ export default function ConverRedePage() {
         />
       </div>
     </div>
+    </ProtectedRoute>
   );
 }

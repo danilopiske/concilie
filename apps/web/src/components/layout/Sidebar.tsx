@@ -32,6 +32,7 @@ import {
   Shield,
   TrendingUp,
   FileOutput,
+  Bot,
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -44,7 +45,8 @@ interface SidebarSection {
   title: string;
   items: SidebarItem[];
   modulePrefix: string;
-  modulo: string; // chave para verificação de permissão
+  modulo: string;
+  telaEspecifica?: string; // acesso por usuário individual (conversor, ia)
 }
 
 const SIDEBAR_SECTIONS: SidebarSection[] = [
@@ -52,6 +54,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: 'Gestão',
     modulePrefix: '/gestao',
     modulo: 'gestao',
+    telaEspecifica: 'gestao',
     items: [
       { label: 'Clientes', href: '/gestao/clientes', icon: Users },
       { label: 'Contextos', href: '/gestao/contextos', icon: Settings },
@@ -67,6 +70,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: 'Importar',
     modulePrefix: '/importar',
     modulo: 'importar',
+    telaEspecifica: 'importar',
     items: [
       { label: 'Importar Vendas', href: '/importar/vendas', icon: Upload },
       { label: 'De-Para', href: '/importar/de-para', icon: FileText },
@@ -77,6 +81,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: 'Análise e Correções',
     modulePrefix: '/analise-correcoes',
     modulo: 'analise',
+    telaEspecifica: 'analise',
     items: [
       { label: 'Análise', href: '/analise-correcoes/analise', icon: BarChart3 },
       { label: 'Correção', href: '/analise-correcoes/correcao', icon: Edit },
@@ -88,6 +93,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: 'Abusividade',
     modulePrefix: '/abusividade',
     modulo: 'analise',
+    telaEspecifica: 'analise',
     items: [
       { label: 'Abusividade', href: '/abusividade', icon: AlertTriangle },
     ],
@@ -96,6 +102,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: 'Contestação',
     modulePrefix: '/contestacoes',
     modulo: 'analise',
+    telaEspecifica: 'analise',
     items: [
       { label: 'Contestações', href: '/contestacoes', icon: FileText },
       { label: 'Métricas', href: '/gestao/contestacoes-metricas', icon: BarChart3 },
@@ -105,6 +112,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: 'Cálculos',
     modulePrefix: '/calculos',
     modulo: 'calculos',
+    telaEspecifica: 'calculos',
     items: [
       { label: 'Cálculo de Taxas', href: '/calculos', icon: Calculator },
       { label: 'Gestão de Cálculos', href: '/calculos/gestao', icon: History },
@@ -114,6 +122,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: 'Relatórios',
     modulePrefix: '/relatorios',
     modulo: 'relatorios',
+    telaEspecifica: 'relatorios',
     items: [
       { label: 'Gerar Relatórios', href: '/relatorios', icon: FileBarChart },
       { label: 'Gestão de Relatórios', href: '/relatorios/gestao', icon: History },
@@ -123,14 +132,25 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: 'Conversor',
     modulePrefix: '/conversor',
     modulo: 'conversor',
+    telaEspecifica: 'conversor',
     items: [
       { label: 'Rede', href: '/conversor/rede', icon: FileOutput },
+    ],
+  },
+  {
+    title: 'Assistente IA',
+    modulePrefix: '/ia',
+    modulo: 'ia',
+    telaEspecifica: 'ia',
+    items: [
+      { label: 'Chat IA', href: '/ia', icon: Bot },
     ],
   },
   {
     title: 'Configurações',
     modulePrefix: '/configuracoes',
     modulo: 'configuracoes',
+    telaEspecifica: 'configuracoes',
     items: [
       { label: 'Usuários', href: '/configuracoes/usuarios', icon: Users },
       { label: 'Meu Perfil', href: '/configuracoes/perfil', icon: User },
@@ -142,6 +162,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: 'Notificações',
     modulePrefix: '/notificacoes',
     modulo: 'dashboard',
+    telaEspecifica: 'dashboard',
     items: [
       { label: 'Centro de Alertas', href: '/notificacoes', icon: Bell },
     ],
@@ -150,6 +171,7 @@ const SIDEBAR_SECTIONS: SidebarSection[] = [
     title: 'Centro de Tarefas',
     modulePrefix: '/tarefas',
     modulo: 'dashboard',
+    telaEspecifica: 'dashboard',
     items: [
       { label: 'Progresso de Tarefas', href: '/tarefas', icon: Activity },
     ],
@@ -173,7 +195,7 @@ export function Sidebar() {
     return saved === 'true';
   });
   const pathname = usePathname();
-  const { podeAcessar } = usePermissoes();
+  const { podeAcessar, podeAcessarTela } = usePermissoes();
 
   // Persistir estado
   const toggleCollapsed = () => {
@@ -188,9 +210,13 @@ export function Sidebar() {
   // Verificar se o item está ativo
   const isItemActive = (href: string) => pathname === href;
 
-  // Determine active section based on current path (only if user has access)
+  const temAcesso = (section: SidebarSection) =>
+    section.telaEspecifica
+      ? podeAcessarTela(section.telaEspecifica)
+      : podeAcessar(section.modulo);
+
   const activeSection = SIDEBAR_SECTIONS.find(
-    section => isModuleActive(section.modulePrefix) && podeAcessar(section.modulo)
+    section => isModuleActive(section.modulePrefix) && temAcesso(section)
   );
 
   return (

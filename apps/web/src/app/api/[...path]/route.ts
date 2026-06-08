@@ -22,8 +22,22 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
       method: req.method,
       headers,
       body: body ?? undefined,
-      redirect: 'follow',
+      redirect: 'manual',
     });
+
+    // FastAPI retorna 307 com Location: http://localhost:8000/... — reescrever para api:8000
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (location) {
+        const resolved = location.replace(/^https?:\/\/localhost:\d+/, API_BASE);
+        response = await fetch(resolved, {
+          method: req.method,
+          headers,
+          body: body ?? undefined,
+          redirect: 'manual',
+        });
+      }
+    }
   } catch (e) {
     return NextResponse.json({ detail: 'Upstream unavailable' }, { status: 502 });
   }

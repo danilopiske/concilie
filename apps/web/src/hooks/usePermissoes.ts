@@ -14,6 +14,12 @@ export const MODULO_PERMISSOES: Record<string, Perfil[]> = {
   configuracoes:['admin'],
 };
 
+/** Telas com acesso liberado individualmente por usuário (não por perfil) */
+export const TELAS_POR_USUARIO = [
+  'gestao', 'importar', 'analise', 'calculos', 'relatorios',
+  'conversor', 'ia', 'configuracoes', 'dashboard',
+] as const;
+
 export function usePermissoes() {
   const [permissao, setPermissao] = useState<Permissao | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,9 +31,9 @@ export function usePermissoes() {
     const user = JSON.parse(stored) as { id: number };
     permissoesApi.get(user.id)
       .then(setPermissao)
-      .catch(() => {
-        // fallback: admin para não bloquear usuários sem permissão cadastrada
-        setPermissao({ perfil: 'admin', contextos_ids: [], clientes_ids: [] });
+      .catch((err) => {
+        console.error('[usePermissoes] erro ao buscar permissoes:', err?.response?.status, err?.message);
+        setPermissao({ perfil: 'visualizador', contextos_ids: [], clientes_ids: [], telas_permitidas: [] });
       })
       .finally(() => setLoading(false));
   }, []);
@@ -38,5 +44,11 @@ export function usePermissoes() {
     return permitidos.includes(permissao.perfil);
   };
 
-  return { permissao, loading, podeAcessar };
+  const podeAcessarTela = (tela: string): boolean => {
+    if (!permissao) return false;
+    if (permissao.perfil === 'admin') return true;
+    return (permissao.telas_permitidas ?? []).includes(tela);
+  };
+
+  return { permissao, loading, podeAcessar, podeAcessarTela };
 }

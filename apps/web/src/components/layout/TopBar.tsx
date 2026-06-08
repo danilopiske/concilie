@@ -9,30 +9,38 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { CircleCheck, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissoes } from '@/hooks/usePermissoes';
 import { NotificacaoBell } from './NotificacaoBell';
 
 interface NavItem {
   label: string;
   href: string;
+  modulo?: string; // undefined = sempre visível
 }
 
 const NAV_MODULES: NavItem[] = [
-  { label: 'Home', href: '/' },
-  { label: 'Gestão', href: '/gestao' },
-  { label: 'Importar', href: '/importar' },
-  { label: 'Análise', href: '/analise-correcoes' },
-  { label: 'Cálculos', href: '/calculos' },
-  { label: 'Relatórios', href: '/relatorios' },
-  { label: 'Conversor', href: '/conversor' },
-  { label: 'IA', href: '/ia/db' },
-  { label: 'Config', href: '/configuracoes' },
+  { label: 'Home',       href: '/' },
+  { label: 'Gestão',     href: '/gestao',           modulo: 'gestao' },
+  { label: 'Importar',   href: '/importar',          modulo: 'importar' },
+  { label: 'Análise',    href: '/analise-correcoes', modulo: 'analise' },
+  { label: 'Cálculos',   href: '/calculos',          modulo: 'calculos' },
+  { label: 'Relatórios', href: '/relatorios',        modulo: 'relatorios' },
+  { label: 'Conversor',  href: '/conversor',         modulo: 'conversor' },
+  { label: 'IA',         href: '/ia/db',             modulo: 'ia' },
+  { label: 'Config',     href: '/configuracoes',     modulo: 'configuracoes' },
 ];
 
 export function TopBar() {
   const pathname = usePathname();
   const { logout, user } = useAuth();
+  const { podeAcessarTela } = usePermissoes();
 
-  const isActive = (href: string) => pathname.startsWith(href);
+  const isActive = (href: string) =>
+    href === '/' ? pathname === '/' : pathname.startsWith(href);
+
+  const visibleModules = NAV_MODULES.filter(
+    item => !item.modulo || podeAcessarTela(item.modulo)
+  );
 
   return (
     <header className="fixed top-0 left-0 right-0 h-16 z-50 shadow-lg">
@@ -59,7 +67,7 @@ export function TopBar() {
 
           {/* Módulos Principais */}
           <nav className="flex items-center gap-1">
-            {NAV_MODULES.map((item) => (
+            {visibleModules.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

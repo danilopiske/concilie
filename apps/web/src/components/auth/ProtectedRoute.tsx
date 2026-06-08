@@ -4,20 +4,28 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import type { Perfil } from '@/lib/api/permissoes';
 
 interface ProtectedRouteProps {
-  modulo: string;
+  modulo?: string;
   children: React.ReactNode;
   /** Perfis permitidos (override da tabela padrão) */
   roles?: Perfil[];
+  /** Tela liberada individualmente por usuário (conversor, ia) */
+  telaEspecifica?: string;
 }
 
-export function ProtectedRoute({ modulo, children, roles }: ProtectedRouteProps) {
-  const { permissao, loading, podeAcessar } = usePermissoes();
+export function ProtectedRoute({ modulo, children, roles, telaEspecifica }: ProtectedRouteProps) {
+  const { permissao, loading, podeAcessar, podeAcessarTela } = usePermissoes();
 
   if (loading) return null;
 
-  const permitido = roles
-    ? permissao && roles.includes(permissao.perfil)
-    : podeAcessar(modulo);
+  let permitido: boolean;
+  if (telaEspecifica) {
+    permitido = podeAcessarTela(telaEspecifica);
+  } else if (roles) {
+    permitido = !!(permissao && roles.includes(permissao.perfil));
+  } else {
+    permitido = podeAcessar(modulo ?? '');
+
+  }
 
   if (!permitido) {
     return (

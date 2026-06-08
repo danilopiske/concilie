@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import Any, List
 
@@ -86,8 +87,11 @@ def deletar_usuario(
 def get_permissoes(
     usuario_id: int,
     db: Session = Depends(deps.get_db),
-    _: Any = Depends(deps.require_role(["admin"])),
+    current_user: Any = Depends(deps.get_current_user),
 ) -> Any:
+    # Permite o próprio usuário ou admin
+    if current_user.id != usuario_id and deps.get_user_perfil(current_user) != "admin":
+        raise HTTPException(status_code=403, detail="Acesso negado")
     """Retorna perfil e escopos do usuário."""
     repo = UsuarioRepository(db)
     usuario = repo.get(usuario_id)
@@ -97,8 +101,9 @@ def get_permissoes(
     perfil = usuario.permissao.perfil if usuario.permissao else "admin"
     contextos_ids = [uc.contexto_id for uc in usuario.contextos_permitidos]
     clientes_ids = [uc.cliente_id for uc in usuario.clientes_permitidos]
+    telas_permitidas = json.loads(usuario.permissao.telas_permitidas or "[]") if usuario.permissao else []
 
-    return PermissaoResponse(perfil=perfil, contextos_ids=contextos_ids, clientes_ids=clientes_ids)
+    return PermissaoResponse(perfil=perfil, contextos_ids=contextos_ids, clientes_ids=clientes_ids, telas_permitidas=telas_permitidas)
 
 
 @router.put("/{usuario_id}/permissoes", response_model=PermissaoResponse)
@@ -114,12 +119,14 @@ def set_permissoes(
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
+    telas_json = json.dumps(data.telas_permitidas or [])
     # Upsert permissao
     if usuario.permissao:
         usuario.permissao.perfil = data.perfil
+        usuario.permissao.telas_permitidas = telas_json
         usuario.permissao.atualizado_em = datetime.utcnow()
     else:
-        db.add(UsuarioPermissao(usuario_id=usuario_id, perfil=data.perfil))
+        db.add(UsuarioPermissao(usuario_id=usuario_id, perfil=data.perfil, telas_permitidas=telas_json))
 
     # Substituir contextos
     db.query(UsuarioContexto).filter(UsuarioContexto.usuario_id == usuario_id).delete()
@@ -136,8 +143,10 @@ def set_permissoes(
 
     contextos_ids = [uc.contexto_id for uc in usuario.contextos_permitidos]
     clientes_ids = [uc.cliente_id for uc in usuario.clientes_permitidos]
+    telas_permitidas = json.loads(usuario.permissao.telas_permitidas or "[]")
     return PermissaoResponse(
         perfil=usuario.permissao.perfil,
         contextos_ids=contextos_ids,
         clientes_ids=clientes_ids,
+        telas_permitidas=telas_permitidas,
     )

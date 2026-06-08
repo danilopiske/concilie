@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Bot, Send, Sparkles, RefreshCw } from 'lucide-react';
 import { iaApi, ChatMessage } from '@/lib/api/ia';
 import { importacaoApi, Processamento } from '@/lib/api/importacao';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 const EXEMPLOS = [
   'Qual bandeira cobrou mais acima do esperado?',
@@ -82,6 +83,7 @@ export default function IAPage() {
   };
 
   return (
+    <ProtectedRoute telaEspecifica="ia">
     <div className="max-w-4xl mx-auto pb-10 flex flex-col h-full space-y-4">
       {/* Header */}
       <div className="border-b pb-4 flex items-center gap-3">
@@ -205,5 +207,6 @@ export default function IAPage() {
         </button>
       </div>
     </div>
+    </ProtectedRoute>
   );
 }
