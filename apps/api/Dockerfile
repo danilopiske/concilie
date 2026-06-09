@@ -25,6 +25,7 @@ RUN poetry config virtualenvs.create false && \
 COPY modules/ ./modules/
 COPY proc/ ./proc/
 COPY conf/ ./conf/
+COPY templates/ ./templates/
 
 # Copiar o código específico da API
 COPY apps/api/app/ ./app/

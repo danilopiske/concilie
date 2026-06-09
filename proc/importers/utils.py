@@ -105,6 +105,7 @@ def safe_read_file(path: str, nrows: Optional[int] = None) -> Tuple[pd.DataFrame
                 raise ValueError("Arquivo Excel antigo (.xls) corrompido.")
 
     # 1) Tenta Excel
+    excel_error: Exception | None = None
     if ext in (".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"):
         try:
             options = {
@@ -118,41 +119,97 @@ def safe_read_file(path: str, nrows: Optional[int] = None) -> Tuple[pd.DataFrame
             try:
                 df = pd.read_excel(path, **options)
             except Exception:
-                options["engine"] = "openpyxl"
-                df = pd.read_excel(path, **options)
-            
+                try:
+                    options["engine"] = "openpyxl"
+                    df = pd.read_excel(path, **options)
+                except Exception:
+                    # Fallback final: leitura direta do XML interno do xlsx via zipfile
+                    # Bypassa completamente o openpyxl (evita erros de estilos/inf/NaN)
+                    import zipfile, xml.etree.ElementTree as ET
+                    NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+
+                    with zipfile.ZipFile(path, "r") as z:
+                        # Shared strings
+                        shared: list[str] = []
+                        if "xl/sharedStrings.xml" in z.namelist():
+                            with z.open("xl/sharedStrings.xml") as f:
+                                root_ss = ET.parse(f).getroot()
+                                for si in root_ss.findall(f"{{{NS}}}si"):
+                                    t_el = si.find(f".//{{{NS}}}t")
+                                    shared.append(t_el.text if t_el is not None and t_el.text else "")
+
+                        # Primeira planilha — busca flexível (qualquer case/nome)
+                        all_files = z.namelist()
+                        sheet_names = [n for n in all_files if n.lower().startswith("xl/worksheets/") and n.lower().endswith(".xml") and "sheet" in n.lower()]
+                        if not sheet_names:
+                            # Último recurso: qualquer XML dentro de worksheets/
+                            sheet_names = [n for n in all_files if "worksheets" in n.lower() and n.lower().endswith(".xml")]
+                        if not sheet_names:
+                            raise ValueError(f"Nenhuma planilha encontrada. Arquivos no ZIP: {all_files}")
+                        with z.open(sorted(sheet_names)[0]) as f:
+                            root_ws = ET.parse(f).getroot()
+
+                    rows = []
+                    for row_el in root_ws.findall(f".//{{{NS}}}row"):
+                        row_data: list[str] = []
+                        for c in row_el.findall(f"{{{NS}}}c"):
+                            t = c.get("t", "")
+                            v_el = c.find(f"{{{NS}}}v")
+                            if v_el is None or v_el.text is None:
+                                row_data.append("")
+                            elif t == "s":
+                                try:
+                                    row_data.append(shared[int(v_el.text)])
+                                except (IndexError, ValueError):
+                                    row_data.append(v_el.text)
+                            elif t == "inlineStr":
+                                t_el = c.find(f".//{{{NS}}}t")
+                                row_data.append(t_el.text if t_el is not None and t_el.text else "")
+                            elif t == "b":
+                                row_data.append("TRUE" if v_el.text == "1" else "FALSE")
+                            else:
+                                row_data.append(v_el.text)
+                        rows.append(row_data)
+
+                    if not rows:
+                        raise ValueError("Planilha vazia após leitura via XML.")
+                    max_cols = max(len(r) for r in rows)
+                    rows = [r + [""] * (max_cols - len(r)) for r in rows]
+                    df = pd.DataFrame(rows, dtype=str)
+
             log_with_time(f"[DEBUG][SAFE_READ] Excel lido. Shape bruto: {df.shape}", "DEBUG")
-            
+
             # Detectar cabeçalho
             header_idx, score = detectar_cabecalho(df)
             log_with_time(f"[DEBUG][SAFE_READ] Heurística: Linha {header_idx} (score {score})", "DEBUG")
-            
+
             header_row = df.iloc[header_idx]
             header_names = [str(col).strip() if str(col).strip() and str(col).strip().lower() not in ["nan", "none"] else f"Coluna_{i}" for i, col in enumerate(header_row)]
-            
+
             df_final = df.iloc[header_idx + 1 :].astype(str)
             df_final.columns = header_names
             df_final.reset_index(drop=True, inplace=True)
-            
+
             log_with_time(f"[DEBUG][SAFE_READ] DataFrame finalizado. Linhas: {len(df_final)} | Cols: {list(df_final.columns)[:5]}...", "DEBUG")
             return df_final.fillna(""), header_idx, df_final.columns.tolist()
 
         except Exception as e:
+            excel_error = e
             log_with_time(f"Falha na leitura Excel: {e}", "ERROR")
 
     # 2) Tenta ler como texto (CSV/TXT)
     try:
         with open(path, "rb") as f:
             raw = f.read(1024 * 1024) if nrows else f.read()
-        
+
         text = raw.decode("utf-8", errors="replace")
         linhas = [l.strip() for l in text.splitlines() if l.strip()]
-        
+
         for sep in [";", ",", "\t", "|"]:
             for i, linha in enumerate(linhas[:20]):
                 valores = [v.strip() for v in linha.split(sep)]
                 if len(valores) < 5: continue
-                
+
                 texto_linha = " ".join(v.lower() for v in valores)
                 # Heurística simples para CSV
                 if any(kw in texto_linha for kw in ["data", "valor", "nsu", "cnpj", "venda"]):
@@ -164,7 +221,15 @@ def safe_read_file(path: str, nrows: Optional[int] = None) -> Tuple[pd.DataFrame
     except Exception as e:
         log_with_time(f"Falha ao ler como texto: {e}", "ERROR")
 
-    raise ValueError(f"Não foi possível processar o arquivo: {ext}")
+    # Detectar arquivo protegido por senha (padrão do openpyxl)
+    nome_arquivo = Path(path).name
+    if excel_error is not None:
+        erro_str = str(excel_error).lower()
+        if "encrypted" in erro_str or "password" in erro_str or "workbook is encrypted" in erro_str:
+            raise ValueError(f"O arquivo '{nome_arquivo}' está protegido por senha e não pode ser lido automaticamente.")
+        raise ValueError(f"Não foi possível ler o arquivo '{nome_arquivo}': {excel_error}")
+
+    raise ValueError(f"Formato não suportado ou arquivo vazio: '{nome_arquivo}' ({ext})")
 
 def preparar_para_tabulator(df: pd.DataFrame) -> List[Dict[str, Any]]:
     if df.empty: return []

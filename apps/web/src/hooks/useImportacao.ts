@@ -22,9 +22,13 @@ export function useImportacao() {
 
   const startPolling = useCallback((taskId: string) => {
     setPolling(true);
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 10;
+
     const interval = setInterval(async () => {
       try {
         const status = await importacaoApi.getTaskStatus(taskId) as ImportTask;
+        consecutiveErrors = 0;
         setTask(status);
 
         if (status.status === 'SUCCESS' || status.status === 'FAILED') {
@@ -33,13 +37,23 @@ export function useImportacao() {
           clearInterval(interval);
         }
       } catch (err) {
+        consecutiveErrors++;
+        const httpStatus = (err as ApiErr & { response?: { status?: number } })?.response?.status;
+        const isTransient = !httpStatus || httpStatus === 502 || httpStatus === 503 || httpStatus === 504;
+
+        if (isTransient && consecutiveErrors < MAX_CONSECUTIVE_ERRORS) {
+          // Erro de rede temporário — mantém polling
+          console.warn(`[polling] Erro transitório (${httpStatus ?? 'network'}), tentativa ${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}`);
+          return;
+        }
+
         console.error('Erro ao consultar status da importação:', err);
         setPolling(false);
         setLoading(false);
         setError('Erro ao consultar o progresso do processamento.');
         clearInterval(interval);
       }
-    }, 2000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, []);

@@ -34,9 +34,19 @@ _PREPROC_CACHE_DIR = os.path.join(
 _PREPROC_CACHE_DIR = os.path.normpath(_PREPROC_CACHE_DIR)
 
 # Diretório dos templates HTML/XML
-_TEMPLATES_DIR = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "templates")
-)
+# Busca o diretório 'templates/' subindo a partir deste arquivo,
+# compatível tanto com a estrutura local quanto com a do container Docker.
+def _find_templates_dir() -> str:
+    current = os.path.dirname(os.path.abspath(__file__))
+    for _ in range(6):
+        candidate = os.path.join(current, "templates")
+        if os.path.isdir(candidate):
+            return candidate
+        current = os.path.dirname(current)
+    # Fallback: caminho relativo original
+    return os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "templates"))
+
+_TEMPLATES_DIR = _find_templates_dir()
 
 
 # ---------------------------------------------------------------------------

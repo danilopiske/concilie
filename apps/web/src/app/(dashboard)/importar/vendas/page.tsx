@@ -236,6 +236,9 @@ export default function ImportarVendasPage() {
       setPreviewData([]);
       setFiles(null);
     }
+    if (task?.status === 'FAILED') {
+      setTaskError(task.message || 'Erro durante a importação.');
+    }
   }, [task?.status]);
 
   return (

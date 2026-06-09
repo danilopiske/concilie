@@ -307,13 +307,12 @@ class ImportService:
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Failed to save data: {error_msg}")
 
-        finally:
-            # Always clean up the WHOLE batch directory
-            if batch_dir.exists():
-                try:
-                    shutil.rmtree(batch_dir)
-                except Exception:
-                    pass
+        # Clean up only on success — on error, keep files so the user can retry
+        if batch_dir.exists():
+            try:
+                shutil.rmtree(batch_dir)
+            except Exception:
+                pass
 
     def create_import_task(self, cliente_id: int, tipo_arquivo: str, contexto: str, usuario: str, file_id: str, ec_id: str = None, processamentoid: int = None) -> ImportTask:
         task = ImportTask(
@@ -558,6 +557,13 @@ class ImportService:
                 if not aggregated_result["processamentoid"]:
                     aggregated_result["processamentoid"] = result_data.get("processamentoid")
 
+            # Cleanup only on success — on error keep files so the user can retry
+            if batch_dir.exists():
+                try:
+                    shutil.rmtree(batch_dir)
+                except Exception:
+                    pass
+
             return {
                 "status": "success",
                 "message": f"Successfully processed {aggregated_result['files_processed']} files.",
@@ -571,12 +577,4 @@ class ImportService:
             logger.error("Error saving batch to DB (v2): %s", error_msg)
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Failed to save data: {error_msg}")
-
-        finally:
-            # Always clean up the WHOLE batch directory
-            if batch_dir.exists():
-                try:
-                    shutil.rmtree(batch_dir)
-                except Exception:
-                    pass
 
