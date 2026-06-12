@@ -3056,6 +3056,10 @@ def aplicar_regras_depara(
         mapeamento = {}  # {origem: [destino1, destino2, ...]}
         transformacoes = {}
         formulas_depara = {}  # {destino: formula_str} para tipo_preenchimento='formula'
+        # Rastreia qual origem tem prioridade (id menor) para cada destino.
+        # Regras chegam ordenadas por id ASC, então a primeira origem registrada para
+        # cada destino é a de id menor e deve ter preferência no fallback.
+        destino_primary_origem: dict = {}  # {destino_lower: origem_lower}
 
         if regras:
             print(f"[DEBUG][aplicar_regras_depara] Primeiras 3 regras: {regras[:3]}")
@@ -3093,6 +3097,11 @@ def aplicar_regras_depara(
                     if origem not in mapeamento:
                         mapeamento[origem] = []
                     mapeamento[origem].append(destino)
+
+                    # Registrar origem primária (id menor) de cada destino — usado no fallback
+                    destino_lower = destino.lower()
+                    if destino_lower not in destino_primary_origem:
+                        destino_primary_origem[destino_lower] = origem.lower()
 
                     transformacoes[origem] = destino  # Manter compatibilidade
 
@@ -3557,10 +3566,26 @@ def aplicar_regras_depara(
                         and "Forma_de_pagamento" in df_resultado.columns
                     ):
                         continue
-                    df_resultado[destino] = df_limpo[orig_col_name].copy()
-                    print(
-                        f"[DEBUG][aplicar_regras_depara]    '{orig_col_name}' → '{destino}' ({len(df_limpo[orig_col_name].dropna())} valores não-nulos)"
-                    )
+                    # Fallback com preferência por id menor:
+                    # - Se esta origem é a primária (id menor) para o destino → escreve normalmente
+                    # - Se é secundária → só preenche células ainda vazias
+                    is_primary = destino_primary_origem.get(destino.lower()) == lower_col
+                    if not is_primary and destino in df_resultado.columns and df_resultado[destino].notna().any():
+                        mask_vazio = df_resultado[destino].isna() | (df_resultado[destino].astype(str).str.strip() == "")
+                        if mask_vazio.any():
+                            df_resultado.loc[mask_vazio, destino] = df_limpo.loc[mask_vazio, orig_col_name]
+                            print(
+                                f"[DEBUG][aplicar_regras_depara]    '{orig_col_name}' → '{destino}' (FALLBACK id>primário: preencheu {mask_vazio.sum()} células vazias)"
+                            )
+                        else:
+                            print(
+                                f"[DEBUG][aplicar_regras_depara]    '{orig_col_name}' → '{destino}' (FALLBACK id>primário: destino completo, ignorado)"
+                            )
+                    else:
+                        df_resultado[destino] = df_limpo[orig_col_name].copy()
+                        print(
+                            f"[DEBUG][aplicar_regras_depara]    '{orig_col_name}' → '{destino}' ({len(df_limpo[orig_col_name].dropna())} valores não-nulos)"
+                        )
 
     # Aplicar fórmulas depara (tipo_preenchimento='formula')
     if formulas_depara:

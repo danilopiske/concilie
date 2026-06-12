@@ -489,7 +489,7 @@ def depara_listar(
 
     if filters:
         sql += " WHERE " + " AND ".join(filters)
-    sql += " ORDER BY ativo DESC, contexto, tipo_origem, destino_nome ASC"
+    sql += " ORDER BY ativo DESC, id ASC"
     return fetch_all(engine, sql, params)
 
 
@@ -584,7 +584,7 @@ def depara_carregar_mapa_completo(
         params["tipo"] = tipo_origem
 
     # Adicionar filtro para origem_nome válido
-    sql += " AND origem_nome IS NOT NULL AND origem_nome != ''"
+    sql += " AND origem_nome IS NOT NULL AND origem_nome != '' ORDER BY id ASC"
 
     return fetch_all(engine, sql, params)
 
