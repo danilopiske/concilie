@@ -60,6 +60,21 @@ export interface ConformidadeBandeiraForma {
   perda_rr?: number;
 }
 
+export interface ConformidadePeriodoRow {
+  periodo: string;
+  bandeira: string;
+  forma_pagamento: string;
+  quantidade: number;
+  faturamento: number;
+  cielo_taxa_media?: number;
+  cielo_retido: number;
+  calc_taxa_media?: number;
+  calc_retido: number;
+  nao_conformidade: number;
+  nao_conformidade_perc?: number;
+  perda_rr?: number;
+}
+
 export interface AgregacaoFormaPagamentoAno {
   ano: string;
   forma_pagamento: string;
@@ -105,6 +120,11 @@ export const analistaApi = {
 
   getConformidade: async (processamentoId: string) => {
     const { data } = await apiClient.get<ConformidadeBandeiraForma[]>(`/analista/${processamentoId}/conformidade`);
+    return data;
+  },
+
+  getConformidadePeriodo: async (processamentoId: string, tipo: 'mes' | 'semestre' | 'ano') => {
+    const { data } = await apiClient.get<ConformidadePeriodoRow[]>(`/analista/${processamentoId}/conformidade-periodo`, { params: { tipo } });
     return data;
   },
 };

@@ -12,6 +12,7 @@ from app.schemas.analista import (
     AgregacaoRecebivel,
     AnaliseDetalhadaItem,
     ConformidadeBandeiraForma,
+    ConformidadePeriodoRow,
 )
 
 
@@ -258,6 +259,61 @@ class AnalistaRepository:
                 cielo_taxa_media=float(row.cielo_taxa_media or 0.0),
                 cielo_retido=float(row.cielo_retido or 0.0),
                 calc_liquido=float(row.calc_liquido or 0.0),
+                calc_taxa_media=float(row.calc_taxa_media or 0.0),
+                calc_retido=float(row.calc_retido or 0.0),
+                nao_conformidade=float(row.nao_conformidade or 0.0),
+                nao_conformidade_perc=float(row.nao_conformidade_perc or 0.0),
+                perda_rr=float(row.perda_rr or 0.0),
+            ) for row in results
+        ]
+
+    def get_conformidade_por_periodo(self, processamento_id: str, tipo: str) -> List[ConformidadePeriodoRow]:
+        if tipo == "semestre":
+            periodo_expr = "CONCAT(YEAR(vc.data_venda), '-S', IF(MONTH(vc.data_venda) <= 6, 1, 2))"
+        elif tipo == "mes":
+            periodo_expr = "DATE_FORMAT(vc.data_venda, '%Y-%m')"
+        else:  # ano
+            periodo_expr = "CAST(YEAR(vc.data_venda) AS CHAR)"
+
+        sql = text(f"""
+            SELECT
+                {periodo_expr} as periodo,
+                vc.bandeira,
+                vc.forma_pagamento,
+                COUNT(*) as quantidade,
+                SUM(vc.vl_venda) as faturamento,
+                SUM(vc.desc_venda) / NULLIF(SUM(vc.vl_venda), 0) * 100 as cielo_taxa_media,
+                SUM(vc.desc_venda) as cielo_retido,
+                SUM(vc.desc_calc) / NULLIF(SUM(vc.vl_venda), 0) * 100 as calc_taxa_media,
+                SUM(vc.desc_calc) as calc_retido,
+                SUM(vc.perda) as nao_conformidade,
+                SUM(vc.perda) / NULLIF(SUM(vc.vl_venda), 0) * 100 as nao_conformidade_perc,
+                SUM(vc.perda_rr) as perda_rr
+            FROM vendas_calculos vc
+            INNER JOIN vendas_processadas vp ON vc.id_venda = vp.id
+            WHERE vp.processamentoid = :pid
+              AND vc.calc_id = (
+                SELECT vc2.calc_id
+                FROM vendas_calculos vc2
+                INNER JOIN vendas_processadas vp2 ON vc2.id_venda = vp2.id
+                WHERE vp2.processamentoid = :pid
+                ORDER BY vc2.calc_data DESC
+                LIMIT 1
+              )
+              AND vc.data_venda IS NOT NULL
+            GROUP BY periodo, vc.bandeira, vc.forma_pagamento
+            ORDER BY periodo, vc.bandeira, vc.forma_pagamento
+        """)
+        results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
+        return [
+            ConformidadePeriodoRow(
+                periodo=str(row.periodo or ""),
+                bandeira=row.bandeira or "Desconhecido",
+                forma_pagamento=row.forma_pagamento or "Desconhecido",
+                quantidade=row.quantidade,
+                faturamento=float(row.faturamento or 0.0),
+                cielo_taxa_media=float(row.cielo_taxa_media or 0.0),
+                cielo_retido=float(row.cielo_retido or 0.0),
                 calc_taxa_media=float(row.calc_taxa_media or 0.0),
                 calc_retido=float(row.calc_retido or 0.0),
                 nao_conformidade=float(row.nao_conformidade or 0.0),

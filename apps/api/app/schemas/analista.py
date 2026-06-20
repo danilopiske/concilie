@@ -73,3 +73,18 @@ class ConformidadeBandeiraForma(BaseModel):
     nao_conformidade: float
     nao_conformidade_perc: Optional[float] = 0.0
     perda_rr: Optional[float] = 0.0
+
+
+class ConformidadePeriodoRow(BaseModel):
+    periodo: str
+    bandeira: str
+    forma_pagamento: str
+    quantidade: int
+    faturamento: float
+    cielo_taxa_media: Optional[float] = 0.0
+    cielo_retido: float
+    calc_taxa_media: Optional[float] = 0.0
+    calc_retido: float
+    nao_conformidade: float
+    nao_conformidade_perc: Optional[float] = 0.0
+    perda_rr: Optional[float] = 0.0

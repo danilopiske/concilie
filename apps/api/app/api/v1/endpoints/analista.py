@@ -13,6 +13,7 @@ from app.schemas.analista import (
     AgregacaoPeriodo,
     AgregacaoRecebivel,
     ConformidadeBandeiraForma,
+    ConformidadePeriodoRow,
 )
 
 router = APIRouter()
@@ -55,3 +56,12 @@ def get_bandeira_forma(processamento_id: str, db: Session = Depends(get_db)):
 def get_conformidade(processamento_id: str, db: Session = Depends(get_db)):
     repo = AnalistaRepository(db)
     return repo.get_conformidade_bandeira_forma(processamento_id)
+
+@router.get("/{processamento_id:path}/conformidade-periodo", response_model=List[ConformidadePeriodoRow])
+def get_conformidade_periodo(
+    processamento_id: str,
+    tipo: str = Query("ano", pattern="^(mes|semestre|ano)$"),
+    db: Session = Depends(get_db),
+):
+    repo = AnalistaRepository(db)
+    return repo.get_conformidade_por_periodo(processamento_id, tipo)
