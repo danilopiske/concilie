@@ -1,3 +1,4 @@
+import unicodedata
 from datetime import date, timedelta
 from typing import List, Optional
 
@@ -18,6 +19,54 @@ from app.schemas.taxa_contratada import (
 )
 
 
+def _norm(s: str) -> str:
+    """Remove acentos e normaliza para minúsculas para comparações resilientes."""
+    if not s:
+        return ""
+    nfkd = unicodedata.normalize("NFKD", s)
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower().strip()
+
+
+def _buscar_taxa_vigente(
+    taxas: List[TaxaContratada],
+    bandeira: str,
+    forma_pag: str,
+    data_proc: date,
+) -> Optional[TaxaContratada]:
+    """Busca a taxa contratada vigente com comparação normalizada (sem acento, case-insensitive)."""
+    b = _norm(bandeira)
+    m = _norm(forma_pag)
+    return next(
+        (
+            t for t in taxas
+            if _norm(t.bandeira) == b
+            and _norm(t.modalidade) == m
+            and t.vigencia_inicio <= data_proc
+            and (t.vigencia_fim is None or t.vigencia_fim >= data_proc)
+        ),
+        None,
+    )
+
+
+def _buscar_taxa_atual(
+    taxas: List[TaxaContratada],
+    bandeira: str,
+    forma_pag: str,
+) -> Optional[TaxaContratada]:
+    """Busca a taxa contratada sem vigência encerrada, com comparação normalizada."""
+    b = _norm(bandeira)
+    m = _norm(forma_pag)
+    return next(
+        (
+            t for t in taxas
+            if _norm(t.bandeira) == b
+            and _norm(t.modalidade) == m
+            and t.vigencia_fim is None
+        ),
+        None,
+    )
+
+
 def _calcular_status(desvio: float) -> str:
     if desvio <= 2.0:
         return "ok"
@@ -28,11 +77,9 @@ def _calcular_status(desvio: float) -> str:
 
 def _comparar(cliente_id: int, processamento_id: str, db: Session) -> List[DesvioTaxa]:
     """Compara taxas contratadas vs cobradas para um processamento."""
-    # Data do processamento para verificar vigência
     proc = db.query(Processamento).filter(Processamento.id == int(processamento_id)).first()
     data_proc: Optional[date] = proc.data_inicio.date() if proc and proc.data_inicio else date.today()
 
-    # Taxas cobradas agrupadas por bandeira+forma_pagamento
     sql = text("""
         SELECT
             bandeira,
@@ -49,25 +96,16 @@ def _comparar(cliente_id: int, processamento_id: str, db: Session) -> List[Desvi
     """)
     rows = db.execute(sql, {"calc_id": str(processamento_id)}).fetchall()
 
+    # Carrega todas as taxas do cliente uma vez — match feito em Python com normalização
+    todas_taxas = db.query(TaxaContratada).filter(TaxaContratada.cliente_id == cliente_id).all()
+
     desvios: List[DesvioTaxa] = []
     for row in rows:
         bandeira, forma_pag, taxa_media, valor_total, quantidade = row
         taxa_media = float(taxa_media or 0)
         valor_total = float(valor_total or 0)
 
-        # Buscar taxa contratada vigente
-        taxa_obj = (
-            db.query(TaxaContratada)
-            .filter(
-                TaxaContratada.cliente_id == cliente_id,
-                TaxaContratada.bandeira == bandeira,
-                TaxaContratada.modalidade == forma_pag,
-                TaxaContratada.vigencia_inicio <= data_proc,
-                (TaxaContratada.vigencia_fim.is_(None))
-                | (TaxaContratada.vigencia_fim >= data_proc),
-            )
-            .first()
-        )
+        taxa_obj = _buscar_taxa_vigente(todas_taxas, bandeira, forma_pag, data_proc)
         if taxa_obj is None:
             continue  # sem referência contratual — pular
 
@@ -182,21 +220,14 @@ def comparativo_geral(cliente_id: int, db: Session) -> ComparativoResponse:
     """)
     rows = db.execute(sql, {"cliente_id": cliente_id}).fetchall()
 
+    todas_taxas = db.query(TaxaContratada).filter(TaxaContratada.cliente_id == cliente_id).all()
+
     itens: List[ComparativoItem] = []
     for row in rows:
         bandeira, forma_pag, taxa_media, quantidade = row
         taxa_media = float(taxa_media or 0)
 
-        taxa_obj = (
-            db.query(TaxaContratada)
-            .filter(
-                TaxaContratada.cliente_id == cliente_id,
-                TaxaContratada.bandeira == bandeira,
-                TaxaContratada.modalidade == forma_pag,
-                TaxaContratada.vigencia_fim.is_(None),
-            )
-            .first()
-        )
+        taxa_obj = _buscar_taxa_atual(todas_taxas, bandeira, forma_pag)
         if taxa_obj is None:
             continue
 
