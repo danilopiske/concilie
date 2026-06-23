@@ -136,10 +136,11 @@ class ReconciliationCore:
                 else:  # Anual
                     df_vendas = df_vendas.with_columns(pl.col("Data_da_venda").dt.truncate("1y").alias("periodo_log"))
 
-                # 4. Aplicação de Taxas CAD (Opcional)
+                # 4. Aplicação de Taxas (CAD + Contrato)
                 df_vendas = df_vendas.with_columns([
                     pl.lit(None).cast(pl.Float64).alias("tx_calc"),
                     pl.lit(None).cast(pl.Float64).alias("tx_rr_calc"),
+                    pl.lit(None).cast(pl.String).alias("calc_origem"),
                 ])
 
                 if usar_taxa_cad:
@@ -147,6 +148,67 @@ class ReconciliationCore:
                     if progress_callback:
                         progress_callback(40, "Cruzando com Taxas Cadastradas...")
 
+                    # 4.0: Taxas Contratadas (prioridade máxima)
+                    try:
+                        with engine.connect() as conn:
+                            _cli_row = conn.execute(
+                                text("""
+                                    SELECT ec.cliente_id
+                                    FROM ecs_cliente ec
+                                    JOIN vendas_processadas vp
+                                      ON CAST(vp.ec_id AS CHAR) = CAST(ec.ec_id AS CHAR)
+                                    WHERE vp.processamentoid = :pid
+                                    LIMIT 1
+                                """),
+                                {"pid": proc_id},
+                            ).fetchone()
+                            _cliente_id = int(_cli_row[0]) if _cli_row else None
+
+                        if _cliente_id:
+                            with engine.connect() as conn:
+                                df_tc = pl.read_database(
+                                    query=(
+                                        "SELECT bandeira, modalidade, taxa_contratada, "
+                                        "vigencia_inicio, vigencia_fim "
+                                        f"FROM taxas_contratadas WHERE cliente_id = {_cliente_id}"
+                                    ),
+                                    connection=conn,
+                                )
+                            if not df_tc.is_empty():
+                                df_tc = df_tc.with_columns([
+                                    _normalize_str(pl.col("bandeira")).alias("bandeira_clean"),
+                                    _normalize_str(pl.col("modalidade")).alias("forma_pgto_clean"),
+                                    pl.col("vigencia_inicio").cast(pl.Date, strict=False),
+                                    pl.col("vigencia_fim").cast(pl.Date, strict=False),
+                                ])
+                                joined_tc = df_vendas.join(
+                                    df_tc.select(["bandeira_clean", "forma_pgto_clean", "taxa_contratada", "vigencia_inicio", "vigencia_fim"]),
+                                    on=["bandeira_clean", "forma_pgto_clean"],
+                                    how="left",
+                                    suffix="_tc",
+                                ).filter(
+                                    pl.col("tx_calc").is_null()
+                                    & pl.col("taxa_contratada").is_not_null()
+                                    & (pl.col("Data_da_venda") >= pl.col("vigencia_inicio"))
+                                    & (pl.col("vigencia_fim").is_null() | (pl.col("Data_da_venda") <= pl.col("vigencia_fim")))
+                                )
+                                if not joined_tc.is_empty():
+                                    df_vendas = df_vendas.join(
+                                        joined_tc.select(["id_venda", "taxa_contratada"]).unique("id_venda"),
+                                        on="id_venda",
+                                        how="left",
+                                    ).with_columns([
+                                        pl.coalesce([pl.col("taxa_contratada"), pl.col("tx_calc")]).alias("tx_calc"),
+                                        pl.when(pl.col("taxa_contratada").is_not_null())
+                                        .then(pl.lit("contrato"))
+                                        .otherwise(pl.col("calc_origem"))
+                                        .alias("calc_origem"),
+                                    ]).drop(["taxa_contratada"])
+                                logger.info("[RECON-CORE] Taxas contratadas aplicadas.")
+                    except Exception as _e:
+                        logger.warning("[RECON-CORE] Taxas contratadas não aplicadas: %s", _e)
+
+                    # 4.1: Taxas CAD legado (fallback para vazios)
                     with engine.connect() as conn:
                         df_taxas = pl.read_database(query="SELECT * FROM taxas", connection=conn)
 
@@ -163,7 +225,7 @@ class ReconciliationCore:
                         df_vendas = df_vendas.with_columns(pl.col("ec_id").cast(pl.String).alias("ec_id_str"))
 
                         def _apply_taxas(df_v: pl.DataFrame, df_t: pl.DataFrame) -> pl.DataFrame:
-                            """Tenta match por adquirente exato; fallback para contexto='padrao'."""
+                            """Tenta match por adquirente exato; fallback para contexto='padrao'. Só preenche tx_calc nulo."""
                             # Passe 1: match exato por adquirente
                             df_t_especifica = df_t.filter(pl.col("contexto_clean") != "padrao")
                             joined1 = df_v.join(
@@ -213,6 +275,14 @@ class ReconciliationCore:
 
                         df_vendas = _apply_taxas(df_vendas, df_taxas)
 
+                        # Marcar origem='cad' para os preenchidos neste passo
+                        df_vendas = df_vendas.with_columns([
+                            pl.when(pl.col("calc_origem").is_null() & pl.col("tx_calc").is_not_null())
+                            .then(pl.lit("cad"))
+                            .otherwise(pl.col("calc_origem"))
+                            .alias("calc_origem"),
+                        ])
+
                 # 5. Lógica de LOG (Min Taxa do Período)
                 logger.info("[RECON-CORE] Aplicando lógica de LOG...")
                 if progress_callback:
@@ -234,6 +304,11 @@ class ReconciliationCore:
                     .then(pl.col("min_tx_rr_venda"))
                     .otherwise(pl.col("tx_rr_calc"))
                     .alias("tx_rr_calc"),
+                    # Marcar origem='log' para os que não tiveram taxa CAD/contrato
+                    pl.when(pl.col("calc_origem").is_null())
+                    .then(pl.lit("log"))
+                    .otherwise(pl.col("calc_origem"))
+                    .alias("calc_origem"),
                 ])
 
                 # 6. Cálculos Financeiros Finais
@@ -307,6 +382,7 @@ class ReconciliationCore:
                     pl.col("vl_rr_calc"),
                     pl.col("perda"),
                     pl.col("perda_rr"),
+                    pl.col("calc_origem"),
                 ])
 
                 logger.info("[RECON-CORE] Preparado para inserir %d registros.", len(df_final))

@@ -48,6 +48,9 @@ class VendasCalculos(Base):
     perda = Column(DECIMAL(18, 2), nullable=True)
     perda_rr = Column(DECIMAL(18, 2), nullable=True)
 
+    # Origem da taxa calculada: 'contrato', 'cad', 'log'
+    calc_origem = Column(String(20), nullable=True)
+
     @property
     def diff_taxa(self):
         """Calculates difference between vendor rate and calculated rate"""
