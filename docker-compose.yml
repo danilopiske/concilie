@@ -54,6 +54,8 @@ services:
     container_name: financial-cloudflared
     restart: unless-stopped
     command: tunnel --no-autoupdate --protocol http2 run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - web
       - api
