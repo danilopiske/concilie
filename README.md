@@ -102,6 +102,23 @@ cd apps/web
 pnpm test:e2e
 ```
 
+## 🔐 Secrets
+
+Segredos (chaves de API, senhas, `SECRET_KEY` JWT, etc.) **nunca** são commitados em texto puro. Eles ficam consolidados e criptografados em `secrets.enc.env` (via [SOPS](https://github.com/getsops/sops) + [age](https://github.com/FiloSottile/age)), que é o único artefato de segredos versionado no repositório.
+
+**Para descriptografar e gerar seu `.env` local:**
+```bash
+sops -d secrets.enc.env > .env
+```
+
+**Regras:**
+- A chave privada `age` usada para descriptografar **fica fora do repositório** (cofre de segredos do time / gerenciador de secrets da VPS) — nunca é commitada nem compartilhada em chat/log.
+- **Nunca** commitar `.env`, `.env.local` ou qualquer variante com valores reais — o `.gitignore` já bloqueia esses padrões (`.env*`), com exceção explícita para `secrets.enc.env` e `*.enc.env`.
+- Para saber quais variáveis existem (sem valores), veja `.env.example`, `apps/api/.env.example` e `apps/web/.env.example`.
+- Ao adicionar uma nova variável de segredo: edite o `.env` local, adicione o nome (vazio) no `.env.example` correspondente, e recriptografe com `sops -e --input-type dotenv --output-type dotenv --filename-override secrets.enc.env .env > secrets.enc.env`.
+
+---
+
 ## ✅ CI/CD
 
 O projeto usa GitHub Actions com dois workflows:
