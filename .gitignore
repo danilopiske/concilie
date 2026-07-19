@@ -225,6 +225,23 @@ conf/local_*.py
 !.env.example
 !**/.env.example
 
+# ==================
+# Secrets (blindagem para agentes autônomos)
+# ==================
+# Qualquer variante de .env, em qualquer diretório
+.env*
+!.env.example
+!**/.env.example
+# Pasta genérica para segredos em texto puro
+secrets/
+.env.consolidado
+credentials.json
+credentials.*.json
+
+# Exceção: o arquivo criptografado via SOPS DEVE ser versionado
+!secrets.enc.env
+!*.enc.env
+
 # Temporários
 temp/
 tmp/
