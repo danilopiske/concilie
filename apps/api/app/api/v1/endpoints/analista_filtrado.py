@@ -7,6 +7,8 @@ from app.core.database import get_db
 from app.repositories.analista_repository import AnalistaRepository
 from app.schemas.analista import (
     AgregacaoBandeira,
+    AgregacaoBandeiraForma,
+    AgregacaoBandeiraFormaAno,
     AgregacaoFormaPagamento,
     AgregacaoFormaPagamentoAno,
     AgregacaoPeriodo,
@@ -43,3 +45,13 @@ def get_recebiveis_filtrados(processamento_id: str, db: Session = Depends(get_db
 def get_formas_por_ano_filtradas(processamento_id: str, db: Session = Depends(get_db)):
     repo = AnalistaRepository(db)
     return repo.get_formas_por_ano_filtradas(processamento_id)
+
+@router.get("/{processamento_id:path}/bandeira-forma", response_model=List[AgregacaoBandeiraForma])
+def get_bandeira_forma_filtrada(processamento_id: str, db: Session = Depends(get_db)):
+    repo = AnalistaRepository(db)
+    return repo.get_bandeira_forma_filtrada(processamento_id)
+
+@router.get("/{processamento_id:path}/bandeira-forma-por-ano", response_model=List[AgregacaoBandeiraFormaAno])
+def get_bandeira_forma_por_ano_filtrada(processamento_id: str, db: Session = Depends(get_db)):
+    repo = AnalistaRepository(db)
+    return repo.get_bandeira_forma_por_ano_filtrada(processamento_id)

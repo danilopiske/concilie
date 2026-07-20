@@ -1,4 +1,4 @@
-"""Endpoint de conversão de extratos Rede TXT → XLSX."""
+"""Endpoint de conversão de extratos Rede TXT → ZIP (4 xlsx separados)."""
 
 from typing import Optional
 
@@ -9,7 +9,7 @@ from app.services.conversor.conver_service import converter_arquivos
 
 router = APIRouter()
 
-_MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_MIME_ZIP = "application/zip"
 
 
 @router.post("/rede")
@@ -28,10 +28,10 @@ async def converter_rede(files: Optional[list[UploadFile]] = File(default=None))
         conteudo = await f.read()
         arquivos.append((nome, conteudo))
 
-    xlsx_bytes, nome_saida = converter_arquivos(arquivos)
+    zip_bytes, nome_saida = converter_arquivos(arquivos)
 
     return Response(
-        content=xlsx_bytes,
-        media_type=_MIME_XLSX,
+        content=zip_bytes,
+        media_type=_MIME_ZIP,
         headers={"Content-Disposition": f'attachment; filename="{nome_saida}"'},
     )

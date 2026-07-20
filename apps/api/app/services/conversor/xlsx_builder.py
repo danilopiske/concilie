@@ -1,8 +1,9 @@
-"""Geração do XLSX de conciliação Rede com 4 abas formatadas."""
+"""Geração dos XLSX de conciliação Rede (4 arquivos separados, agrupados em um ZIP)."""
 
 from __future__ import annotations
 
 import io
+import zipfile
 from datetime import datetime
 from typing import Optional
 
@@ -50,8 +51,10 @@ def _formatar_colunas_valor(ws, indices_valor: list[int], indices_data: list[int
                 cell.number_format = _FMT_DATA
 
 
-def _aba_vendas_credito(wb: Workbook, resultados: list[ResultadoParsing]) -> None:
-    ws = wb.create_sheet("Vendas_Credito")
+def _wb_vendas_credito(resultados: list[ResultadoParsing]) -> Workbook:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Vendas_Credito"
     cols = [
         "Estabelecimento", "Origem_Arquivo", "Data_Venda", "Data_Recebimento",
         "Resumo_Vendas", "Bandeira", "Quantidade", "Modalidade",
@@ -76,10 +79,13 @@ def _aba_vendas_credito(wb: Workbook, resultados: list[ResultadoParsing]) -> Non
             row += 1
     _formatar_colunas_valor(ws, [9, 10, 11], [3, 4])
     _ajustar_larguras(ws, cols)
+    return wb
 
 
-def _aba_vendas_debito(wb: Workbook, resultados: list[ResultadoParsing]) -> None:
-    ws = wb.create_sheet("Vendas_Debito")
+def _wb_vendas_debito(resultados: list[ResultadoParsing]) -> Workbook:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Vendas_Debito"
     cols = [
         "Estabelecimento", "Origem_Arquivo", "Data_Venda", "Data_Recebimento",
         "Resumo_Vendas", "Bandeira", "Quantidade", "Modalidade",
@@ -104,10 +110,13 @@ def _aba_vendas_debito(wb: Workbook, resultados: list[ResultadoParsing]) -> None
             row += 1
     _formatar_colunas_valor(ws, [9, 10, 11], [3, 4])
     _ajustar_larguras(ws, cols)
+    return wb
 
 
-def _aba_pagamentos(wb: Workbook, resultados: list[ResultadoParsing]) -> None:
-    ws = wb.create_sheet("Pagamentos")
+def _wb_pagamentos(resultados: list[ResultadoParsing]) -> Workbook:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Pagamentos"
     cols = [
         "Estabelecimento", "Origem_Arquivo", "Data_Recebimento",
         "Ordem_Credito", "Valor_Liquido", "Banco_Agencia_Conta",
@@ -125,10 +134,14 @@ def _aba_pagamentos(wb: Workbook, resultados: list[ResultadoParsing]) -> None:
             row += 1
     _formatar_colunas_valor(ws, [5], [3])
     _ajustar_larguras(ws, cols)
+    return wb
 
 
-def _aba_tarifas(wb: Workbook, resultados: list[ResultadoParsing]) -> None:
-    ws = wb.create_sheet("Tarifas_e_Debitos")
+def _wb_recebiveis(resultados: list[ResultadoParsing]) -> Workbook:
+    """Antiga aba 'Tarifas_e_Debitos', renomeada para 'Recebiveis'."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Recebiveis"
     cols = [
         "Estabelecimento", "Origem_Arquivo", "Data_Inclusao", "Data_Pagamento",
         "Motivo_Debito", "Resumo", "Valor_Devido", "Valor_Debitado", "Meio_Pagamento",
@@ -149,20 +162,30 @@ def _aba_tarifas(wb: Workbook, resultados: list[ResultadoParsing]) -> None:
             row += 1
     _formatar_colunas_valor(ws, [7, 8], [3, 4])
     _ajustar_larguras(ws, cols)
+    return wb
 
 
-def gerar_xlsx(resultados: list[ResultadoParsing]) -> bytes:
-    """Gera o XLSX com 4 abas e retorna como bytes."""
-    wb = Workbook()
-    wb.remove(wb.active)  # Remove aba default
-
-    _aba_vendas_credito(wb, resultados)
-    _aba_vendas_debito(wb, resultados)
-    _aba_pagamentos(wb, resultados)
-    _aba_tarifas(wb, resultados)
-
+def _wb_para_bytes(wb: Workbook) -> bytes:
     buf = io.BytesIO()
     wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+def gerar_zip(resultados: list[ResultadoParsing]) -> bytes:
+    """Gera um ZIP contendo os 4 XLSX separados (Vendas_Credito, Vendas_Debito,
+    Pagamentos, Recebiveis) e retorna como bytes."""
+    arquivos = {
+        "Vendas_Credito.xlsx": _wb_para_bytes(_wb_vendas_credito(resultados)),
+        "Vendas_Debito.xlsx": _wb_para_bytes(_wb_vendas_debito(resultados)),
+        "Pagamentos.xlsx": _wb_para_bytes(_wb_pagamentos(resultados)),
+        "Recebiveis.xlsx": _wb_para_bytes(_wb_recebiveis(resultados)),
+    }
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for nome, conteudo in arquivos.items():
+            zf.writestr(nome, conteudo)
     buf.seek(0)
     return buf.read()
 
@@ -170,5 +193,5 @@ def gerar_xlsx(resultados: list[ResultadoParsing]) -> bytes:
 def nome_arquivo_saida(resultados: list[ResultadoParsing]) -> str:
     if len(resultados) == 1 and resultados[0].periodo:
         periodo = resultados[0].periodo.replace(' ', '_').replace('/', '-')
-        return f"Conciliacao_Rede_{periodo}.xlsx"
-    return "Conciliacao_Rede_Consolidado.xlsx"
+        return f"Conciliacao_Rede_{periodo}.zip"
+    return "Conciliacao_Rede_Consolidado.zip"

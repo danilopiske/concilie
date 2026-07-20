@@ -1,5 +1,5 @@
 import unicodedata
-from datetime import date, timedelta
+from datetime import date
 from typing import List, Optional
 
 from sqlalchemy import text
@@ -140,20 +140,8 @@ def listar(cliente_id: int, vigente: Optional[bool], db: Session) -> list:
 
 
 def criar(cliente_id: int, data: TaxaContratadaCreate, db: Session) -> TaxaContratada:
-    # Encerrar vigência anterior para mesma bandeira+modalidade
-    anterior = (
-        db.query(TaxaContratada)
-        .filter(
-            TaxaContratada.cliente_id == cliente_id,
-            TaxaContratada.bandeira == data.bandeira,
-            TaxaContratada.modalidade == data.modalidade,
-            TaxaContratada.vigencia_fim.is_(None),
-        )
-        .first()
-    )
-    if anterior:
-        anterior.vigencia_fim = data.vigencia_inicio - timedelta(days=1)
-
+    # Sem encerramento automático da taxa anterior: vigencia_fim só muda quando
+    # editada explicitamente (via `atualizar`), nunca inferida pelo sistema.
     obj = TaxaContratada(cliente_id=cliente_id, **data.model_dump())
     db.add(obj)
     db.commit()

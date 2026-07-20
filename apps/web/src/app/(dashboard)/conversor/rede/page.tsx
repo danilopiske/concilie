@@ -21,7 +21,7 @@ export default function ConverRedePage() {
     try {
       const blob = await converterRedeFiles(files);
       blobRef.current = blob;
-      const cd = `Conciliacao_Rede_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const cd = `Conciliacao_Rede_${new Date().toISOString().slice(0, 10)}.zip`;
       nomeRef.current = cd;
       setStatus('success');
     } catch (e: any) {
@@ -49,7 +49,7 @@ export default function ConverRedePage() {
         </div>
         <div>
           <h1 className="text-xl font-semibold text-gray-900">Conversor — Rede</h1>
-          <p className="text-sm text-gray-500">Converta extratos TXT da Rede para XLSX estruturado</p>
+          <p className="text-sm text-gray-500">Converta extratos TXT da Rede para 4 arquivos XLSX (zip)</p>
         </div>
       </div>
 

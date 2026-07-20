@@ -18,6 +18,7 @@ import { FormasPagamentoReport } from './_components/FormasPagamentoReport';
 import { RecebiveisReport } from './_components/RecebiveisReport';
 import { PeriodosReport } from './_components/PeriodosReport';
 import { AnaliseAnualReport } from './_components/AnaliseAnualReport';
+import { BandeiraFormaAnoReport } from './_components/BandeiraFormaAnoReport';
 import { AbusividadeReport } from './_components/AbusividadeReport';
 import { BandeiraFormaReport } from './_components/BandeiraFormaReport';
 import { ConformidadeReport } from './_components/ConformidadeReport';
@@ -134,8 +135,9 @@ export default function AnalisePage() {
                     </div>
                 </TabsContent>
 
-                <TabsContent value="anual">
+                <TabsContent value="anual" className="space-y-4">
                    <AnaliseAnualReport processamentoId={selectedProcessamento} />
+                   <BandeiraFormaAnoReport processamentoId={selectedProcessamento} />
                 </TabsContent>
 
                 <TabsContent value="recebiveis">

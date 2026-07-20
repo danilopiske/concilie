@@ -40,6 +40,16 @@ class AgregacaoFormaPagamentoAno(BaseModel):
     taxa_perc_minima: Optional[float] = 0.0
     taxa_perc_maxima: Optional[float] = 0.0
 
+class AgregacaoBandeiraFormaAno(BaseModel):
+    ano: str
+    bandeira: str
+    forma_pagamento: str
+    quantidade: int
+    valor_total: float
+    valor_medio: Optional[float] = 0.0
+    taxa_perc_minima: Optional[float] = 0.0
+    taxa_perc_maxima: Optional[float] = 0.0
+
 class AgregacaoBandeiraForma(BaseModel):
     bandeira: str
     forma_pagamento: str

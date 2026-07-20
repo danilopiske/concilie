@@ -25,12 +25,29 @@ def log_to_debug_file(message: str):
         print(f"CRITICAL: Failed to write to debug log: {e}")
 
 def _to_datetime_pt(s: pd.Series) -> pd.Series:
-    res = pd.to_datetime(s, errors="coerce", dayfirst=True)
+    # Se já é datetime, apenas valida o range
+    if pd.api.types.is_datetime64_any_dtype(s):
+        res = s.copy()
+    else:
+        s_str = s.astype(str).str.strip()
+        # Formato ISO começa com 4 dígitos seguido de '-' ou '/' (ex: 2022-01-13)
+        iso_mask = s_str.str.match(r'^\d{4}[-/]')
+
+        if iso_mask.all():
+            res = pd.to_datetime(s, errors="coerce", dayfirst=False)
+        elif (~iso_mask).all():
+            res = pd.to_datetime(s, errors="coerce", dayfirst=True)
+        else:
+            res = pd.Series(pd.NaT, index=s.index, dtype="datetime64[ns]")
+            if iso_mask.any():
+                res[iso_mask] = pd.to_datetime(s[iso_mask], errors="coerce", dayfirst=False)
+            if (~iso_mask).any():
+                res[~iso_mask] = pd.to_datetime(s[~iso_mask], errors="coerce", dayfirst=True)
+
     # MySQL datetime range is 1000-01-01 to 9999-12-31
-    # Clamping dates outside this range to NaT to avoid "Data truncated" error
     if not res.empty:
         mask_too_early = res < pd.Timestamp(1000, 1, 1)
-        res[mask_too_early] = pd.NaT
+        res = res.where(~mask_too_early, other=pd.NaT)
     return res
 
 def _to_float_br(s: pd.Series) -> pd.Series:

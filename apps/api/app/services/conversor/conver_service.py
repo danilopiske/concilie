@@ -7,7 +7,7 @@ from typing import Optional
 
 from app.services.conversor.gemini_fallback import processar_linhas_nao_reconhecidas
 from app.services.conversor.rede_parser import RedeParser, ResultadoParsing
-from app.services.conversor.xlsx_builder import gerar_xlsx, nome_arquivo_saida
+from app.services.conversor.xlsx_builder import gerar_zip, nome_arquivo_saida
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +89,12 @@ def _processar_fallback(
 
 
 def converter_arquivos(arquivos: list[tuple[str, bytes]]) -> tuple[bytes, str]:
-    """Processa N arquivos TXT e retorna (xlsx_bytes, nome_arquivo)."""
+    """Processa N arquivos TXT e retorna (zip_bytes, nome_arquivo) com os 4 xlsx separados."""
     resultados = []
     for nome, conteudo in arquivos:
         resultado = processar_arquivo(conteudo, nome)
         resultados.append(resultado)
 
-    xlsx = gerar_xlsx(resultados)
+    zip_bytes = gerar_zip(resultados)
     nome = nome_arquivo_saida(resultados)
-    return xlsx, nome
+    return zip_bytes, nome

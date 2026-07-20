@@ -7,6 +7,9 @@ import unicodedata
 import re
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+_TZ_BR = ZoneInfo("America/Sao_Paulo")
 from pathlib import Path
 from sqlalchemy.engine import Engine
 from proc.importers.factory import ImporterFactory
@@ -142,7 +145,7 @@ def classificar_e_gravar_recebiveis(
                 df.loc[mask_proc, "Filtrado"] = 0
                 df.loc[mask_filt, "Filtrado"] = 1
     
-        now = datetime.now()
+        now = datetime.now(_TZ_BR).replace(tzinfo=None)
     
         if processamentoid is None:
             # Gera novo processamentoid
@@ -314,7 +317,7 @@ def normalizar_dataframe_recebiveis(
             df[col] = pd.to_numeric(df[col], errors="coerce").round(2)
 
         # Adiciona metadados básicos
-        df["data_processamento"] = datetime.now()
+        df["data_processamento"] = datetime.now(_TZ_BR).replace(tzinfo=None)
         df["usuario_processamento"] = usuario or "desconhecido"
 
         # --- NOVO: Preencher coluna 'Adquirente' baseada no contexto selecionado (igual às vendas) ---
@@ -2092,11 +2095,33 @@ def safe_read_file(path: str, nrows: Optional[int] = None) -> tuple[pd.DataFrame
 
 
 def _to_datetime_pt(s: pd.Series) -> pd.Series:
-    res = pd.to_datetime(s, errors="coerce", dayfirst=True)
+    # Se já é datetime, apenas valida o range
+    if pd.api.types.is_datetime64_any_dtype(s):
+        res = s.copy()
+    else:
+        s_str = s.astype(str).str.strip()
+        # Formato ISO começa com 4 dígitos seguido de '-' ou '/' (ex: 2022-01-13)
+        # Formato BR começa com 1-2 dígitos (ex: 13/01/2022)
+        iso_mask = s_str.str.match(r'^\d{4}[-/]')
+
+        if iso_mask.all():
+            # Todos ISO: dayfirst=False preserva YYYY-MM-DD corretamente
+            res = pd.to_datetime(s, errors="coerce", dayfirst=False)
+        elif (~iso_mask).all():
+            # Todos BR: dayfirst=True para DD/MM/YYYY
+            res = pd.to_datetime(s, errors="coerce", dayfirst=True)
+        else:
+            # Mistura: processa cada grupo separadamente
+            res = pd.Series(pd.NaT, index=s.index, dtype="datetime64[ns]")
+            if iso_mask.any():
+                res[iso_mask] = pd.to_datetime(s[iso_mask], errors="coerce", dayfirst=False)
+            if (~iso_mask).any():
+                res[~iso_mask] = pd.to_datetime(s[~iso_mask], errors="coerce", dayfirst=True)
+
     if not res.empty:
         # MySQL datetimes must be between 1000-01-01 and 9999-12-31
         mask_too_early = res < pd.Timestamp(1000, 1, 1)
-        res[mask_too_early] = pd.NaT
+        res = res.where(~mask_too_early, other=pd.NaT)
     return res
 
 
@@ -3824,7 +3849,12 @@ def normalizar_dataframe_vendas(
     
         # Aplicar multiplicação por 100 nas taxas percentuais APENAS se valores < 1
         # (Proteção contra multiplicação dupla: 0.0235 → 2.35, mas não 2.35 → 235)
-        for coluna_taxa in colunas_taxa:
+        # ⚠️ Taxas_RR NÃO entra aqui: a Rede já reporta essa taxa em formato percentual
+        # correto (ex.: 0.404 = 0,404%), e não como fração. Aplicar essa multiplicação
+        # nela infla taxas legítimas abaixo de 1% (0.404 → 40.4), fabricando perdas que
+        # não existem (ver caso EC 84985160, 26/05/2025).
+        colunas_taxa_ajuste_rede = ["Taxas_Perc"]
+        for coluna_taxa in colunas_taxa_ajuste_rede:
             if coluna_taxa in df.columns and mask_rede_adquirente.any():
                 # Máscara combinada: registros REDE com taxa < 1 (formato decimal)
                 mask_ajuste = (
@@ -3856,19 +3886,25 @@ def normalizar_dataframe_vendas(
         print("[DEBUG] Calculando Valor_RR baseado em Taxas_RR...")
     
         if "Taxas_RR" in df.columns and "Valor_da_venda" in df.columns:
-            # Identificar registros que têm Taxas_RR válidas e valor da venda
+            # Se Valor_RR não existe, criar coluna (todos NaN = não informado pela adquirente)
+            if "Valor_RR" not in df.columns:
+                df["Valor_RR"] = np.nan
+
+            # Identificar registros que têm Taxas_RR válidas, valor da venda,
+            # e cujo Valor_RR NÃO veio preenchido pela própria planilha do adquirente.
+            # ⚠️ Se a adquirente já informou o valor em R$ (mesmo que seja 0,00), esse
+            # valor é a fonte de verdade e não deve ser sobrescrito pelo cálculo via taxa
+            # (ver caso EC 84985160: Valor_RR real = 0,00, mas o sistema recalculava a
+            # partir de Taxas_RR e fabricava uma perda que não existia).
             mask_calc_rr = (
                 df["Taxas_RR"].notnull()
                 & (df["Taxas_RR"] != 0)
                 & df["Valor_da_venda"].notnull()
                 & (df["Valor_da_venda"] != 0)
+                & df["Valor_RR"].isnull()
             )
-    
+
             if mask_calc_rr.any():
-                # Se Valor_RR não existe, criar coluna
-                if "Valor_RR" not in df.columns:
-                    df["Valor_RR"] = 0.0
-    
                 # Calcular Valor_RR = (Valor_da_venda * Taxas_RR) / 100
                 # ⚠️ CRÍTICO: Arredondar para 2 casas decimais (evitar imprecisão de ponto flutuante)
                 df.loc[mask_calc_rr, "Valor_RR"] = (
@@ -4185,7 +4221,7 @@ def normalizar_dataframe_vendas(
     
         # Adicionar metadados para todos os DataFrames
         for _df in (df_proc, df_filt):
-            _df["data_processamento"] = datetime.now()
+            _df["data_processamento"] = datetime.now(_TZ_BR).replace(tzinfo=None)
             _df["usuario_processamento"] = usuario or "desconhecido"
             _df["Filtrado"] = 0 if _df is df_proc else 1
     
@@ -4294,7 +4330,7 @@ def classificar_e_gravar_vendas(
     
     try:
         with PerformanceTimer("RECORD", "Gravação Vendas (Bulk Insert)", {"rows": len(df), "contexto": contexto}):
-            now = datetime.now()
+            now = datetime.now(_TZ_BR).replace(tzinfo=None)
             was_fresh = processamentoid is None
 
             if processamentoid is None:

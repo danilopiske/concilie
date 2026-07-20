@@ -75,16 +75,24 @@ class ProcessamentoRepository:
         proc_ids = [item.id_processamento for item in items]
 
         # Consultas em massa (Bulk Queries)
-        # 1. Contagem e Datas de Vendas Processadas
+        # 1. Contagem de Processadas (vendas + recebíveis)
         stats_processadas = {}
         if not simple and proc_ids:
             from sqlalchemy import bindparam
 
-            # Use bindparam with expanding=True for robust list handling
             query_proc = text("""
-                SELECT processamentoid, COUNT(id)
-                FROM vendas_processadas
-                WHERE processamentoid IN :pids
+                SELECT processamentoid, SUM(cnt) AS total
+                FROM (
+                    SELECT processamentoid, COUNT(id) AS cnt
+                    FROM vendas_processadas
+                    WHERE processamentoid IN :pids
+                    GROUP BY processamentoid
+                    UNION ALL
+                    SELECT processamentoid, COUNT(id) AS cnt
+                    FROM recebiveis_processados
+                    WHERE processamentoid IN :pids
+                    GROUP BY processamentoid
+                ) t
                 GROUP BY processamentoid
             """).bindparams(bindparam('pids', expanding=True))
 
@@ -99,14 +107,23 @@ class ProcessamentoRepository:
             except Exception as e:
                 print(f"Error getting stats: {e}")
 
-        # 2. Contagem de Vendas Filtradas
+        # 2. Contagem de Filtradas (vendas + recebíveis)
         stats_filtradas = {}
         if not simple and proc_ids:
             from sqlalchemy import bindparam
             query_filt = text("""
-                SELECT processamentoid, COUNT(id)
-                FROM vendas_filtradas
-                WHERE processamentoid IN :pids
+                SELECT processamentoid, SUM(cnt) AS total
+                FROM (
+                    SELECT processamentoid, COUNT(id) AS cnt
+                    FROM vendas_filtradas
+                    WHERE processamentoid IN :pids
+                    GROUP BY processamentoid
+                    UNION ALL
+                    SELECT processamentoid, COUNT(id) AS cnt
+                    FROM recebiveis_filtrados
+                    WHERE processamentoid IN :pids
+                    GROUP BY processamentoid
+                ) t
                 GROUP BY processamentoid
             """).bindparams(bindparam('pids', expanding=True))
 

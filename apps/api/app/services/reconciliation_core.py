@@ -290,7 +290,11 @@ class ReconciliationCore:
 
                 df_log_map = df_vendas.group_by(["periodo_log", "forma_pgto_clean", "bandeira_clean"]).agg(
                     pl.col("Taxas_Perc").min().alias("min_tx_venda"),
-                    pl.col("Taxas_RR").min().alias("min_tx_rr_venda"),
+                    # ⚠️ Ignorar Taxas_RR = 0 ao calcular a menor taxa do período: a maioria
+                    # das vendas de um grupo (bandeira+forma+período) não usa Receba Rápido,
+                    # então incluir essas taxas zeradas no min() sempre resultava em 0,00%,
+                    # tornando a opção "menor do período" inútil para RR.
+                    pl.col("Taxas_RR").filter(pl.col("Taxas_RR") > 0).min().alias("min_tx_rr_venda"),
                 )
 
                 df_vendas = df_vendas.join(df_log_map, on=["periodo_log", "forma_pgto_clean", "bandeira_clean"], how="left")

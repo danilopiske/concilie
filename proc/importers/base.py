@@ -4,6 +4,9 @@ from typing import Optional, Dict, Any, List
 from .utils import log_with_time, safe_read_file
 from sqlalchemy.engine import Engine
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+_TZ_BR = ZoneInfo("America/Sao_Paulo")
 
 class ParserError(Exception):
     """Custom exception for parsing errors."""
@@ -104,7 +107,7 @@ class BaseImporter:
                 recebiveis_filtrados_bulk_insert, recebiveis_remover_duplicadas
             )
 
-            now = datetime.now()
+            now = datetime.now(_TZ_BR).replace(tzinfo=None)
             if self.processamentoid is None:
                 if progress_callback: progress_callback(92, "Gerando ID de processamento...")
                 self.processamentoid, _ = processamento_gerar_novo_id(self.engine, self.ec_id, now)

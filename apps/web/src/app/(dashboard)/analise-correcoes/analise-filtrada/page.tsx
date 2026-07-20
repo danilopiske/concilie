@@ -14,6 +14,8 @@ import { FormasPagamentoReport } from './_components/FormasPagamentoReport';
 import { RecebiveisReport } from './_components/RecebiveisReport';
 import { PeriodosReport } from './_components/PeriodosReport';
 import { AnaliseAnualReport } from './_components/AnaliseAnualReport';
+import { BandeiraFormaReport } from './_components/BandeiraFormaReport';
+import { BandeiraFormaAnoReport } from './_components/BandeiraFormaAnoReport';
 
 export default function AnaliseFiltradaPage() {
   const [processamentos, setProcessamentos] = useState<Processamento[]>([]);
@@ -108,6 +110,9 @@ export default function AnaliseFiltradaPage() {
                   <FormasPagamentoReport processamentoId={selectedProcessamento} />
                 </div>
               </div>
+              <div className="border border-gray-200 rounded p-2">
+                <BandeiraFormaReport processamentoId={selectedProcessamento} />
+              </div>
             </TabsContent>
 
             <TabsContent value="periodos" className="space-y-4">
@@ -119,8 +124,9 @@ export default function AnaliseFiltradaPage() {
               </div>
             </TabsContent>
 
-            <TabsContent value="anual">
+            <TabsContent value="anual" className="space-y-4">
               <AnaliseAnualReport processamentoId={selectedProcessamento} />
+              <BandeiraFormaAnoReport processamentoId={selectedProcessamento} />
             </TabsContent>
 
             <TabsContent value="recebiveis">

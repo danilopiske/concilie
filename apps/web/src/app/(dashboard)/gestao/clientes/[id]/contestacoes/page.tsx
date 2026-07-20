@@ -12,6 +12,7 @@ import {
   Edit3,
 } from 'lucide-react';
 import { contestacaoApi, type ContestacoesPorCliente, type ContestacaoResumoItem } from '@/lib/api/contestacao';
+import { formatDate } from '@/lib/utils/formatters';
 
 const STATUS_CONFIG: Record<
   string,
@@ -57,11 +58,7 @@ const STATUS_CONFIG: Record<
 
 function formatData(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  return formatDate(iso);
 }
 
 function formatValor(valor: number): string {

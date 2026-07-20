@@ -11,6 +11,7 @@ import { Table, TableColumn } from '@/components/ui/Table';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
+import { formatDate } from '@/lib/utils/formatters';
 
 interface TaxasFormProps {
   ec: string;
@@ -222,13 +223,13 @@ export function TaxasForm({ ec, contexto }: TaxasFormProps) {
       key: 'data_ini',
       label: 'Início',
       width: '110px',
-      render: (value) => new Date(value).toLocaleDateString('pt-BR'),
+      render: (value) => formatDate(value),
     },
     {
       key: 'data_fim',
       label: 'Fim',
       width: '110px',
-      render: (value) => value ? new Date(value).toLocaleDateString('pt-BR') : '-',
+      render: (value) => value ? formatDate(value) : '-',
     },
     {
       key: 'taxa',

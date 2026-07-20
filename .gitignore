@@ -238,6 +238,13 @@ secrets/
 credentials.json
 credentials.*.json
 
+# Pastas de trabalho/debug locais com dados reais de clientes (nunca versionar)
+avaliar/
+tmp_debug/
+
+# Cache local do pnpm
+.pnpm-store/
+
 # Exceção: o arquivo criptografado via SOPS DEVE ser versionado
 !secrets.enc.env
 !*.enc.env

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.schemas.analista import (
     AgregacaoBandeira,
     AgregacaoBandeiraForma,
+    AgregacaoBandeiraFormaAno,
     AgregacaoFormaPagamento,
     AgregacaoFormaPagamentoAno,
     AgregacaoPeriodo,
@@ -433,6 +434,57 @@ class AnalistaRepository:
             ) for row in results
         ]
 
+    def get_bandeira_forma_filtrada(self, processamento_id: str) -> List[AgregacaoBandeiraForma]:
+        sql = text("""
+            SELECT
+                Bandeira as bandeira,
+                Forma_de_pagamento as forma_pagamento,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio
+            FROM vendas_filtradas
+            WHERE processamentoid = :pid
+            GROUP BY Bandeira, Forma_de_pagamento
+            ORDER BY valor_total DESC
+        """)
+        results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
+        return [
+            AgregacaoBandeiraForma(
+                bandeira=row.bandeira or "Desconhecido",
+                forma_pagamento=row.forma_pagamento or "Desconhecido",
+                quantidade=row.quantidade,
+                valor_total=row.valor_total or 0.0,
+                valor_medio=row.valor_medio or 0.0,
+            ) for row in results
+        ]
+
+    def get_bandeira_forma_por_ano_filtrada(self, processamento_id: str) -> List[AgregacaoBandeiraFormaAno]:
+        year_expr = self._get_year_sql("data_da_venda")
+        sql = text(f"""
+            SELECT
+                {year_expr} as ano,
+                Bandeira as bandeira,
+                Forma_de_pagamento as forma_pagamento,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio
+            FROM vendas_filtradas
+            WHERE processamentoid = :pid AND data_da_venda IS NOT NULL
+            GROUP BY {year_expr}, Bandeira, Forma_de_pagamento
+            ORDER BY ano, valor_total DESC
+        """)
+        results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
+        return [
+            AgregacaoBandeiraFormaAno(
+                ano=row.ano,
+                bandeira=row.bandeira or "Desconhecido",
+                forma_pagamento=row.forma_pagamento or "Desconhecido",
+                quantidade=row.quantidade,
+                valor_total=row.valor_total or 0.0,
+                valor_medio=row.valor_medio or 0.0,
+            ) for row in results
+        ]
+
     def get_formas_por_ano_filtradas(self, processamento_id: str) -> List[AgregacaoFormaPagamentoAno]:
         year_expr = self._get_year_sql("data_da_venda")
         sql = text(f"""
@@ -455,6 +507,39 @@ class AnalistaRepository:
                 quantidade=row.quantidade,
                 valor_total=row.valor_total or 0.0,
                 valor_medio=row.valor_medio or 0.0,
+            ) for row in results
+        ]
+
+    def get_bandeira_forma_por_ano(self, processamento_id: str) -> List[AgregacaoBandeiraFormaAno]:
+        year_expr = self._get_year_sql("Data_da_venda")
+
+        sql = text(f"""
+            SELECT
+                {year_expr} as ano,
+                Bandeira as bandeira,
+                Forma_de_pagamento as forma_pagamento,
+                COUNT(*) as quantidade,
+                SUM(Valor_da_venda) as valor_total,
+                AVG(Valor_da_venda) as valor_medio,
+                MIN(Taxas_Perc) as taxa_perc_minima,
+                MAX(Taxas_Perc) as taxa_perc_maxima
+            FROM vendas_processadas
+            WHERE processamentoid = :pid AND Data_da_venda IS NOT NULL
+            GROUP BY {year_expr}, Bandeira, Forma_de_pagamento
+            ORDER BY ano, valor_total DESC
+        """)
+
+        results = self.db.execute(sql, {"pid": processamento_id}).fetchall()
+        return [
+            AgregacaoBandeiraFormaAno(
+                ano=row.ano,
+                bandeira=row.bandeira or "Desconhecido",
+                forma_pagamento=row.forma_pagamento or "Desconhecido",
+                quantidade=row.quantidade,
+                valor_total=row.valor_total or 0.0,
+                valor_medio=row.valor_medio or 0.0,
+                taxa_perc_minima=row.taxa_perc_minima or 0.0,
+                taxa_perc_maxima=row.taxa_perc_maxima or 0.0
             ) for row in results
         ]
 

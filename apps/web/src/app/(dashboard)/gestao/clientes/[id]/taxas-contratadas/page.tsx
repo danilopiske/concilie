@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Plus, Trash2, BarChart3, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Pencil, BarChart3, RefreshCw } from 'lucide-react';
 import {
   taxaContratadaApi,
   TaxaContratadaResponse,
@@ -52,6 +52,7 @@ export default function TaxasContratadas() {
   const [form, setForm] = useState<FormState>(FORM_VAZIO);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editandoId, setEditandoId] = useState<number | null>(null);
 
   // Comparação
   const [processoId, setProcessoId] = useState('');
@@ -92,15 +93,39 @@ export default function TaxasContratadas() {
         vigencia_fim: form.vigencia_fim || null,
         observacao: form.observacao || null,
       };
-      await taxaContratadaApi.criar(clienteId, payload);
+      if (editandoId != null) {
+        await taxaContratadaApi.atualizar(clienteId, editandoId, payload);
+      } else {
+        await taxaContratadaApi.criar(clienteId, payload);
+      }
       setForm(FORM_VAZIO);
       setShowForm(false);
+      setEditandoId(null);
       await carregar();
     } catch {
-      setError('Erro ao salvar taxa contratada.');
+      setError(editandoId != null ? 'Erro ao atualizar taxa contratada.' : 'Erro ao salvar taxa contratada.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleEditar = (t: TaxaContratadaResponse) => {
+    setEditandoId(t.id);
+    setForm({
+      bandeira: t.bandeira,
+      modalidade: t.modalidade,
+      taxa_contratada: String(t.taxa_contratada),
+      vigencia_inicio: t.vigencia_inicio,
+      vigencia_fim: t.vigencia_fim ?? '',
+      observacao: t.observacao ?? '',
+    });
+    setShowForm(true);
+  };
+
+  const handleCancelar = () => {
+    setShowForm(false);
+    setForm(FORM_VAZIO);
+    setEditandoId(null);
   };
 
   const handleRemover = async (id: number) => {
@@ -139,7 +164,7 @@ export default function TaxasContratadas() {
           <p className="text-sm text-gray-500">Cliente #{clienteId}</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => (showForm ? handleCancelar() : setShowForm(true))}
           className="ml-auto flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
         >
           <Plus className="w-4 h-4" />
@@ -152,7 +177,9 @@ export default function TaxasContratadas() {
       {/* Formulário inline */}
       {showForm && (
         <div className="bg-gray-50 border rounded-lg p-4 space-y-3">
-          <h2 className="font-medium text-gray-700 text-sm">Nova Taxa Contratada</h2>
+          <h2 className="font-medium text-gray-700 text-sm">
+            {editandoId != null ? 'Editar Taxa Contratada' : 'Nova Taxa Contratada'}
+          </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div>
               <label className="text-xs text-gray-500 block mb-1">Bandeira *</label>
@@ -216,10 +243,10 @@ export default function TaxasContratadas() {
               disabled={saving}
               className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              {saving ? 'Salvando...' : 'Salvar'}
+              {saving ? 'Salvando...' : editandoId != null ? 'Salvar alterações' : 'Salvar'}
             </button>
             <button
-              onClick={() => { setShowForm(false); setForm(FORM_VAZIO); }}
+              onClick={handleCancelar}
               className="px-4 py-1.5 border text-sm rounded hover:bg-gray-100"
             >
               Cancelar
@@ -256,13 +283,22 @@ export default function TaxasContratadas() {
                   <td className="px-3 py-2">{t.vigencia_fim ?? <span className="text-green-600 text-xs">Vigente</span>}</td>
                   <td className="px-3 py-2 text-gray-500 text-xs">{t.observacao ?? '-'}</td>
                   <td className="px-3 py-2">
-                    <button
-                      onClick={() => handleRemover(t.id)}
-                      className="text-red-400 hover:text-red-600"
-                      title="Remover"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleEditar(t)}
+                        className="text-gray-400 hover:text-blue-600"
+                        title="Editar"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleRemover(t.id)}
+                        className="text-red-400 hover:text-red-600"
+                        title="Remover"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

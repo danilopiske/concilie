@@ -351,22 +351,24 @@ def listar_processamentos_detalhado(engine: Engine, limite: int = 100) -> list:
     for proc in processamentos:
         proc_id = proc.get("processamentoid")
 
-        # Estatísticas de vendas processadas
+        # Estatísticas de vendas processadas + recebíveis processados
         sql_proc = """
-            SELECT COUNT(*) as qtd
-            FROM vendas_processadas
-            WHERE processamentoid = :proc_id
+            SELECT
+                (SELECT COUNT(*) FROM vendas_processadas WHERE processamentoid = :proc_id)
+                + (SELECT COUNT(*) FROM recebiveis_processados WHERE processamentoid = :proc_id)
+                AS qtd
         """
         result = fetch_all(engine, sql_proc, {"proc_id": proc_id})
         proc["qtd_processadas"] = (
             result[0]["qtd"] if result and result[0]["qtd"] is not None else 0
         )
 
-        # Estatísticas de vendas filtradas
+        # Estatísticas de vendas filtradas + recebíveis filtrados
         sql_filt = """
-            SELECT COUNT(*) as qtd
-            FROM vendas_filtradas
-            WHERE processamentoid = :proc_id
+            SELECT
+                (SELECT COUNT(*) FROM vendas_filtradas WHERE processamentoid = :proc_id)
+                + (SELECT COUNT(*) FROM recebiveis_filtrados WHERE processamentoid = :proc_id)
+                AS qtd
         """
         result = fetch_all(engine, sql_filt, {"proc_id": proc_id})
         proc["qtd_filtradas"] = (
@@ -384,10 +386,13 @@ def listar_processamentos_detalhado(engine: Engine, limite: int = 100) -> list:
         if proc["qtd_processadas"] > 0:
             sql_datas = """
                 SELECT
-                    MIN(data_processamento) as primeira_data,
-                    MAX(data_processamento) as ultima_data
-                FROM vendas_processadas
-                WHERE processamentoid = :proc_id
+                    MIN(d) as primeira_data,
+                    MAX(d) as ultima_data
+                FROM (
+                    SELECT data_processamento as d FROM vendas_processadas WHERE processamentoid = :proc_id
+                    UNION ALL
+                    SELECT data_processamento as d FROM recebiveis_processados WHERE processamentoid = :proc_id
+                ) t
             """
             result = fetch_all(engine, sql_datas, {"proc_id": proc_id})
             if result:

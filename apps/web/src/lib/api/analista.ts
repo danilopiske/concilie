@@ -85,6 +85,17 @@ export interface AgregacaoFormaPagamentoAno {
   taxa_perc_maxima?: number;
 }
 
+export interface AgregacaoBandeiraFormaAno {
+  ano: string;
+  bandeira: string;
+  forma_pagamento: string;
+  quantidade: number;
+  valor_total: number;
+  valor_medio?: number;
+  taxa_perc_minima?: number;
+  taxa_perc_maxima?: number;
+}
+
 export const analistaApi = {
   getBandeiras: async (processamentoId: string) => {
     const { data } = await apiClient.get<AgregacaoBandeira[]>(`/analista/${processamentoId}/bandeiras`);
@@ -115,6 +126,11 @@ export const analistaApi = {
 
   getBandeiraForma: async (processamentoId: string) => {
     const { data } = await apiClient.get<AgregacaoBandeiraForma[]>(`/analista/${processamentoId}/bandeira-forma`);
+    return data;
+  },
+
+  getBandeiraFormaPorAno: async (processamentoId: string) => {
+    const { data } = await apiClient.get<AgregacaoBandeiraFormaAno[]>(`/analista/${processamentoId}/bandeira-forma-por-ano`);
     return data;
   },
 
@@ -149,5 +165,13 @@ export const analistaFiltradaApi = {
   getFormasPorAno: async (processamentoId: string) => {
     const { data } = await apiClient.get<AgregacaoFormaPagamentoAno[]>(`/analista-filtrado/${processamentoId}/formas-por-ano`);
     return data;
-  }
+  },
+  getBandeiraForma: async (processamentoId: string) => {
+    const { data } = await apiClient.get<AgregacaoBandeiraForma[]>(`/analista-filtrado/${processamentoId}/bandeira-forma`);
+    return data;
+  },
+  getBandeiraFormaPorAno: async (processamentoId: string) => {
+    const { data } = await apiClient.get<AgregacaoBandeiraFormaAno[]>(`/analista-filtrado/${processamentoId}/bandeira-forma-por-ano`);
+    return data;
+  },
 };
