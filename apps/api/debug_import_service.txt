@@ -1,0 +1,4 @@
+ImportService calling preparar_dataframe_de_arquivo at 2026-02-14 11:11:43.257906
+Path: temp_uploads\91a37626-d665-4911-a763-0439c688d294_03 Vendas 18.11.2022 a 17.11.2023.xlsx
+Contexto: Cielo
+Tipo: V

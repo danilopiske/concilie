@@ -1,17 +1,29 @@
 # main.py
+import sys
+import io
+
+# ⚠️ CORREÇÃO: Força UTF-8 para stdout/stderr (compatibilidade NSSM/Windows Service)
+# Resolve: 'charmap' codec can't encode character '\u274c' (emojis em comentários)
+if sys.platform == "win32":
+    try:
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace"
+        )
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace"
+        )
+    except (AttributeError, io.UnsupportedOperation):
+        # Fallback se já estiver configurado ou não for possível reconfigurar
+        pass
+
 import panel as pn
 from datetime import datetime
 import psutil
 import socket
-import sys
+import argparse
 
-from conf.conf_bd import get_engine
-from modules.ui_importacao import make_importacao_view
-from modules.ui_gestao import make_gestao_view  # <-- IMPORTAÇÃO DA NOVA VIEW
-from modules.reports import criar_interface_relatorio  # <-- IMPORTAÇÃO PARA RELATÓRIOS
-from modules.ui_calculos import (
-    make_calculos_view,
-)  # <-- IMPORTAÇÃO DA INTERFACE DE CÁLCULOS
+# Gerenciador de banco de dados (MySQL)
+from conf.db_manager import get_engine
 from proc.proc_usuarios import get_user_by_credentials
 import logging
 
@@ -53,7 +65,7 @@ def _notify_warning(msg: str):
             pass
 
 
-def _notify_info(msg: str):
+def _notify_warning(msg: str):
     n = getattr(pn.state, "notifications", None)
     if n:
         try:
@@ -62,7 +74,11 @@ def _notify_info(msg: str):
             pass
 
 
-engine = get_engine()
+# Engine será obtida de forma lazy após set_db_mode() ser chamado
+def _get_engine():
+    """Retorna a engine do db_manager (lazy loading)"""
+    return get_engine()
+
 
 # -------------------------
 # Sessão (escopo por sessão)
@@ -119,7 +135,7 @@ def topbar(user):
         # Volta para a tela de login
         main_area.clear()
         main_area.append(login_view())
-        _notify_info("Sessão encerrada.")
+        _notify_warning("Sessão encerrada.")  # Usar função definida
 
     btn_logout.on_click(_logout)
     return pn.Row(lbl, btn_logout, sizing_mode="stretch_width")
@@ -139,17 +155,20 @@ def render_view(route: str | None = None):
     if not user:
         return login_view()
 
-    if route == "Importar":
-        return make_importacao_view(engine, usuario_logado=user.get("usuario"))
+    engine = _get_engine()  # Obtém engine do db_manager
 
-    if route == "Gestão":
-        return make_gestao_view(engine, usuario_logado=user.get("usuario"))
+    # O Dashboard Panel foi descontinuado. Todas as funcionalidades foram migradas para o Next.js.
+    return pn.Column(
+        pn.pane.Markdown("### 🚀 Sistema Migrado"),
+        pn.pane.Markdown(
+            "O Dashboard Concilie foi totalmente migrado para uma plataforma moderna (Next.js).\n\n"
+            "Acesse agora a nova interface para todas as suas operações:\n"
+            "👉 [Acesse o Concilie Next.js](http://localhost:3000)"
+        ),
+        sizing_mode="stretch_width",
+        align="center"
+    )
 
-    if route == "Cálculos":
-        return make_calculos_view(engine)
-
-    if route == "Relatórios":
-        return criar_interface_relatorio(engine)
 
     # Fallback
     return pn.Column(
@@ -206,6 +225,7 @@ def do_login(_=None):
         _notify_error("Informe usuário e senha.")
         return
 
+    engine = _get_engine()  # Obtém engine do db_manager
     user = get_user_by_credentials(engine, usuario, senha)
     if not user:
         _notify_error("Usuário ou senha inválidos.")
@@ -228,9 +248,11 @@ def do_login(_=None):
         f"**Função:** {user.get('funcao','') or '-'}"
     )
 
-    menu_select.options = ["Importar", "Gestão", "Cálculos", "Relatórios"]
-    menu_select.value = "Importar"
-    _go_to("Importar")
+    menu_select.options = [
+        "Dashboard (Novo Sistema)",
+    ]
+    menu_select.value = "Dashboard (Novo Sistema)"
+    _go_to("Dashboard (Novo Sistema)")
     _notify_success(f"Bem-vindo, {user.get('nome') or user['usuario']}.")
 
 
@@ -299,6 +321,87 @@ template = pn.template.FastListTemplate(
     sidebar_width=280,
     collapsed_sidebar=False,
 )
+    # apply_template_patch(template) # Descontinuado após migração Next.js
+
+# ⚠️ Script de reconexão automática + heartbeat (evita "página não responde")
+reconnect_script = """
+<script>
+(function() {
+    // Detecta desconexão WebSocket e tenta reconectar
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    
+    // ⚠️ Heartbeat cliente (mantém conexão viva sem backend)
+    function startHeartbeat() {
+        console.log('[Fin] Heartbeat iniciado (intervalo: 30s)');
+        
+        setInterval(function() {
+            // Cria/remove elemento dummy para forçar pequena atualização DOM
+            const heartbeat = document.createElement('div');
+            heartbeat.id = 'fin-heartbeat';
+            heartbeat.style.display = 'none';
+            heartbeat.innerHTML = '<!-- heartbeat: ' + new Date().toISOString() + ' -->';
+            document.body.appendChild(heartbeat);
+            
+            // Remove após 100ms (mantém DOM limpo)
+            setTimeout(function() {
+                const el = document.getElementById('fin-heartbeat');
+                if (el) el.remove();
+            }, 100);
+            
+            console.log('[Fin] Heartbeat:', new Date().toISOString());
+        }, 30000); // 30 segundos
+    }
+    
+    function setupReconnection() {
+        if (typeof Bokeh !== 'undefined' && Bokeh.documents && Bokeh.documents.length > 0) {
+            const doc = Bokeh.documents[0];
+            
+            // Monitora estado da conexão
+            if (doc._session && doc._session._connection) {
+                const ws = doc._session._connection._socket;
+                
+                ws.addEventListener('close', function(event) {
+                    console.warn('[Fin] WebSocket desconectado:', event.code, event.reason);
+                    
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        console.log(`[Fin] Tentando reconectar (${reconnectAttempts}/${maxReconnectAttempts})...`);
+                        
+                        setTimeout(function() {
+                            console.log('[Fin] Recarregando página...');
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        console.error('[Fin] Máximo de tentativas atingido. Por favor, recarregue a página manualmente.');
+                        alert('Conexão perdida. Por favor, recarregue a página (F5).');
+                    }
+                });
+                
+                ws.addEventListener('error', function(event) {
+                    console.error('[Fin] Erro WebSocket:', event);
+                });
+                
+                // Inicia heartbeat após setup de conexão
+                startHeartbeat();
+            }
+        }
+    }
+    
+    // Aguarda Bokeh carregar
+    if (typeof Bokeh !== 'undefined') {
+        setupReconnection();
+    } else {
+        document.addEventListener('DOMContentLoaded', setupReconnection);
+    }
+})();
+</script>
+"""
+
+# Adiciona script ao template
+template.main.append(
+    pn.pane.HTML(reconnect_script, height=0, width=0, sizing_mode="fixed")
+)
 
 # Primeira tela é o login
 main_area.objects = [login_view()]
@@ -324,7 +427,31 @@ def find_free_port(start_port=8500, max_attempts=10):
 
 
 if __name__ == "__main__":
-    import sys
+    # Parse argumentos da linha de comando
+    parser = argparse.ArgumentParser(
+        description="Financial  - Sistema de Conciliação (MySQL)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Exemplos de uso:
+  python main.py                    # Inicia o sistema com MySQL
+        """,
+    )
+
+    args = parser.parse_args()
+
+    print("=" * 80)
+    print("FINANCIAL  - SISTEMA DE CONCILIAÇÃO")
+    print("=" * 80)
+
+    # Detecta qual banco está sendo usado
+    from conf.db_manager import get_engine
+    from conf.sql_adapter import get_db_type
+
+    test_engine = get_engine()
+    db_type = "SQLite" if get_db_type(test_engine) == "sqlite" else "MySQL"
+    print(f"Banco de dados: {db_type}")
+    print("=" * 80)
+
     import psutil
 
     # Mata processos Python anteriores que possam estar bloqueando as portas
@@ -354,10 +481,24 @@ if __name__ == "__main__":
             # autoreload=True,
             allow_websocket_origin=["*"],
             websocket_max_message_size=websocket_max_message_size,
+            # ⚠️ Configurações anti-timeout (evita desconexão após inatividade)
+            websocket_ping_interval=30,  # Ping a cada 30s (mantém conexão viva)
+            websocket_ping_timeout=60,  # Timeout de 60s (aguarda pong)
+            keep_alive_milliseconds=30000,  # Keep-alive do Bokeh (30s)
+            check_unused_sessions_milliseconds=3600000,  # Limpa sessões após 1h
+            unused_session_lifetime_milliseconds=3600000,  # Sessões inativas: 1h
         )
     except Exception as e:
         print(f"\nErro ao iniciar o servidor: {e}")
         print("\nPressione qualquer tecla para sair...")
         input()
-        sys.exit(1)
-    # ===== FIM DA CORREÇÃO =====
+
+
+def main():
+    """Entry point principal do sistema para Poetry"""
+    # O código de inicialização já é executado no nível do módulo acima
+    pass
+
+
+if __name__ == "__main__":
+    main()

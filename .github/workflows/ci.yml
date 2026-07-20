@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feature/**]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend: lint + tests ─────────────────────────────────────────────────
+  test-api:
+    name: API — Lint & Tests (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: apps/api/poetry.lock
+
+      - name: Install Poetry
+        run: pip install poetry==1.8.3
+
+      - name: Install dependencies
+        run: poetry install --with dev --no-interaction
+
+      - name: Lint (ruff)
+        run: poetry run ruff check app/ --output-format=github
+        continue-on-error: false
+
+      - name: Run pytest
+        run: poetry run pytest tests/ -v --tb=short
+        env:
+          DATABASE_TYPE: sqlite
+          SQLITE_DB_PATH: ../../data/concilie.db
+          SECRET_KEY: ${{ secrets.SECRET_KEY_CI || 'ci-test-secret-key-not-for-production' }}
+          ALGORITHM: HS256
+          ACCESS_TOKEN_EXPIRE_MINUTES: 30
+
+  # ── Frontend: lint + typecheck + build ───────────────────────────────────
+  lint-web:
+    name: Web — Lint, Typecheck & Build (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000

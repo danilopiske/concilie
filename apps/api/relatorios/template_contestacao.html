@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Notificação de Contestação de Taxas</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 12pt; color: #1a1a1a; background: #fff; }
+  @media print { body { margin: 0; } .no-print { display: none; } }
+  .page { max-width: 210mm; margin: 0 auto; padding: 25mm 20mm; min-height: 297mm; }
+  .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1a3a6c; padding-bottom: 15px; }
+  .header h1 { font-size: 14pt; color: #1a3a6c; text-transform: uppercase; letter-spacing: 1px; }
+  .header .doc-ref { font-size: 10pt; color: #666; margin-top: 5px; }
+  .section { margin-bottom: 20px; }
+  .section h2 { font-size: 11pt; color: #1a3a6c; margin-bottom: 8px; text-transform: uppercase; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .meta-item { background: #f7f9fc; padding: 8px 12px; border-left: 3px solid #1a3a6c; }
+  .meta-item .label { font-size: 9pt; color: #888; text-transform: uppercase; }
+  .meta-item .value { font-size: 11pt; font-weight: 600; color: #1a1a1a; }
+  p { line-height: 1.7; margin-bottom: 12px; text-align: justify; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 10pt; }
+  thead { background: #1a3a6c; color: #fff; }
+  thead th { padding: 8px 10px; text-align: left; font-weight: 600; }
+  tbody tr:nth-child(even) { background: #f4f7fb; }
+  tbody tr:nth-child(odd) { background: #fff; }
+  tbody td { padding: 7px 10px; border-bottom: 1px solid #e0e6ef; }
+  tfoot { background: #e8f0fe; font-weight: 700; }
+  tfoot td { padding: 9px 10px; border-top: 2px solid #1a3a6c; color: #1a3a6c; }
+  .desvio-ok { color: #16a34a; }
+  .desvio-atencao { color: #d97706; }
+  .desvio-abusivo { color: #dc2626; font-weight: 700; }
+  .total-box { background: #fff4f4; border: 2px solid #dc2626; border-radius: 6px; padding: 14px 20px; margin: 20px 0; text-align: right; }
+  .total-box .label { font-size: 10pt; color: #666; }
+  .total-box .value { font-size: 16pt; font-weight: 700; color: #dc2626; }
+  .body-text { margin: 20px 0; }
+  .signature-area { margin-top: 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+  .signature-block { text-align: center; }
+  .signature-line { border-top: 1px solid #333; padding-top: 6px; margin-top: 50px; font-size: 10pt; }
+  .editor-appendix { margin-top: 30px; min-height: 40px; padding: 10px 0; border-top: 1px dashed #ccc; }
+  .footer { margin-top: 40px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 9pt; color: #888; text-align: center; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Cabeçalho -->
+  <div class="header">
+    <h1>Notificação Extrajudicial de Contestação de Taxas</h1>
+    <div class="doc-ref">Referência: CONT-{{ contestacao_id[:8].upper() }} &nbsp;|&nbsp; {{ data_geracao }}</div>
+  </div>
+
+  <!-- Dados das partes -->
+  <div class="section">
+    <h2>Partes</h2>
+    <div class="meta-grid">
+      <div class="meta-item">
+        <div class="label">Notificante</div>
+        <div class="value">{{ cliente_nome }}</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">CNPJ / CPF</div>
+        <div class="value">{{ cliente_cnpj }}</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">Notificado (Adquirente)</div>
+        <div class="value">{{ adquirente }}</div>
+      </div>
+      <div class="meta-item">
+        <div class="label">Período em Contestação</div>
+        <div class="value">{{ periodo_inicio }} a {{ periodo_fim }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Objeto -->
+  <div class="section body-text">
+    <h2>Objeto da Contestação</h2>
+    <p>
+      <strong>{{ cliente_nome }}</strong>, inscrito(a) no CNPJ/CPF nº <strong>{{ cliente_cnpj }}</strong>,
+      vem, por meio desta notificação extrajudicial, contestar formalmente as taxas cobradas pela adquirente
+      <strong>{{ adquirente }}</strong> no período de <strong>{{ periodo_inicio }}</strong> a
+      <strong>{{ periodo_fim }}</strong>, as quais divergem dos valores contratualmente pactuados,
+      configurando cobrança indevida e passível de ressarcimento.
+    </p>
+    <p>
+      A análise sistêmica das transações processadas identificou desvios entre as taxas contratadas e as
+      efetivamente cobradas, conforme demonstrado na tabela abaixo. O valor total do excesso cobrado
+      indevidamente é de <strong>R$&nbsp;{{ "%.2f"|format(valor_total) }}</strong>.
+    </p>
+  </div>
+
+  <!-- Tabela de desvios -->
+  <div class="section">
+    <h2>Desvios Identificados por Bandeira e Modalidade</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Bandeira</th>
+          <th>Modalidade</th>
+          <th>Taxa Contratada</th>
+          <th>Taxa Cobrada (Média)</th>
+          <th>Desvio (%)</th>
+          <th>Qtd Transações</th>
+          <th>Valor Excesso (R$)</th>
+          <th>Situação</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in desvios %}
+        <tr>
+          <td>{{ d.bandeira }}</td>
+          <td>{{ d.modalidade }}</td>
+          <td>{{ "%.2f"|format(d.taxa_contratada) }}%</td>
+          <td>{{ "%.2f"|format(d.taxa_media_cobrada) }}%</td>
+          <td class="desvio-{{ d.status }}">{{ "+%.2f"|format(d.desvio_percentual) if d.desvio_percentual > 0 else "%.2f"|format(d.desvio_percentual) }}%</td>
+          <td>{{ d.quantidade_transacoes }}</td>
+          <td>{{ "%.2f"|format(d.valor_excesso_estimado) if d.valor_excesso_estimado > 0 else "-" }}</td>
+          <td>
+            {% if d.status == "ok" %}✅ Regular
+            {% elif d.status == "atencao" %}⚠️ Atenção
+            {% else %}🚨 Abusivo
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="6"><strong>Total a Recuperar</strong></td>
+          <td colspan="2"><strong>R$ {{ "%.2f"|format(valor_total) }}</strong></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- Total destacado -->
+  <div class="total-box">
+    <div class="label">Valor Total do Excesso Cobrado Indevidamente</div>
+    <div class="value">R$ {{ "%.2f"|format(valor_total) }}</div>
+  </div>
+
+  <!-- Pedido -->
+  <div class="section body-text">
+    <h2>Pedido</h2>
+    <p>
+      Diante do exposto, o Notificante solicita formalmente que a adquirente <strong>{{ adquirente }}</strong>
+      proceda à análise dos registros de transações do período indicado e efetue o estorno ou compensação
+      do valor de <strong>R$&nbsp;{{ "%.2f"|format(valor_total) }}</strong> cobrado em excesso ao contratado,
+      no prazo de 30 (trinta) dias úteis a contar do recebimento desta notificação.
+    </p>
+    <p>
+      A ausência de resposta ou o indeferimento injustificado poderá ensejar a adoção das medidas
+      administrativas e judiciais cabíveis, incluindo representação perante o Banco Central do Brasil
+      e demais órgãos reguladores competentes.
+    </p>
+  </div>
+
+  <!-- Seção editável -->
+  <section class="editor-appendix"></section>
+
+  <!-- Assinaturas -->
+  <div class="signature-area">
+    <div class="signature-block">
+      <div class="signature-line">
+        {{ cliente_nome }}<br />
+        CNPJ/CPF: {{ cliente_cnpj }}<br />
+        Notificante
+      </div>
+    </div>
+    <div class="signature-block">
+      <div class="signature-line">
+        Testemunha / Responsável<br />
+        &nbsp;<br />
+        &nbsp;
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Documento gerado pelo sistema Concilie em {{ data_geracao }} &nbsp;|&nbsp;
+    Contestação Nº {{ contestacao_id[:8].upper() }}
+  </div>
+
+</div>
+</body>
+</html>

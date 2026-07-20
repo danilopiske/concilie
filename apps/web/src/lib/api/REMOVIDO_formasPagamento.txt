@@ -1,0 +1,1 @@
+API de formasPagamento removida conforme solicitado em 12/01/2026.

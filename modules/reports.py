@@ -1,25 +1,96 @@
-import pandas as pd
-import numpy as np
 import os
 import re
-import io
+import threading
 import time
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-import plotly.express as px
-from jinja2 import Environment, FileSystemLoader
-from sqlalchemy.engine import Engine
+import pandas as pd
 import panel as pn
+import plotly.express as px
+import polars as pl
+from jinja2 import Environment, FileSystemLoader
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from conf.funcoesbd import (
     fetch_all,
-    # --- ADICIONADO AQUI ---
     fetch_one,
-    listar_processamentoids,
-    listar_processamentos_detalhado,
 )
+
+
+def _convert_placeholders(engine, sql: str) -> str:
+    """
+    Converte placeholders SQL conforme o banco de dados.
+    Para MySQL: %s funciona com pandas.read_sql
+    Para SQLite: precisa converter %s para ? (placeholder posicional)
+
+    Args:
+        engine: Engine SQLAlchemy
+        sql: Query SQL com placeholders %s
+
+    Returns:
+        Query com placeholders adequados ao banco
+    """
+    db_type = engine.dialect.name.lower()
+
+    if "sqlite" in db_type:
+        # SQLite com pandas precisa de ? ao invés de %s
+        return sql.replace("%s", "?")
+    else:
+        # MySQL aceita %s com pandas
+        return sql
+
+
+def _get_base_id(proc_id: str) -> str:
+    """
+    Extrai o ID base de um processamento a partir do calc_id (ex: 1234567890_anual -> 1234567890).
+    Se não houver underscore, retorna o próprio ID.
+    Utilizada para compatibilidade com tabelas que usam o ID curto (controle_processamentos, etc).
+    """
+    if not proc_id or not isinstance(proc_id, str):
+        return proc_id
+    
+    # Se contém underscore, pode ser calc_id (ex: 1051121873_anual_...)
+    # ou pode ser um ID de processamento composto (ex: 1051121873_0001 - ...)
+    # Vamos retornar o prefixo numérico ou o primeiro componente
+    parts = proc_id.split("_")
+    if len(parts) > 1:
+        # Se o primeiro pedaço for puramente numérico e longo (ex: timestamp 10 dígitos),
+        # é um forte candidato a ID base.
+        if parts[0].isdigit() and len(parts[0]) >= 9:
+            return parts[0]
+        return parts[0]
+        
+    return proc_id
+
+
+def to_base64_url(path: str) -> str:
+    """
+    Converte um caminho de arquivo para uma Data URL Base64 se for imagem,
+    para que possa ser incorporada diretamente no HTML.
+    """
+    if not path or not os.path.exists(path):
+        return ""
+
+    ext = os.path.splitext(path)[1].lower()
+    if ext in [".png", ".jpg", ".jpeg", ".gif"]:
+        try:
+            import base64
+            import mimetypes
+
+            mime_type, _ = mimetypes.guess_type(path)
+            if not mime_type:
+                mime_type = "image/png" if ext == ".png" else "image/jpeg"
+
+            with open(path, "rb") as f:
+                encoded_string = base64.b64encode(f.read()).decode("utf-8")
+                return f"data:{mime_type};base64,{encoded_string}"
+        except Exception as e:
+            print(f"[DEBUG] Erro ao converter para base64: {e}")
+
+    # Fallback para file scheme
+    return "file:///" + os.path.abspath(path).replace("\\", "/")
 
 
 def format_currency_br(value: float) -> str:
@@ -112,253 +183,100 @@ def normalizar_forma_pagamento(forma_pagamento: str) -> str:
     return forma
 
 
-def filtrar_valores_rede_depara(df: pd.DataFrame) -> pd.DataFrame:
+def filtrar_valores_rede_depara(df: Any) -> Any:
     """
-    Aplica filtros específicos para valores de venda da REDE após processamento de de-para.
-
-    Filtros aplicados:
-    1. Remove valores de venda zerados ou nulos
-    2. Remove valores negativos (estornos/cancelamentos)
-    3. Aplica filtros específicos baseados na adquirente REDE
-    4. Valida consistência entre valor_da_venda e outras colunas relacionadas
+    Aplica filtros específicos para valores de venda da REDE usando Polars (muito mais rápido).
     """
-    if df.empty:
+    if df is None:
         return df
-
-    df_filtrado = df.copy()
-    linhas_originais = len(df_filtrado)
-
-    print(f"[DEBUG][REDE] Iniciando filtro de valores - {linhas_originais} registros")
-
-    # Identificar se é processamento da REDE
-    tem_rede = False
-    colunas_adquirente = [
-        "adquirente",
-        "Adquirente",
-        "ADQUIRENTE",
-        "Bandeira",
-        "bandeira",
-    ]
-    for col in colunas_adquirente:
-        if col in df_filtrado.columns:
-            rede_count = (
-                df_filtrado[col]
-                .astype(str)
-                .str.upper()
-                .str.contains("REDE", na=False)
-                .sum()
-            )
-            if rede_count > 0:
-                tem_rede = True
-                print(
-                    f"[DEBUG][REDE] Detectado {rede_count} registros da REDE na coluna {col}"
-                )
-                break
-
-    if not tem_rede:
-        print(
-            f"[DEBUG][REDE] Nenhum registro da REDE detectado - aplicando filtros gerais"
-        )
-
-    # Filtro 1: Remover valores zerados ou nulos em Valor_da_venda
-    colunas_valor = [
-        "Valor_da_venda",
-        "valor_da_venda",
-        "vl_venda",
-        "Valor da Transação",
-    ]
-    coluna_valor_encontrada = None
-
-    for col in colunas_valor:
-        if col in df_filtrado.columns:
-            coluna_valor_encontrada = col
-            break
-
-    if coluna_valor_encontrada:
-        # Converter para numérico
-        df_filtrado[coluna_valor_encontrada] = pd.to_numeric(
-            df_filtrado[coluna_valor_encontrada], errors="coerce"
-        )
-
-        # Remover valores nulos
-        valores_nulos = df_filtrado[coluna_valor_encontrada].isnull().sum()
-        if valores_nulos > 0:
-            df_filtrado = df_filtrado[df_filtrado[coluna_valor_encontrada].notnull()]
-            print(
-                f"[DEBUG][REDE] Removidos {valores_nulos} registros com valores nulos"
-            )
-
-        # Remover valores zerados
-        valores_zero = (df_filtrado[coluna_valor_encontrada] == 0).sum()
-        if valores_zero > 0:
-            df_filtrado = df_filtrado[df_filtrado[coluna_valor_encontrada] != 0]
-            print(
-                f"[DEBUG][REDE] Removidos {valores_zero} registros com valores zerados"
-            )
-
-        # Filtro específico para REDE: remover valores negativos (estornos/cancelamentos)
-        if tem_rede:
-            valores_negativos = (df_filtrado[coluna_valor_encontrada] < 0).sum()
-            if valores_negativos > 0:
-                df_filtrado = df_filtrado[df_filtrado[coluna_valor_encontrada] > 0]
-                print(
-                    f"[DEBUG][REDE] Removidos {valores_negativos} registros com valores negativos"
-                )
-
-        # Filtro de valores extremos (outliers) para REDE
-        if tem_rede and len(df_filtrado) > 10:
-            q1 = df_filtrado[coluna_valor_encontrada].quantile(0.01)
-            q99 = df_filtrado[coluna_valor_encontrada].quantile(0.99)
-            outliers = (
-                (df_filtrado[coluna_valor_encontrada] < q1)
-                | (df_filtrado[coluna_valor_encontrada] > q99)
-            ).sum()
-
-            if outliers > 0:
-                df_filtrado = df_filtrado[
-                    (df_filtrado[coluna_valor_encontrada] >= q1)
-                    & (df_filtrado[coluna_valor_encontrada] <= q99)
-                ]
-                print(
-                    f"[DEBUG][REDE] Removidos {outliers} outliers (valores < R$ {q1:.2f} ou > R$ {q99:.2f})"
-                )
-
-    linhas_finais = len(df_filtrado)
-    linhas_removidas = linhas_originais - linhas_finais
-
-    if linhas_removidas > 0:
-        print(
-            f"[DEBUG][REDE] Filtro concluído: {linhas_removidas} registros removidos ({linhas_removidas/linhas_originais*100:.2f}%)"
-        )
-        print(f"[DEBUG][REDE] Registros restantes: {linhas_finais}")
+    
+    is_pandas = isinstance(df, pd.DataFrame)
+    is_lazy = isinstance(df, pl.LazyFrame)
+    
+    # Se for pandas, converte para lazy
+    if is_pandas:
+        lf = pl.from_pandas(df).lazy()
+    elif is_lazy:
+        lf = df
     else:
-        print(f"[DEBUG][REDE] Nenhum registro foi filtrado")
+        lf = df.lazy()
+    
+    # Identificar colunas
+    cols = lf.collect_schema().names()
+    valor_col = next((c for c in ["vl_venda", "Valor_da_venda", "valor_da_venda"] if c in cols), None)
+    adq_col = next((c for c in ["adquirente", "Adquirente", "Bandeira", "bandeira"] if c in cols), None)
 
-    return df_filtrado
-
-
-def calcular_previsao_pagamento_rede(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Calcula a previsão de pagamento específica para a adquirente REDE.
-
-    Regra da REDE: Previsão de pagamento = Data_da_venda + 31 dias
-
-    Args:
-        df: DataFrame com os dados das vendas
-
-    Returns:
-        DataFrame com a coluna 'Previsão_de_pagamento' atualizada para registros da REDE
-    """
-    if df.empty:
+    if not valor_col:
         return df
 
-    df_result = df.copy()
-    linhas_originais = len(df_result)
-
-    print(
-        f"[DEBUG][REDE] Iniciando cálculo de previsão de pagamento - {linhas_originais} registros"
+    # Filtros base - Garantir que valor_col seja numérico para comparação
+    lf = lf.with_columns(pl.col(valor_col).cast(pl.Float64, strict=False))
+    
+    lf = lf.filter(
+        pl.col(valor_col).is_not_null(),
+        pl.col(valor_col) != 0
     )
 
-    # Identificar registros da REDE
-    tem_rede = False
-    colunas_adquirente = [
-        "adquirente",
-        "Adquirente",
-        "ADQUIRENTE",
-        "Bandeira",
-        "bandeira",
-    ]
-
-    mask_rede = pd.Series([False] * len(df_result), index=df_result.index)
-
-    for col in colunas_adquirente:
-        if col in df_result.columns:
-            mask_col = (
-                df_result[col].astype(str).str.upper().str.contains("REDE", na=False)
-            )
-            rede_count = mask_col.sum()
-            if rede_count > 0:
-                tem_rede = True
-                mask_rede = mask_rede | mask_col
-                print(
-                    f"[DEBUG][REDE] Detectado {rede_count} registros da REDE na coluna {col}"
-                )
-
-    if not tem_rede:
-        print(
-            f"[DEBUG][REDE] Nenhum registro da REDE detectado - sem alterações na previsão"
+    # Filtro REDE (negativos e outliers)
+    if adq_col:
+        mask_rede = pl.col(adq_col).cast(pl.Utf8).str.to_uppercase().str.contains("REDE")
+        
+        # Remover negativos apenas para REDE
+        lf = lf.filter(
+            ~(mask_rede & (pl.col(valor_col) < 0))
         )
-        return df_result
+    
+    # Retorno: Se entrou preguiçoso, sai preguiçoso. Se era pandas, volta pandas.
+    if is_lazy:
+        return lf
+    
+    res = lf.collect() if isinstance(lf, pl.LazyFrame) else lf
+    return res.to_pandas() if is_pandas and hasattr(res, "to_pandas") else res
 
-    # Buscar coluna de data da venda
-    colunas_data_venda = [
-        "Data_da_venda",
-        "data_da_venda",
-        "Data da Transação",
-        "data_transacao",
-    ]
-    coluna_data_encontrada = None
 
-    for col in colunas_data_venda:
-        if col in df_result.columns:
-            coluna_data_encontrada = col
-            break
+def calcular_previsao_pagamento_rede(df: Any) -> Any:
+    """
+    Calcula a previsão de pagamento para REDE usando Polars.
+    Regra: Data_da_venda + 31 dias.
+    """
+    if df is None:
+        return df
 
-    if not coluna_data_encontrada:
-        print(
-            f"[DEBUG][REDE] Nenhuma coluna de data da venda encontrada - sem alterações"
-        )
-        return df_result
+    is_pandas = isinstance(df, pd.DataFrame)
+    is_lazy = isinstance(df, pl.LazyFrame)
+    
+    if is_pandas:
+        lf = pl.from_pandas(df).lazy()
+    elif is_lazy:
+        lf = df
+    else:
+        lf = df.lazy()
+    
+    cols = lf.collect_schema().names()
+    data_col = next((c for c in ["Data_da_venda", "data_venda"] if c in cols), None)
+    adq_col = next((c for c in ["adquirente", "Adquirente", "Bandeira", "bandeira"] if c in cols), None)
+    prev_col = "Previsão_de_pagamento"
 
-    # Garantir que existe a coluna de previsão de pagamento
-    if "Previsão_de_pagamento" not in df_result.columns:
-        df_result["Previsão_de_pagamento"] = pd.NaT
+    if not data_col or not adq_col:
+        return df
 
-    # Converter data da venda para datetime
-    try:
-        df_result[coluna_data_encontrada] = pd.to_datetime(
-            df_result[coluna_data_encontrada], errors="coerce"
-        )
-    except Exception as e:
-        print(f"[DEBUG][REDE] Erro ao converter data da venda: {e}")
-        return df_result
+    # Adicionar coluna se não existir
+    if prev_col not in cols:
+        lf = lf.with_columns(pl.lit(None).cast(pl.Date).alias(prev_col))
 
-    # Aplicar regra da REDE: Data_da_venda + 31 dias
-    registros_rede = mask_rede.sum()
-    if registros_rede > 0:
-        # Calcular previsão apenas para registros da REDE com data válida
-        mask_data_valida = df_result[coluna_data_encontrada].notnull()
-        mask_aplicar = mask_rede & mask_data_valida
+    # Regra REDE: +31 dias
+    lf = lf.with_columns(
+        pl.when(pl.col(adq_col).cast(pl.Utf8).str.to_uppercase().str.contains("REDE"))
+        .then(pl.col(data_col).cast(pl.Date) + pl.duration(days=31))
+        .otherwise(pl.col(prev_col))
+        .alias(prev_col)
+    )
 
-        if mask_aplicar.any():
-            df_result.loc[mask_aplicar, "Previsão_de_pagamento"] = df_result.loc[
-                mask_aplicar, coluna_data_encontrada
-            ] + pd.Timedelta(days=31)
-
-            registros_atualizados = mask_aplicar.sum()
-            print(
-                f"[DEBUG][REDE] Previsão de pagamento calculada para {registros_atualizados} registros"
-            )
-
-            # Log de exemplo
-            if registros_atualizados > 0:
-                exemplo_idx = df_result[mask_aplicar].index[0]
-                data_venda = df_result.loc[exemplo_idx, coluna_data_encontrada]
-                previsao = df_result.loc[exemplo_idx, "Previsão_de_pagamento"]
-                print(
-                    f"[DEBUG][REDE] Exemplo: Venda {data_venda.strftime('%d/%m/%Y')} → Previsão {previsao.strftime('%d/%m/%Y')}"
-                )
-        else:
-            print(f"[DEBUG][REDE] Nenhum registro da REDE com data válida encontrado")
-
-    # Verificar se há registros não-REDE que precisam de tratamento diferente
-    registros_nao_rede = (~mask_rede).sum()
-    if registros_nao_rede > 0:
-        print(
-            f"[DEBUG][REDE] {registros_nao_rede} registros de outras adquirentes mantidos sem alteração"
-        )
-
-    return df_result
+    if is_lazy:
+        return lf
+        
+    res = lf.collect() if isinstance(lf, pl.LazyFrame) else lf
+    return res.to_pandas() if is_pandas and hasattr(res, "to_pandas") else res
 
 
 def log_tempo_execucao(funcao_nome: str, inicio: float) -> None:
@@ -367,8 +285,231 @@ def log_tempo_execucao(funcao_nome: str, inicio: float) -> None:
     print(f"[DEBUG] {funcao_nome}: {tempo_decorrido:.3f}s")
 
 
+def debug_log(msg):
+    """Log de depuração global para geração de relatórios"""
+    try:
+        log_dir = os.path.join(os.getcwd(), "temp")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "report_debug.log")
+        with open(log_file, "a", encoding="utf-8") as f:
+            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            f.write(f"[{ts}] {msg}\n")
+    except:
+        pass
+    print(f"[DEBUG_REPORT] {msg}")
+
+def debug_to_file(msg: str):
+    try:
+        print(f"[DIAG] {msg}", flush=True)
+    except:
+        pass
+
+
+def read_sql_polars(
+    sql: str,
+    engine: Engine,
+    params: tuple = None,
+) -> pl.DataFrame:
+    """
+    Lê dados do SQL usando PyArrow backend (Pandas 2.x) para conversão quase zero-copy
+    ao Polars — elimina o triple-copy anterior (chunks → concat → from_pandas numpy).
+
+    Fallback automático para chunked Pandas caso o backend Arrow falhe.
+    """
+    # Converter %s → :p1, :p2... para SQLAlchemy text()
+    params_dict = {}
+    if params:
+        new_sql = sql
+        for i, val in enumerate(params):
+            new_sql = new_sql.replace("%s", f":p{i+1}", 1)
+            params_dict[f"p{i+1}"] = val
+        sql = new_sql
+        params = params_dict
+        debug_to_file(f"read_sql_polars params: {params_dict}")
+
+    debug_to_file(f"read_sql_polars query prefix: {sql[:150]}")
+
+    # Tentativa 1: PyArrow backend — single read, near zero-copy para Polars
+    try:
+        with engine.connect().execution_options(stream_results=True) as conn:
+            print("[DEBUG_READ_SQL] Lendo com PyArrow backend (zero-copy)...")
+            df_pd = pd.read_sql(text(sql), conn, params=params, dtype_backend="pyarrow")
+            debug_to_file(f"read_sql_polars success: {len(df_pd)} rows")
+            return pl.from_pandas(df_pd)
+    except Exception as e:
+        debug_to_file(f"read_sql_polars ERROR: {e}")
+        print(f"[DEBUG_READ_SQL] PyArrow backend falhou ({e}), usando chunked fallback...")
+
+    # Fallback: chunked Pandas (método anterior)
+    try:
+        chunks = []
+        chunk_size = 100_000
+        with engine.connect() as conn:
+            print(f"[DEBUG_READ_SQL] Fallback: lendo em chunks de {chunk_size}...")
+            for i, chunk in enumerate(pd.read_sql(text(sql), conn, params=params, chunksize=chunk_size)):
+                chunks.append(chunk)
+                if (i + 1) % 5 == 0:
+                    print(f"[DEBUG_READ_SQL] {(i + 1) * chunk_size} registros no buffer...")
+        if not chunks:
+            return pl.DataFrame()
+        print(f"[DEBUG_READ_SQL] Concatenando {len(chunks)} chunks e convertendo para Polars...")
+        return pl.from_pandas(pd.concat(chunks, ignore_index=True))
+    except Exception as e:
+        print(f"[DEBUG_READ_SQL] FAILED: {e}")
+        import traceback
+        traceback.print_exc()
+        raise e
+
+
+_PARQUET_CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "apps", "api", "relatorios_cache")
+
+
+def _cache_path(calc_id: str, calc_tipo: str) -> str:
+    """Retorna o caminho do arquivo Parquet de cache para um cálculo."""
+    safe = "".join(c if c.isalnum() or c in "_-" else "_" for c in f"{calc_id}_{calc_tipo}")
+    os.makedirs(_PARQUET_CACHE_DIR, exist_ok=True)
+    return os.path.join(_PARQUET_CACHE_DIR, f"{safe}.parquet")
+
+
+def invalidate_calc_cache(calc_id: str, calc_tipo: str = None) -> None:
+    """Remove o cache Parquet de um cálculo (ex: após novo processamento)."""
+    if calc_tipo:
+        path = _cache_path(calc_id, calc_tipo)
+        if os.path.exists(path):
+            os.remove(path)
+            print(f"[CACHE] Invalidado: {path}")
+    else:
+        # Remove todos os caches do calc_id
+        prefix = "".join(c if c.isalnum() or c in "_-" else "_" for c in calc_id)
+        if os.path.exists(_PARQUET_CACHE_DIR):
+            for f in os.listdir(_PARQUET_CACHE_DIR):
+                if f.startswith(prefix):
+                    os.remove(os.path.join(_PARQUET_CACHE_DIR, f))
+                    print(f"[CACHE] Invalidado: {f}")
+
+
+def load_vendas_calculos_cached(
+    engine: Engine,
+    calc_id: str,
+    calc_tipo: str,
+    columns: list = None,
+) -> pl.DataFrame:
+    """
+    Carrega vendas_calculos para um cálculo usando cache Parquet.
+
+    - 1ª chamada: busca do MySQL (~50s para 3M rows) e salva .parquet
+    - Chamadas seguintes: lê do .parquet (~2-3s, zero SQL)
+    - Cache invalida automaticamente se o arquivo tiver >24h
+    """
+    cache_file = _cache_path(calc_id, calc_tipo)
+    cache_ttl_hours = 24
+
+    _BANDEIRA_MAP = {
+        "MASTERCARD": "Mastercard", "VISA": "Visa", "ELO": "Elo",
+        "HIPERCARD": "Hipercard", "AMEX": "Amex", "AMERICAN EXPRESS": "American Express",
+        "CABAL": "Cabal", "BANESCARD": "Banescard", "DINERS": "Diners",
+        "DISCOVER": "Discover", "PIX": "Pix", "HIPER": "Hiper",
+    }
+
+    def _normalizar_bandeira(df: pl.DataFrame) -> pl.DataFrame:
+        if "bandeira" not in df.columns:
+            return df
+        return df.with_columns(
+            pl.col("bandeira").replace(_BANDEIRA_MAP).alias("bandeira")
+        )
+
+    # Cache hit — verificar se ainda é válido
+    if os.path.exists(cache_file):
+        age_hours = (time.time() - os.path.getmtime(cache_file)) / 3600
+        if age_hours < cache_ttl_hours:
+            print(f"[CACHE] Hit: {cache_file} ({age_hours:.1f}h atrás)")
+            df = _normalizar_bandeira(pl.read_parquet(cache_file))
+            if columns:
+                df = df.select([c for c in columns if c in df.columns])
+            return df
+        else:
+            print(f"[CACHE] Expirado ({age_hours:.1f}h), refazendo query...")
+
+    # Cache miss — buscar do MySQL
+    print(f"[CACHE] Miss para calc_id={calc_id}, calc_tipo={calc_tipo}. Carregando do MySQL...")
+    sql = """
+        SELECT vc.id_venda, vc.data_venda, vc.bandeira, vc.forma_pagamento,
+               vc.tx_rr_venda, vc.vl_rr_venda, vc.vl_venda, vc.tx_venda, vc.desc_venda,
+               vc.vl_liq_venda, vc.tx_calc, vc.desc_calc, vc.vl_liq_calc, vc.perda,
+               vc.adquirente, vc.nsu, vc.cod_autorizacao, vc.perda_rr, vc.ec_id,
+               vp.Tratar_ou_Ignorar
+        FROM vendas_calculos vc
+        LEFT JOIN vendas_processadas vp ON vc.id_venda = vp.id
+        WHERE vc.calc_id = %s AND vc.calc_tipo = %s
+    """
+    df = _normalizar_bandeira(read_sql_polars(sql, engine, params=(calc_id, calc_tipo)))
+
+    if not df.is_empty():
+        print(f"[CACHE] Salvando {len(df)} rows em {cache_file}...")
+        df.write_parquet(cache_file, compression="zstd", compression_level=3)
+        print(f"[CACHE] Salvo ({os.path.getsize(cache_file) / 1024 / 1024:.1f} MB)")
+
+    if columns:
+        df = df.select([c for c in columns if c in df.columns])
+    return df
+
+
+def read_sql_safe(
+    sql: str,
+    engine: Engine,
+    params: tuple = None,
+    chunksize: int = 50000,
+    max_retries: int = 3,
+) -> pd.DataFrame:
+    """
+    Lê dados do SQL com proteção contra erros de timeout e packet sequence.
+    Agora otimizado para usar Polars se o dataset for grande (> chunksize).
+    """
+    for attempt in range(max_retries):
+        try:
+            print(f"[DEBUG] Tentativa {attempt + 1}/{max_retries} de leitura SQL")
+            
+            # Usar read_sql_polars que já trata parâmetros e performance
+            df_pl = read_sql_polars(sql, engine, params=params)
+            print(f"[DEBUG] ✓ Leitura Polars bem-sucedida: {len(df_pl)} registros")
+            return df_pl.to_pandas()
+        except Exception as e:
+            debug_to_file(f"read_sql_safe TOTAL FAILED (attempt {attempt+1}): {e}")
+            if attempt == max_retries - 1:
+                return pd.DataFrame()
+            error_msg = str(e).lower()
+            if "packet sequence" in error_msg or "lost connection" in error_msg:
+                print(
+                    f"[ERROR] Erro de conexão MySQL (tentativa {attempt + 1}/{max_retries}): {e}"
+                )
+
+                if attempt < max_retries - 1:
+                    print("[DEBUG] Aguardando 2s antes de reconectar...")
+                    time.sleep(2)
+
+                    # Tentar reconectar
+                    try:
+                        engine.dispose()
+                        print("[DEBUG] Pool de conexões descartado - reconectando...")
+                    except:
+                        pass
+                else:
+                    print(f"[ERROR] Falha após {max_retries} tentativas")
+                    raise
+            else:
+                # Outro tipo de erro - não retenta
+                print(f"[ERROR] Erro SQL não relacionado a conexão: {e}")
+                raise
+
+    return pd.DataFrame()
+
+
 def calcular_periodo_completo(
-    engine: Engine, processamento_id: str, adquirente: str = None
+    engine: Engine,
+    processamento_id: str,
+    adquirente: str = None,
+    data_inicio: Optional[datetime] = None,
+    data_fim: Optional[datetime] = None,
 ) -> Tuple[Optional[datetime], Optional[datetime]]:
     """
     Calcula o período completo considerando todas as datas do processamento:
@@ -383,25 +524,35 @@ def calcular_periodo_completo(
         engine: Engine de conexão com o banco de dados
         processamento_id: ID do processamento
         adquirente: Filtro opcional por adquirente
+        data_inicio: Filtro opcional por data inicial
+        data_fim: Filtro opcional por data final
 
     Returns:
         Tupla com (primeira_data, ultima_data)
     """
-    print(f"[DEBUG] Calculando período completo para processamento: {processamento_id}")
+    base_id = _get_base_id(processamento_id)
+    print(f"[DEBUG] Calculando período completo para processamento: {base_id} (base de {processamento_id})")
 
     todas_as_datas = []
-
     try:
-        # 1. Datas das vendas processadas
+        base_id = _get_base_id(processamento_id)
+        params_vendas = [f"{base_id}%"]
         vendas_sql = (
-            "SELECT Data_da_venda FROM vendas_processadas WHERE processamentoid = %s"
+            "SELECT Data_da_venda FROM vendas_processadas WHERE processamentoid LIKE %s"
         )
-        params_vendas = [processamento_id]
         if adquirente:
             vendas_sql += " AND adquirente = %s"
             params_vendas.append(adquirente)
+        if data_inicio:
+            vendas_sql += " AND Data_da_venda >= %s"
+            params_vendas.append(data_inicio)
+        if data_fim:
+            vendas_sql += " AND Data_da_venda <= %s"
+            params_vendas.append(data_fim)
 
-        df_vendas = pd.read_sql(vendas_sql, engine, params=tuple(params_vendas))
+        vendas_sql = _convert_placeholders(engine, vendas_sql)
+        pl_vendas = read_sql_polars(vendas_sql, engine, params=tuple(params_vendas))
+        df_vendas = pl_vendas.to_pandas()
         if not df_vendas.empty and "Data_da_venda" in df_vendas.columns:
             datas_vendas = pd.to_datetime(
                 df_vendas["Data_da_venda"], errors="coerce"
@@ -412,17 +563,23 @@ def calcular_periodo_completo(
             )
 
         # 2. Datas das vendas filtradas
+        params_filtradas = [f"{base_id}%"]
         filtradas_sql = (
-            "SELECT Data_da_venda FROM vendas_filtradas WHERE processamentoid = %s"
+            "SELECT Data_da_venda FROM vendas_filtradas WHERE processamentoId LIKE %s"
         )
-        params_filtradas = [processamento_id]
         if adquirente:
             filtradas_sql += " AND adquirente = %s"
             params_filtradas.append(adquirente)
+        if data_inicio:
+            filtradas_sql += " AND Data_da_venda >= %s"
+            params_filtradas.append(data_inicio)
+        if data_fim:
+            filtradas_sql += " AND Data_da_venda <= %s"
+            params_filtradas.append(data_fim)
 
-        df_filtradas = pd.read_sql(
-            filtradas_sql, engine, params=tuple(params_filtradas)
-        )
+        filtradas_sql = _convert_placeholders(engine, filtradas_sql)
+        pl_filtradas = read_sql_polars(filtradas_sql, engine, params=tuple(params_filtradas))
+        df_filtradas = pl_filtradas.to_pandas()
         if not df_filtradas.empty and "Data_da_venda" in df_filtradas.columns:
             datas_filtradas = pd.to_datetime(
                 df_filtradas["Data_da_venda"], errors="coerce"
@@ -433,8 +590,23 @@ def calcular_periodo_completo(
             )
 
         # 3. Datas dos recebíveis processados
-        rec_proc_sql = "SELECT data_recebivel FROM recebiveis_processados WHERE processamentoid = %s"
-        df_rec_proc = pd.read_sql(rec_proc_sql, engine, params=(processamento_id,))
+        params_rec_proc = [f"{base_id}%"]
+        rec_proc_sql = (
+            "SELECT data_recebivel FROM recebiveis_processados WHERE processamentoid LIKE %s"
+        )
+        if adquirente:
+            rec_proc_sql += " AND adquirente = %s"
+            params_rec_proc.append(adquirente)
+        if data_inicio:
+            rec_proc_sql += " AND data_recebivel >= %s"
+            params_rec_proc.append(data_inicio)
+        if data_fim:
+            rec_proc_sql += " AND data_recebivel <= %s"
+            params_rec_proc.append(data_fim)
+
+        rec_proc_sql = _convert_placeholders(engine, rec_proc_sql)
+        pl_rec_proc = read_sql_polars(rec_proc_sql, engine, params=tuple(params_rec_proc))
+        df_rec_proc = pl_rec_proc.to_pandas()
         if not df_rec_proc.empty and "data_recebivel" in df_rec_proc.columns:
             datas_rec_proc = pd.to_datetime(
                 df_rec_proc["data_recebivel"], errors="coerce"
@@ -446,8 +618,23 @@ def calcular_periodo_completo(
 
         # 4. Datas dos recebíveis filtrados (se existir a tabela)
         try:
-            rec_filt_sql = "SELECT data_recebivel FROM recebiveis_filtrados WHERE processamentoid = %s"
-            df_rec_filt = pd.read_sql(rec_filt_sql, engine, params=(processamento_id,))
+            params_rec_filt = [f"{base_id}%"]
+            rec_filt_sql = (
+                "SELECT data_recebivel FROM recebiveis_filtrados WHERE processamentoid LIKE %s"
+            )
+            if adquirente:
+                rec_filt_sql += " AND adquirente = %s"
+                params_rec_filt.append(adquirente)
+            if data_inicio:
+                rec_filt_sql += " AND data_recebivel >= %s"
+                params_rec_filt.append(data_inicio)
+            if data_fim:
+                rec_filt_sql += " AND data_recebivel <= %s"
+                params_rec_filt.append(data_fim)
+
+            rec_filt_sql = _convert_placeholders(engine, rec_filt_sql)
+            pl_rec_filt = read_sql_polars(rec_filt_sql, engine, params=tuple(params_rec_filt))
+            df_rec_filt = pl_rec_filt.to_pandas()
             if not df_rec_filt.empty and "data_recebivel" in df_rec_filt.columns:
                 datas_rec_filt = pd.to_datetime(
                     df_rec_filt["data_recebivel"], errors="coerce"
@@ -483,13 +670,141 @@ def calcular_periodo_completo(
         return None, None
 
 
+def obter_adquirentes_e_periodo_processamento(
+    engine: Engine, processamento_id: str, calc_tipo: Optional[str] = None
+) -> tuple[List[str], dict, List[str]]:
+    """
+    Obtém os adquirentes únicos e o período de vendas de um processamento específico.
+    Usa APENAS vendas_calculos (dados já processados e denormalizados).
+
+    Args:
+        engine: Engine do SQLAlchemy
+        processamento_id: ID do processamento (calc_id)
+
+    Returns:
+        Tupla contendo:
+        - Lista de adquirentes únicos, ordenada alfabeticamente
+        - Dicionário com período {'data_min': date, 'data_max': date} ou vazio se sem dados
+        - Lista de tipos de cálculo (calc_tipo) disponíveis para este processamento
+    """
+    base_id = _get_base_id(processamento_id)
+    query = f"""
+        SELECT DISTINCT
+            adquirente,
+            MIN(data_venda) OVER() as data_min,
+            MAX(data_venda) OVER() as data_max
+        FROM vendas_calculos
+        WHERE calc_id LIKE :calc_id
+        {"AND calc_tipo = :calc_tipo" if calc_tipo else ""}
+        AND adquirente IS NOT NULL
+        AND adquirente != ''
+        ORDER BY adquirente
+    """
+
+    def _parse_date(val):
+        """Converte string ou date/datetime para date."""
+        from datetime import date, datetime
+        if val is None:
+            return None
+        if isinstance(val, date) and not isinstance(val, datetime):
+            return val
+        if isinstance(val, datetime):
+            return val.date()
+        for fmt in ["%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"]:
+            try:
+                return datetime.strptime(str(val), fmt).date()
+            except ValueError:
+                continue
+        return None
+
+    try:
+        print(
+            f"[DEBUG obter_adquirentes_e_periodo] Buscando dados para calc_id: {processamento_id}"
+        )
+        with engine.connect() as conn:
+            params = {"calc_id": f"{base_id}%"}
+            if calc_tipo:
+                params["calc_tipo"] = calc_tipo
+
+            result = conn.execute(text(query), params)
+            rows = list(result)
+            print(f"[DEBUG obter_adquirentes_e_periodo] Encontradas {len(rows)} linhas para {calc_tipo or 'QUALQUER'}")
+
+            if not rows:
+                print("[DEBUG obter_adquirentes_e_periodo] Nenhuma linha encontrada")
+                return [], {}, []
+
+            adquirentes = [str(row[0]).strip() for row in rows if row[0]]
+            print(f"[DEBUG obter_adquirentes_e_periodo] Adquirentes: {adquirentes}")
+
+            # Coletar mins/maxs de vendas_calculos
+            all_mins = []
+            all_maxs = []
+            if rows and rows[0][1]:
+                d = _parse_date(rows[0][1])
+                if d:
+                    all_mins.append(d)
+            if rows and rows[0][2]:
+                d = _parse_date(rows[0][2])
+                if d:
+                    all_maxs.append(d)
+
+            # Buscar MIN/MAX de tabelas auxiliares (vendas_filtradas, recebiveis_processados, recebiveis_filtrados)
+            aux_queries = [
+                ("vendas_filtradas",      "data_da_venda",  "processamentoid"),
+                ("recebiveis_processados","data_recebivel", "processamentoid"),
+                ("recebiveis_filtrados",  "data_recebivel", "processamentoid"),
+            ]
+            for table, date_col, id_col in aux_queries:
+                try:
+                    q_aux = text(
+                        f"SELECT MIN({date_col}), MAX({date_col}) FROM {table} "
+                        f"WHERE {id_col} LIKE :pid"
+                    )
+                    r_aux = conn.execute(q_aux, {"pid": f"{base_id}%"}).fetchone()
+                    if r_aux:
+                        d_min = _parse_date(r_aux[0])
+                        d_max = _parse_date(r_aux[1])
+                        if d_min:
+                            all_mins.append(d_min)
+                        if d_max:
+                            all_maxs.append(d_max)
+                        print(f"[DEBUG obter_adquirentes_e_periodo] {table}: min={d_min}, max={d_max}")
+                except Exception as ex:
+                    print(f"[DEBUG obter_adquirentes_e_periodo] {table} indisponível: {ex}")
+
+            if all_mins and all_maxs:
+                periodo = {"data_min": min(all_mins), "data_max": max(all_maxs)}
+                print(f"[DEBUG obter_adquirentes_e_periodo] Período consolidado: {periodo}")
+            else:
+                periodo = {}
+                print("[DEBUG obter_adquirentes_e_periodo] Período vazio")
+
+            # Buscar todos os tipos disponíveis para este processamento ID (sem filtro de tipo)
+            query_types = "SELECT DISTINCT calc_tipo FROM vendas_calculos WHERE calc_id LIKE :calc_id"
+            result_types = conn.execute(text(query_types), {"calc_id": f"{base_id}%"})
+            available_types = [str(r[0]) for r in result_types if r[0]]
+
+            return adquirentes, periodo, available_types
+    except Exception as e:
+        print(
+            f"⚠️ Erro ao buscar adquirentes e período do processamento {processamento_id}: {str(e)}"
+        )
+        import traceback
+
+        traceback.print_exc()
+        return [], {}, []
+
+
 def obter_adquirentes_distintos_processamento(
-    engine: Engine, processamento_id: str
+    engine: Engine, processamento_id: str, calc_tipo: Optional[str] = None
 ) -> List[str]:
     """
     Busca todos os adquirentes distintos associados a um processamento específico.
 
     Utiliza JOIN entre vendas_processadas e vendas_calculos, filtrando por calc_id.
+
+    Mantida para compatibilidade. Usa a nova função internamente.
 
     Args:
         engine: Engine de conexão com o banco de dados
@@ -498,39 +813,8 @@ def obter_adquirentes_distintos_processamento(
     Returns:
         Lista de strings com os adquirentes distintos encontrados
     """
-    if not processamento_id:
-        return []
-
-    try:
-        with engine.connect() as conn:
-            # Query otimizada - JOIN por id_venda (abordagem que funcionou)
-            join_query = """
-                SELECT DISTINCT vp.adquirente
-                FROM vendas_processadas vp
-                INNER JOIN vendas_calculos vc ON vp.id = vc.id_venda
-                WHERE vc.calc_id = %(calc_id)s 
-                AND vp.adquirente IS NOT NULL 
-                AND vp.adquirente != ''
-                ORDER BY vp.adquirente
-            """
-
-            result = pd.read_sql(join_query, conn, params={"calc_id": processamento_id})
-
-            if not result.empty:
-                adquirentes = [
-                    str(adq).strip()
-                    for adq in result["adquirente"].unique()
-                    if adq
-                    and str(adq).strip()
-                    and str(adq).strip().lower() not in ["none", "null", ""]
-                ]
-                return sorted(list(set(adquirentes)))
-            else:
-                return []
-
-    except Exception as e:
-        print(f"[ERRO] Falha ao buscar adquirentes distintos: {e}")
-        return []
+    adquirentes, _, _ = obter_adquirentes_e_periodo_processamento(engine, processamento_id, calc_tipo=calc_tipo)
+    return adquirentes
 
 
 def calcular_estatisticas_taxas(df_calculos: pd.DataFrame) -> Dict[str, Any]:
@@ -544,8 +828,8 @@ def calcular_estatisticas_taxas(df_calculos: pd.DataFrame) -> Dict[str, Any]:
     # Converter para numérico e remover NaN
     taxas = pd.to_numeric(df_calculos["tx_venda"], errors="coerce").dropna()
 
-    # Filtrar taxas maiores que 0 (desconsidera NULL e 0)
-    taxas_validas = taxas[taxas > 0]
+    # Filtrar taxas válidas (maiores que 0 e razoáveis < 100% para evitar outliers)
+    taxas_validas = taxas[(taxas > 0) & (taxas < 100)]
 
     if taxas_validas.empty:
         return {"max_taxa": 0, "min_taxa": 0}
@@ -554,284 +838,393 @@ def calcular_estatisticas_taxas(df_calculos: pd.DataFrame) -> Dict[str, Any]:
 
 
 def calcular_perdas_por_semestre(
-    df_processadas: pd.DataFrame,
-    df_calculos: pd.DataFrame,
+    df_processadas: Any,
+    df_calculos: Any = None,
     incluir_faturamento: bool = False,
 ) -> pd.DataFrame:
     """
-    Calcula perdas monetárias MDR e RR, e opcionalmente faturamento e percentual de perda por semestre.
-
-    Args:
-        df_processadas: DataFrame com vendas processadas
-        df_calculos: DataFrame com cálculos de taxas
-        incluir_faturamento: Se True, inclui colunas de faturamento bruto e % perda (padrão: False)
+    Calcula perdas por semestre usando Polars (muito mais rápido).
+    Se df_calculos for None, assume que df_processadas já contém os dados necessários.
     """
-    if df_processadas.empty or df_calculos.empty:
-        print("[DEBUG] DataFrames vazios - retornando DataFrame vazio")
-        return pd.DataFrame(
-            columns=["Ano-Semestre", "Perda Monetária MDR", "Perda Total"]
-        )
+    if df_processadas is None or (hasattr(df_processadas, "empty") and df_processadas.empty) and df_calculos is None:
+        return pd.DataFrame(columns=["Ano-Semestre", "Perda Monetária MDR", "Perda Total"])
 
-    print(f"[DEBUG] Colunas df_processadas: {df_processadas.columns.tolist()}")
-    print(f"[DEBUG] Colunas df_calculos: {df_calculos.columns.tolist()}")
-
-    # Verificar se deve calcular faturamento
-    calcula_faturamento = incluir_faturamento and "vl_venda" in df_calculos.columns
-    if incluir_faturamento and "vl_venda" not in df_calculos.columns:
-        print(
-            "[DEBUG] incluir_faturamento=True mas vl_venda não disponível - não será calculado faturamento"
-        )
-
-    colunas_calculos = ["id_venda", "perda"]
-
-    # Adicionar perda_rr se disponível
-    tem_perda_rr = "perda_rr" in df_calculos.columns
-    if tem_perda_rr:
-        colunas_calculos.append("perda_rr")
-        print("[DEBUG] perda_rr detectada - será incluída nos cálculos")
+    # Converter para Polars DataFrames
+    pl_proc = pl.from_pandas(df_processadas) if isinstance(df_processadas, pd.DataFrame) else df_processadas
+    
+    if df_calculos is not None:
+        pl_calc = pl.from_pandas(df_calculos) if isinstance(df_calculos, pd.DataFrame) else df_calculos
+        # Se vierem dois DFs, faz o join (semelhante ao original)
+        # Identificar colunas de join
+        left_on = "id" if "id" in pl_proc.columns else "venda_id"
+        right_on = "id_venda" if "id_venda" in pl_calc.columns else "venda_id"
+        df_pl = pl_proc.join(pl_calc, left_on=left_on, right_on=right_on, how="inner")
     else:
-        print("[DEBUG] perda_rr não encontrada - usando apenas perda MDR")
+        df_pl = pl_proc
 
-    if calcula_faturamento:
-        colunas_calculos.append("vl_venda")
-        print("[DEBUG] vl_venda detectada - calculando faturamento")
+    if df_pl.is_empty():
+        return pd.DataFrame(columns=["Ano-Semestre", "Perda Monetária MDR", "Perda Total"])
 
-    # Verificar se as colunas existem antes do merge
-    if "id" not in df_processadas.columns:
-        print("[ERROR] Coluna 'id' não encontrada em df_processadas")
-        return pd.DataFrame(
-            columns=["Ano-Semestre", "Perda Monetária MDR", "Perda Total"]
-        )
+    # Identificar colunas
+    cols = df_pl.columns
+    data_col = next((c for c in ["Data_da_venda", "data_venda", "Data"] if c in cols), None)
+    perda_col = "perda"
+    perda_rr_col = "perda_rr"
+    faturamento_col = "vl_venda"
 
-    if "Data_da_venda" not in df_processadas.columns:
-        print("[ERROR] Coluna 'Data_da_venda' não encontrada em df_processadas")
-        return pd.DataFrame(
-            columns=["Ano-Semestre", "Perda Monetária MDR", "Perda Total"]
-        )
+    if not data_col:
+        return pd.DataFrame(columns=["Ano-Semestre", "Perda Monetária MDR", "Perda Total"])
 
-    # Verificar colunas do df_calculos
-    missing_cols = [col for col in colunas_calculos if col not in df_calculos.columns]
-    if missing_cols:
-        print(f"[ERROR] Colunas ausentes em df_calculos: {missing_cols}")
-        return pd.DataFrame(
-            columns=["Ano-Semestre", "Perda Monetária MDR", "Perda Total"]
-        )
-
-    df_merged = pd.merge(
-        df_processadas[["id", "Data_da_venda"]],
-        df_calculos[colunas_calculos],
-        left_on="id",
-        right_on="id_venda",
-        how="inner",
+    # Cálculos semestrais
+    res = (
+        df_pl.with_columns([
+            pl.col(data_col).cast(pl.Date).alias("_date")
+        ])
+        .with_columns([
+            (pl.col("_date").dt.year().cast(pl.Utf8) + "-" + 
+             pl.when(pl.col("_date").dt.month() <= 6).then(pl.lit("1")).otherwise(pl.lit("2")))
+            .alias("Ano-Semestre")
+        ])
+        .group_by("Ano-Semestre")
+        .agg([
+            pl.col(perda_col).cast(pl.Float64).sum().fill_null(0).alias("perda_monetaria_mdr"),
+            pl.col(perda_rr_col).cast(pl.Float64).sum().fill_null(0).alias("perda_monetaria_rr") if perda_rr_col in cols else pl.lit(0.0).alias("perda_monetaria_rr"),
+            pl.col(faturamento_col).cast(pl.Float64).sum().fill_null(0).alias("faturamento_bruto") if incluir_faturamento and faturamento_col in cols else pl.lit(0.0).alias("faturamento_bruto")
+        ])
+        .sort("Ano-Semestre")
     )
 
-    print(f"[DEBUG] Merge realizado - {len(df_merged)} registros resultantes")
+    # Finalizar cálculos e formatação
+    res = res.with_columns([
+        (pl.col("perda_monetaria_mdr") + pl.col("perda_monetaria_rr")).alias("perda_total")
+    ])
 
-    df_merged["Data_da_venda"] = pd.to_datetime(
-        df_merged["Data_da_venda"], errors="coerce"
-    )
-    df_merged.dropna(subset=["Data_da_venda"], inplace=True)
-    df_merged["Ano"] = df_merged["Data_da_venda"].dt.year
-    df_merged["Semestre"] = df_merged["Data_da_venda"].dt.month.apply(
-        lambda m: 1 if m <= 6 else 2
-    )
-    df_merged["Ano-Semestre"] = (
-        df_merged["Ano"].astype(str) + "-" + df_merged["Semestre"].astype(str)
-    )
+    if incluir_faturamento:
+        res = res.with_columns([
+            (pl.when(pl.col("faturamento_bruto") > 0)
+             .then(100 * pl.col("perda_total") / pl.col("faturamento_bruto"))
+             .otherwise(0)).round(2).alias("% Perda")
+        ])
 
-    if calcula_faturamento:
-        # Agregação simples sem MultiIndex
-        perdas = (
-            df_merged.groupby("Ano-Semestre")
-            .agg({"perda": "sum", "vl_venda": "sum"})
-            .reset_index()
-        )
+    df_pd = res.collect().to_pandas() if isinstance(res, pl.LazyFrame) else res.to_pandas()
+    
+    # Adicionar linha de total geral
+    if not df_pd.empty:
+        total_mdr = df_pd["perda_monetaria_mdr"].sum()
+        total_rr = df_pd["perda_monetaria_rr"].sum()
+        total_venda = df_pd["faturamento_bruto"].sum()
+        total_perda = total_mdr + total_rr
+        
+        linha_total = {
+            "Ano-Semestre": "** TOTAL GERAL **",
+            "perda_monetaria_mdr": total_mdr,
+            "perda_monetaria_rr": total_rr,
+            "faturamento_bruto": total_venda,
+            "perda_total": total_perda
+        }
+        
+        if incluir_faturamento:
+            linha_total["% Perda"] = round(100 * total_perda / total_venda, 2) if total_venda > 0 else 0
+            
+        df_pd = pd.concat([df_pd, pd.DataFrame([linha_total])], ignore_index=True)
+    
+    # Formatação para o relatório
+    df_pd["Perda Monetária MDR"] = df_pd["perda_monetaria_mdr"].apply(format_currency_br)
+    df_pd["Perda Monetária RR/RA"] = df_pd["perda_monetaria_rr"].apply(format_currency_br)
+    df_pd["Perda Total"] = df_pd["perda_total"].apply(format_currency_br)
+    
+    if incluir_faturamento:
+        df_pd["Faturamento Bruto"] = df_pd["faturamento_bruto"].apply(format_currency_br)
+    
+    # Garantir a ordem das colunas desejada pelo usuário
+    cols_order = ["Ano-Semestre", "Faturamento Bruto", "Perda Monetária MDR", "Perda Monetária RR/RA", "Perda Total", "% Perda"]
+    existing_cols = [c for c in cols_order if c in df_pd.columns]
+    df_pd = df_pd[existing_cols]
+    
+    # Remover colunas brutas que sobraram (caso existam)
+    raw_cols = ["perda_monetaria_mdr", "perda_monetaria_rr", "faturamento_bruto", "perda_total"]
+    existing_raw = [c for c in raw_cols if c in df_pd.columns]
+    if existing_raw:
+        df_pd = df_pd.drop(columns=existing_raw)
+        
+    return df_pd
+def calcular_min_max_taxas_agrupado(df: Any) -> pd.DataFrame:
+    """Calcula as taxas min e max agrupadas por Semestre, Bandeira e Forma de Pagamento usando Polars."""
+    if df is None or (hasattr(df, "empty") and df.empty):
+        return pd.DataFrame()
 
-        # Renomear colunas
-        perdas.rename(
-            columns={"perda": "perda_monetaria_mdr", "vl_venda": "faturamento_bruto"},
-            inplace=True,
-        )
-
-        # Adicionar perda_rr se disponível
-        if tem_perda_rr:
-            perdas_rr = (
-                df_merged.groupby("Ano-Semestre")["perda_rr"].sum().reset_index()
-            )
-            perdas = perdas.merge(perdas_rr, on="Ano-Semestre", how="left")
-            perdas.rename(columns={"perda_rr": "perda_monetaria_rr"}, inplace=True)
-
-        print(
-            f"[DEBUG] Colunas após agregação com faturamento: {perdas.columns.tolist()}"
-        )
-
-        # Calcular totais de perda
-        perdas["perda_total"] = perdas["perda_monetaria_mdr"].fillna(0).astype(float)
-        if tem_perda_rr:
-            perdas["perda_total"] += (
-                perdas["perda_monetaria_rr"].fillna(0).astype(float)
-            )
-
-        perdas["% Perda"] = np.where(
-            perdas["faturamento_bruto"] > 0,
-            (100 * perdas["perda_total"] / perdas["faturamento_bruto"]),
-            0,
-        ).round(2)
-
-        perdas["Faturamento Bruto"] = (
-            perdas["faturamento_bruto"].round(2).apply(lambda x: format_currency_br(x))
-        )
-
-        final_columns = [
-            "Ano-Semestre",
-            "Faturamento Bruto",
-            "Perda Monetária MDR",
-        ]
-        if tem_perda_rr:
-            final_columns.append("Perda Monetária RR/RA")
-        final_columns.extend(["Perda Total", "% Perda"])
+    is_pandas = isinstance(df, pd.DataFrame)
+    is_lazy = isinstance(df, pl.LazyFrame)
+    
+    if is_pandas:
+        lf = pl.from_pandas(df).lazy()
+    elif is_lazy:
+        lf = df
     else:
-        # Agregação simples sem MultiIndex
-        perdas = df_merged.groupby("Ano-Semestre").agg({"perda": "sum"}).reset_index()
+        lf = df.lazy()
+    
+    cols = lf.collect_schema().names()
+    data_col = next((c for c in ["Data_da_venda", "data_venda"] if c in cols), "data_venda")
+    bandeira_col = next((c for c in ["bandeira", "Bandeira"] if c in cols), "bandeira")
+    forma_pagamento_col = next((c for c in ["forma_pagamento", "Forma_de_pagamento", "forma_de_pagamento"] if c in cols), "forma_pagamento")
+    tx_col = "tx_venda"
 
-        # Renomear colunas
-        perdas.rename(columns={"perda": "perda_monetaria_mdr"}, inplace=True)
+    if not data_col or tx_col not in cols:
+        return pd.DataFrame()
 
-        # Adicionar perda_rr se disponível
-        if tem_perda_rr:
-            perdas_rr = (
-                df_merged.groupby("Ano-Semestre")["perda_rr"].sum().reset_index()
-            )
-            perdas = perdas.merge(perdas_rr, on="Ano-Semestre", how="left")
-            perdas.rename(columns={"perda_rr": "perda_monetaria_rr"}, inplace=True)
-
-        print(
-            f"[DEBUG] Colunas após agregação sem faturamento: {perdas.columns.tolist()}"
-        )
-
-        # Calcular totais de perda
-        perdas["perda_total"] = perdas["perda_monetaria_mdr"].fillna(0).astype(float)
-        if tem_perda_rr:
-            perdas["perda_total"] += (
-                perdas["perda_monetaria_rr"].fillna(0).astype(float)
-            )
-
-        final_columns = ["Ano-Semestre", "Perda Monetária MDR"]
-        if tem_perda_rr:
-            final_columns.append("Perda Monetária RR/RA")
-        final_columns.append("Perda Total")
-
-    # Calcular totais gerais antes da formatação
-    total_perda_mdr = perdas["perda_monetaria_mdr"].fillna(0).astype(float).sum()
-    total_perda_total = perdas["perda_total"].fillna(0).astype(float).sum()
-
-    if calcula_faturamento:
-        # Calcular total do faturamento bruto (desformatado)
-        total_faturamento_bruto = (
-            perdas["faturamento_bruto"].fillna(0).astype(float).sum()
-        )
-        # Calcular percentual geral de perda
-        percentual_geral = (
-            (100 * total_perda_total / total_faturamento_bruto)
-            if total_faturamento_bruto > 0
-            else 0
-        )
-
-    if tem_perda_rr:
-        total_perda_rr = perdas["perda_monetaria_rr"].fillna(0).astype(float).sum()
-
-    # Formatação das colunas monetárias
-    perdas["Perda Monetária MDR"] = (
-        perdas["perda_monetaria_mdr"]
-        .fillna(0)
-        .astype(float)
-        .round(2)
-        .apply(format_currency_br)
+    res = (
+        lf.filter(pl.col(tx_col).is_not_null())
+        .with_columns([
+            pl.col(data_col).cast(pl.Date).alias("_date")
+        ])
+        .with_columns([
+            (pl.col("_date").dt.year().cast(pl.Utf8) + "-" + 
+             pl.when(pl.col("_date").dt.month() <= 6).then(pl.lit("1")).otherwise(pl.lit("2")))
+            .alias("Ano-Semestre")
+        ])
+        .group_by(["Ano-Semestre", bandeira_col, forma_pagamento_col])
+        .agg([
+            pl.col(tx_col).min().alias("Taxa_Min"),
+            pl.col(tx_col).max().alias("Taxa_Max")
+        ])
+        .rename({bandeira_col: "Bandeira", forma_pagamento_col: "Forma_de_pagamento"})
+        .sort(["Ano-Semestre", "Bandeira"])
     )
-    if tem_perda_rr:
-        perdas["Perda Monetária RR/RA"] = (
-            perdas["perda_monetaria_rr"]
-            .fillna(0)
-            .astype(float)
-            .round(2)
-            .apply(format_currency_br)
-        )
-    perdas["Perda Total"] = (
-        perdas["perda_total"].fillna(0).astype(float).round(2).apply(format_currency_br)
+
+    df_pd = res.collect().to_pandas() if isinstance(res, pl.LazyFrame) else res.to_pandas()
+    
+    if not df_pd.empty:
+        total_min = df_pd["Taxa_Min"].min()
+        total_max = df_pd["Taxa_Max"].max()
+        
+        linha_total = pd.DataFrame([{
+            "Ano-Semestre": "** TOTAL GERAL **",
+            "Bandeira": "-",
+            "Forma_de_pagamento": "-",
+            "Taxa_Min": total_min,
+            "Taxa_Max": total_max
+        }])
+        df_pd = pd.concat([df_pd, linha_total], ignore_index=True)
+
+    # Garantir ordem correta das colunas
+    final_cols = ["Ano-Semestre", "Bandeira", "Forma_de_pagamento", "Taxa_Min", "Taxa_Max"]
+    existing_final = [c for c in final_cols if c in df_pd.columns]
+    return df_pd[existing_final]
+
+
+def obter_evidencias_transacoes(
+    engine: Engine,
+    processamento_id: str,
+    calc_tipo: str = None,
+    data_inicio: Optional[datetime] = None,
+    data_fim: Optional[datetime] = None,
+    df: Optional[pd.DataFrame] = None,
+) -> Dict[str, pd.DataFrame]:
+    """
+    Busca evidências de transações para o relatório analítico.
+    Se df for fornecido, usa os dados do DataFrame ao invés de consultar o banco.
+    """
+    print(f"[DEBUG] Buscando evidências para processamento: {processamento_id}")
+
+    resultado = {
+        "maiores_valores": pd.DataFrame(),
+        "menores_valores": pd.DataFrame(),
+        "maiores_taxas": pd.DataFrame(),
+        "menores_taxas": pd.DataFrame(),
+    }
+
+    try:
+        if df is None:
+            base_id = _get_base_id(processamento_id)
+            sql = """
+            SELECT 
+                vc.data_venda AS Data_da_venda,
+                vc.bandeira AS Bandeira,
+                vc.forma_pagamento,
+                vc.vl_venda,
+                vc.tx_venda,
+                vc.nsu,
+                vc.cod_autorizacao
+            FROM vendas_calculos vc
+            WHERE vc.calc_id LIKE %s
+            """
+            params = [f"{base_id}%"]
+
+            if calc_tipo:
+                sql += " AND vc.calc_tipo = %s"
+                params.append(calc_tipo)
+
+            if data_inicio:
+                sql += " AND vc.data_venda >= %s"
+                params.append(data_inicio)
+
+            if data_fim:
+                sql += " AND vc.data_venda <= %s"
+                params.append(data_fim)
+
+            sql = _convert_placeholders(engine, sql)
+            # Usar read_sql_polars para proteção contra timeouts e eficiência
+            pl_df = read_sql_polars(sql, engine, params=tuple(params))
+        
+        else: # df was provided
+            # Se for DataFrame do Pandas, converter para Polars temporariamente para processamento RÁPIDO e LEVE
+            is_pandas = isinstance(df, pd.DataFrame)
+            pl_df = pl.from_pandas(df) if is_pandas else df
+        
+        if pl_df.is_empty():
+            print("[DEBUG] Nenhuma transação encontrada para evidências")
+            return resultado
+
+        print(f"[DEBUG] {len(pl_df)} transações carregadas para evidências")
+
+        # Identificar colunas reais no DataFrame (suportar Bandeira/bandeira, Data_da_venda/data_venda)
+        cols = pl_df.columns
+        data_col = next((c for c in ["Data_da_venda", "data_venda", "Data"] if c in cols), "data_venda")
+        bandeira_col = next((c for c in ["Bandeira", "bandeira", "Adquirente"] if c in cols), "bandeira")
+        forma_pgto_col = next((c for c in ["forma_pagamento", "Formas_de_pagamento", "Modality"] if c in cols), "forma_pagamento")
+        nsu_col = next((c for c in ["nsu", "NSU"] if c in cols), "nsu")
+        aut_col = next((c for c in ["cod_autorizacao", "cod_aut", "autorizacao"] if c in cols), "cod_autorizacao")
+
+        print(f"[DEBUG] Colunas mapeadas para evidências: data={data_col}, adq={bandeira_col}")
+
+        # Selecionar colunas necessárias e garantir tipos, fazendo ALIAS para o esperado pelo template
+        # Verificação defensiva de colunas
+        select_cols = []
+        if data_col in pl_df.columns:
+            select_cols.append(pl.col(data_col).cast(pl.Datetime).alias("Data_da_venda"))
+        if bandeira_col in pl_df.columns:
+            select_cols.append(pl.col(bandeira_col).cast(pl.Utf8).alias("Bandeira"))
+        if forma_pgto_col in pl_df.columns:
+            select_cols.append(pl.col(forma_pgto_col).cast(pl.Utf8).alias("forma_pagamento"))
+        else:
+            # Fallback se não encontrar a coluna de forma de pagamento
+            select_cols.append(pl.lit("N/A").alias("forma_pagamento"))
+
+        # Adicionar demais colunas obrigatórias
+        for col_name, alias in [("vl_venda", "vl_venda"), ("tx_venda", "tx_venda"), ("nsu", "nsu"), ("cod_autorizacao", "cod_autorizacao")]:
+            if col_name in pl_df.columns:
+                # Cast para Float64 para vl_venda e tx_venda, Utf8 para nsu e cod_autorizacao
+                if col_name in ["vl_venda", "tx_venda"]:
+                    select_cols.append(pl.col(col_name).cast(pl.Float64).alias(alias))
+                else:
+                    select_cols.append(pl.col(col_name).fill_null("N/A").cast(pl.Utf8).alias(alias))
+            else:
+                # Fallback para colunas ausentes
+                if col_name in ["vl_venda", "tx_venda"]:
+                    select_cols.append(pl.lit(0.0).alias(alias))
+                else:
+                    select_cols.append(pl.lit("N/A").alias(alias))
+
+        pl_df = pl_df.select(select_cols).drop_nulls(subset=["Data_da_venda", "vl_venda", "tx_venda"])
+
+        # Função auxiliar para formatar evidências (agora aceita Polars DataFrame)
+        def formatar_evidencias_pl(pl_top):
+            if pl_top.is_empty(): return pd.DataFrame()
+            df_top = pl_top.to_pandas()
+            df_top["Data"] = df_top["Data_da_venda"].dt.strftime("%d/%m/%Y")
+            df_top["Valor"] = df_top["vl_venda"].apply(format_currency_br)
+            df_top["Taxa (%)"] = df_top["tx_venda"].round(2).astype(str) + "%"
+            df_top = df_top.rename(columns={
+                "forma_pagamento": "Forma de Pagamento",
+                "nsu": "NSU",
+                "cod_autorizacao": "Cód.Autorização"
+            })
+            return df_top[["Data", "Bandeira", "Forma de Pagamento", "Valor", "Taxa (%)", "NSU", "Cód.Autorização"]]
+
+        # TOP 3 MAIORES VALORES
+        resultado["maiores_valores"] = formatar_evidencias_pl(pl_df.sort("vl_venda", descending=True).head(3))
+        
+        # TOP 3 MENORES VALORES (filtrar valores > 0)
+        resultado["menores_valores"] = formatar_evidencias_pl(pl_df.filter(pl.col("vl_venda") > 0).sort("vl_venda").head(3))
+        
+        # TOP 3 MAIORES TAXAS (filtrar taxas > 0)
+        resultado["maiores_taxas"] = formatar_evidencias_pl(pl_df.filter(pl.col("tx_venda") > 0).sort("tx_venda", descending=True).head(3))
+        
+        # TOP 3 MENORES TAXAS (filtrar taxas > 0)
+        resultado["menores_taxas"] = formatar_evidencias_pl(pl_df.filter(pl.col("tx_venda") > 0).sort("tx_venda").head(3))
+
+        print("[DEBUG] Evidências geradas com sucesso")
+
+    except Exception as e:
+        print(f"[ERROR] Erro ao buscar evidências: {e}")
+        import traceback
+        traceback.print_exc()
+
+    return resultado
+
+
+def calcular_contagem_taxas_agrupado(df: Any) -> pd.DataFrame:
+    """Conta as taxas agrupadas por Ano-Semestre, Bandeira e Forma de Pagamento."""
+    is_pandas = isinstance(df, pd.DataFrame)
+    if is_pandas:
+        if df.empty: return pd.DataFrame()
+        lf = pl.from_pandas(df).lazy()
+    else: # Assume df is a Polars DataFrame or LazyFrame
+        if df.is_empty(): return pd.DataFrame()
+        lf = df.lazy() if isinstance(df, pl.DataFrame) else df
+
+    cols = lf.collect_schema().names()
+    data_col = next((c for c in ["Data_da_venda", "data_venda"] if c in cols), "data_venda")
+    bandeira_col = next((c for c in ["bandeira", "Bandeira"] if c in cols), "bandeira")
+    forma_pagamento_col = next((c for c in ["forma_pagamento", "Forma_de_pagamento", "forma_de_pagamento"] if c in cols), "forma_pagamento")
+
+    res = (
+        lf.filter(pl.col(data_col).is_not_null())
+        .with_columns([
+            pl.col(data_col).cast(pl.Date).alias("_date")
+        ])
+        .with_columns([
+            (pl.col("_date").dt.year().cast(pl.Utf8) + "-" + 
+             pl.when(pl.col("_date").dt.month() <= 6).then(pl.lit("1")).otherwise(pl.lit("2")))
+            .alias("Ano-Semestre")
+        ])
+        .group_by(["Ano-Semestre", bandeira_col, forma_pagamento_col])
+        .agg(Contagem=pl.len())
+        .rename({bandeira_col: "Bandeira", forma_pagamento_col: "Forma_de_pagamento"})
+        .sort(["Ano-Semestre", "Bandeira"])
+        .collect()
     )
-    perdas.sort_values("Ano-Semestre", inplace=True)
+
+    contagem = res.to_pandas()
 
     # Adicionar linha de total
-    linha_total = {"Ano-Semestre": "** TOTAL GERAL **"}
+    if not contagem.empty:
+        total_qtd = contagem["Contagem"].sum()
+        linha_total = pd.DataFrame([{
+            "Ano-Semestre": "** TOTAL GERAL **",
+            "Bandeira": "-",
+            "Forma_de_pagamento": "-",
+            "Contagem": total_qtd
+        }])
+        contagem = pd.concat([contagem, linha_total], ignore_index=True)
 
-    if calcula_faturamento:
-        linha_total["Faturamento Bruto"] = format_currency_br(total_faturamento_bruto)
-        linha_total["% Perda"] = f"{percentual_geral:.2f}"
-
-    linha_total["Perda Monetária MDR"] = format_currency_br(total_perda_mdr)
-
-    if tem_perda_rr:
-        linha_total["Perda Monetária RR/RA"] = format_currency_br(total_perda_rr)
-
-    linha_total["Perda Total"] = format_currency_br(total_perda_total)
-
-    # Converter para DataFrame e adicionar
-    df_total = pd.DataFrame([linha_total])
-    perdas = pd.concat([perdas, df_total], ignore_index=True)
-
-    return perdas[final_columns]
+    # Garantir ordem correta das colunas
+    final_cols = ["Ano-Semestre", "Bandeira", "Forma_de_pagamento", "Contagem"]
+    existing_final = [c for c in final_cols if c in contagem.columns]
+    return contagem[existing_final]
 
 
-def calcular_min_max_taxas_agrupado(df_merged: pd.DataFrame) -> pd.DataFrame:
-    """Calcula as taxas min e max agrupadas por Semestre, Bandeira e Forma de Pagamento."""
-    required_cols = ["Data_da_venda", "Bandeira", "Forma_de_pagamento", "tx_venda"]
-    if df_merged.empty or not all(col in df_merged.columns for col in required_cols):
-        return pd.DataFrame()
+def calcular_sumario_recebiveis(
+    engine: Engine,
+    processamento_id: str,
+    data_inicio: Optional[datetime] = None,
+    data_fim: Optional[datetime] = None,
+) -> pd.DataFrame:
+    base_id = _get_base_id(processamento_id)
+    sql = "SELECT * FROM recebiveis_processados WHERE processamentoid LIKE %s"
+    params = [f"{base_id}%"]
 
-    df = df_merged.copy()
-    df["Data_da_venda"] = pd.to_datetime(df["Data_da_venda"], errors="coerce")
-    df.dropna(subset=["Data_da_venda"], inplace=True)
-    df["Ano"] = df["Data_da_venda"].dt.year
-    df["Semestre"] = df["Data_da_venda"].dt.month.apply(lambda m: 1 if m <= 6 else 2)
-    df["Ano-Semestre"] = df["Ano"].astype(str) + "-" + df["Semestre"].astype(str)
+    if data_inicio:
+        sql += " AND data_recebivel >= %s"
+        params.append(data_inicio)
 
-    df["tx_venda"] = pd.to_numeric(df["tx_venda"], errors="coerce")
-    df.dropna(subset=["tx_venda"], inplace=True)
-
-    agrupado = (
-        df.groupby(["Ano-Semestre", "Bandeira", "Forma_de_pagamento"])
-        .agg(Taxa_Min=("tx_venda", "min"), Taxa_Max=("tx_venda", "max"))
-        .reset_index()
-    )
-    agrupado.sort_values(by=["Ano-Semestre", "Bandeira"], inplace=True)
-    return agrupado
-
-
-def calcular_contagem_taxas_agrupado(df_merged: pd.DataFrame) -> pd.DataFrame:
-    """Conta as taxas agrupadas por Ano-Semestre, Bandeira e Forma de Pagamento."""
-    if df_merged.empty or "Data_da_venda" not in df_merged.columns:
-        return pd.DataFrame()
-
-    df = df_merged.copy()
-    df["Data_da_venda"] = pd.to_datetime(df["Data_da_venda"], errors="coerce")
-    df.dropna(subset=["Data_da_venda"], inplace=True)
-    df["Ano"] = df["Data_da_venda"].dt.year
-    df["Semestre"] = df["Data_da_venda"].dt.month.apply(lambda m: 1 if m <= 6 else 2)
-    df["Ano-Semestre"] = df["Ano"].astype(str) + "-" + df["Semestre"].astype(str)
-
-    contagem = (
-        df.groupby(["Ano-Semestre", "Bandeira", "Forma_de_pagamento"])
-        .agg(Contagem=("tx_venda", "count"))
-        .reset_index()
-    )
-    return contagem
-
-
-def calcular_sumario_recebiveis(engine: Engine, processamento_id: str) -> pd.DataFrame:
-    """Busca e sumariza os recebíveis processados para o relatório."""
-    sql = "SELECT * FROM recebiveis_processados WHERE processamentoid = %s"
+    if data_fim:
+        sql += " AND data_recebivel <= %s"
+        params.append(data_fim)
+    sql = _convert_placeholders(engine, sql)
     try:
-        df = pd.read_sql(sql, engine, params=(processamento_id,))
+        pl_df = read_sql_polars(sql, engine, params=tuple(params))
+        df = pl_df.to_pandas()
     except Exception as e:
         print(f"Não foi possível buscar recebíveis: {e}")
         return pd.DataFrame()
@@ -844,6 +1237,7 @@ def calcular_sumario_recebiveis(engine: Engine, processamento_id: str) -> pd.Dat
     df["Ano"] = df["data_recebivel"].dt.year
     df["Semestre"] = df["data_recebivel"].dt.month.apply(lambda m: 1 if m <= 6 else 2)
     df["Ano-Semestre"] = df["Ano"].astype(str) + "-" + df["Semestre"].astype(str)
+    df["lancamento"] = df["lancamento"].fillna("Sem classificação")
 
     sumario = (
         df.groupby(["Ano-Semestre", "lancamento"])
@@ -851,9 +1245,13 @@ def calcular_sumario_recebiveis(engine: Engine, processamento_id: str) -> pd.Dat
         .reset_index()
     )
 
-    sumario["Valor Total"] = sumario["Valor_Total"].round(2).apply(format_currency_br)
-    return sumario[["Ano-Semestre", "lancamento", "Valor Total"]].rename(
-        columns={"lancamento": "Lançamento"}
+    # Garantir tipo numérico antes de arredondar
+    sumario["Valor_Total"] = pd.to_numeric(
+        sumario["Valor_Total"], errors="coerce"
+    ).fillna(0)
+    sumario["Valor_Total"] = sumario["Valor_Total"].round(2)
+    return sumario[["Ano-Semestre", "lancamento", "Valor_Total"]].rename(
+        columns={"lancamento": "Lançamento", "Valor_Total": "Valor Total"}
     )
 
 
@@ -862,236 +1260,134 @@ def calcular_tabela_consolidada_mensal(
     processamento_id: str,
     df_vendas_processadas: pd.DataFrame,
     df_vendas_calculos: pd.DataFrame,
+    data_inicio: Optional[datetime] = None,
+    data_fim: Optional[datetime] = None,
 ) -> pd.DataFrame:
     """
-    Calcula tabela consolidada mensal com:
-    - Ano-Semestre
-    - Perda Monetária MDR
-    - Perda por RR
-    - Aluguéis de Máquinas
-    - Outros Recebíveis
-
-    Args:
-        engine: Engine de conexão com banco
-        processamento_id: ID do processamento
-        df_vendas_processadas: DataFrame com vendas processadas
-        df_vendas_calculos: DataFrame com cálculos de vendas
-
-    Returns:
-        DataFrame com a tabela consolidada
+    Versão otimizada com Polars da tabela consolidada mensal.
     """
-    print(
-        f"[DEBUG] Calculando tabela consolidada mensal para processamento: {processamento_id}"
-    )
+    print(f"[DEBUG] Calculando tabela consolidada mensal (Polars) para: {processamento_id}")
 
-    # 1. Preparar base com vendas (perda MDR e perda RR)
-    if not df_vendas_processadas.empty and not df_vendas_calculos.empty:
-        df_merged = pd.merge(
-            df_vendas_processadas[["id", "Data_da_venda", "Taxas_RR", "Valor_RR"]],
-            df_vendas_calculos[["id_venda", "perda", "perda_rr"]],
-            left_on="id",
-            right_on="id_venda",
-            how="inner",
-        )
+    # 1. Preparar perdas via Polars
+    _is_empty_proc = (df_vendas_processadas.is_empty() if isinstance(df_vendas_processadas, pl.DataFrame) else df_vendas_processadas.empty)
+    _cols_proc = set(df_vendas_processadas.columns) if not _is_empty_proc else set()
+    _date_col = next((c for c in ["Data_da_venda", "data_da_venda", "data_venda", "Data"] if c in _cols_proc), None)
+    # Caso unificado: df_main já tem id_venda + data + perda na mesma estrutura
+    _has_unified = _date_col is not None and {"id_venda", "perda", "perda_rr"}.issubset(_cols_proc)
+    _is_empty_calc = (df_vendas_calculos.is_empty() if isinstance(df_vendas_calculos, pl.DataFrame) else df_vendas_calculos.empty)
+    _has_split = _date_col is not None and "id" in _cols_proc and {"id_venda", "perda", "perda_rr"}.issubset(set(df_vendas_calculos.columns) if not _is_empty_calc else set())
 
-        df_merged["Data_da_venda"] = pd.to_datetime(
-            df_merged["Data_da_venda"], errors="coerce"
-        )
-        df_merged.dropna(subset=["Data_da_venda"], inplace=True)
-        df_merged["Ano"] = df_merged["Data_da_venda"].dt.year
-        df_merged["Semestre"] = df_merged["Data_da_venda"].dt.month.apply(
-            lambda m: 1 if m <= 6 else 2
-        )
-        df_merged["Ano-Semestre"] = (
-            df_merged["Ano"].astype(str) + "-" + df_merged["Semestre"].astype(str)
-        )
-
-        # Agrupar perdas por semestre
-        perdas_semestre = (
-            df_merged.groupby("Ano-Semestre")
-            .agg(perda_mdr=("perda", "sum"), perda_rr=("perda_rr", "sum"))
-            .reset_index()
-        )
-    else:
-        perdas_semestre = pd.DataFrame(
-            columns=["Ano-Semestre", "perda_mdr", "perda_rr"]
-        )
-
-    # 2. Buscar recebíveis PROCESSADOS (não filtrados) para aluguéis e outros
-    try:
-        sql_recebiveis = """
-        SELECT 
-            data_recebivel,
-            lancamento,
-            valor_recebivel
-        FROM recebiveis_processados 
-        WHERE processamentoid = %s
-        """
-        df_rec_proc = pd.read_sql(sql_recebiveis, engine, params=(processamento_id,))
-
-        if not df_rec_proc.empty:
-            df_rec_proc["data_recebivel"] = pd.to_datetime(
-                df_rec_proc["data_recebivel"], errors="coerce"
-            )
-            df_rec_proc.dropna(subset=["data_recebivel"], inplace=True)
-            df_rec_proc["Ano"] = df_rec_proc["data_recebivel"].dt.year
-            df_rec_proc["Semestre"] = df_rec_proc["data_recebivel"].dt.month.apply(
-                lambda m: 1 if m <= 6 else 2
-            )
-            df_rec_proc["Ano-Semestre"] = (
-                df_rec_proc["Ano"].astype(str)
-                + "-"
-                + df_rec_proc["Semestre"].astype(str)
-            )
-
-            # Identificar aluguéis de máquinas (contém "maquina", "aluguel", "locacao", etc)
-            palavras_aluguel = [
-                "maquina",
-                "máquina",
-                "aluguel",
-                "alugel",
-                "locacao",
-                "locação",
-                "pos",
-                "equipamento",
-            ]
-
-            def eh_aluguel_maquina(lancamento: str) -> bool:
-                if pd.isna(lancamento):
-                    return False
-                lancamento_lower = str(lancamento).lower()
-                return any(palavra in lancamento_lower for palavra in palavras_aluguel)
-
-            df_rec_proc["eh_aluguel"] = df_rec_proc["lancamento"].apply(
-                eh_aluguel_maquina
-            )
-
-            # Agrupar por semestre: aluguéis vs outros
-            alugueis_semestre = (
-                df_rec_proc[df_rec_proc["eh_aluguel"]]
-                .groupby("Ano-Semestre")
-                .agg(aluguel_maquinas=("valor_recebivel", "sum"))
-                .reset_index()
-            )
-
-            outros_recebiveis_semestre = (
-                df_rec_proc[~df_rec_proc["eh_aluguel"]]
-                .groupby("Ano-Semestre")
-                .agg(outros_recebiveis=("valor_recebivel", "sum"))
-                .reset_index()
-            )
-
-            print(f"[DEBUG] Recebíveis processados encontrados: {len(df_rec_proc)}")
-            print(
-                f"[DEBUG] Aluguéis de máquinas: {len(df_rec_proc[df_rec_proc['eh_aluguel']])} registros"
-            )
-            print(
-                f"[DEBUG] Outros recebíveis: {len(df_rec_proc[~df_rec_proc['eh_aluguel']])} registros"
-            )
+    if _has_unified:
+        if isinstance(df_vendas_processadas, pd.DataFrame):
+            pl_base = pl.from_pandas(df_vendas_processadas[[_date_col, "perda", "perda_rr"]].rename(columns={_date_col: "Data_da_venda"}))
         else:
-            alugueis_semestre = pd.DataFrame(
-                columns=["Ano-Semestre", "aluguel_maquinas"]
-            )
-            outros_recebiveis_semestre = pd.DataFrame(
-                columns=["Ano-Semestre", "outros_recebiveis"]
-            )
-            print(f"[DEBUG] Nenhum recebível processado encontrado")
+            _rename = {_date_col: "Data_da_venda"} if _date_col != "Data_da_venda" else {}
+            pl_base = df_vendas_processadas.select([_date_col, "perda", "perda_rr"]).rename(_rename)
+        perdas_semestre = (
+            pl_base
+            .with_columns([pl.col("Data_da_venda").cast(pl.Date).alias("data")])
+            .with_columns([
+                (pl.col("data").dt.year().cast(pl.String) + "-" +
+                 pl.when(pl.col("data").dt.month() <= 6).then(pl.lit("1")).otherwise(pl.lit("2"))
+                ).alias("Ano-Semestre")
+            ])
+            .group_by("Ano-Semestre")
+            .agg([
+                pl.col("perda").sum().alias("perda_mdr"),
+                pl.col("perda_rr").sum().alias("perda_rr")
+            ])
+        )
+    elif _has_split:
+        pl_proc = pl.from_pandas(df_vendas_processadas[["id", _date_col]].rename(columns={_date_col: "Data_da_venda"})) if isinstance(df_vendas_processadas, pd.DataFrame) else df_vendas_processadas
+        pl_calc = pl.from_pandas(df_vendas_calculos[["id_venda", "perda", "perda_rr"]]) if isinstance(df_vendas_calculos, pd.DataFrame) else df_vendas_calculos
+        perdas_semestre = (
+            pl_proc.join(pl_calc, left_on="id", right_on="id_venda")
+            .with_columns([pl.col("Data_da_venda").cast(pl.Date).alias("data")])
+            .with_columns([
+                (pl.col("data").dt.year().cast(pl.String) + "-" +
+                 pl.when(pl.col("data").dt.month() <= 6).then(pl.lit("1")).otherwise(pl.lit("2"))
+                ).alias("Ano-Semestre")
+            ])
+            .group_by("Ano-Semestre")
+            .agg([
+                pl.col("perda").sum().alias("perda_mdr"),
+                pl.col("perda_rr").sum().alias("perda_rr")
+            ])
+        )
+    else:
+        perdas_semestre = pl.DataFrame(schema={"Ano-Semestre": pl.String, "perda_mdr": pl.Float64, "perda_rr": pl.Float64})
 
+    # 2. Buscar e Processar Recebíveis
+    df_final_pl = perdas_semestre.with_columns([pl.lit(0.0).alias("aluguel_maquinas"), pl.lit(0.0).alias("outros_recebiveis")])
+    
+    base_id = _get_base_id(processamento_id)
+    try:
+        sql_rec = "SELECT data_recebivel, lancamento, valor_recebivel FROM recebiveis_processados WHERE processamentoid LIKE %s"
+        params_rec = [f"{base_id}%"]
+        if data_inicio: sql_rec += " AND data_recebivel >= %s"; params_rec.append(data_inicio)
+        if data_fim: sql_rec += " AND data_recebivel <= %s"; params_rec.append(data_fim)
+
+        df_rec = read_sql_polars(_convert_placeholders(engine, sql_rec), engine, params=tuple(params_rec))
+
+        if not df_rec.is_empty():
+            palavras = ["maquina", "máquina", "aluguel", "alugel", "locacao", "locação", "pos", "equipamento"]
+            regex_aluguel = "(?i)" + "|".join(palavras)
+
+            rec_processed = df_rec.with_columns([
+                pl.col("data_recebivel").cast(pl.Date).alias("data")
+            ]).with_columns([
+                (pl.col("data").dt.year().cast(pl.String) + "-" +
+                 pl.when(pl.col("data").dt.month() <= 6).then(pl.lit("1")).otherwise(pl.lit("2"))
+                ).alias("Ano-Semestre"),
+                pl.col("lancamento").str.contains(regex_aluguel).fill_null(False).alias("is_aluguel")
+            ])
+
+            alugueis = rec_processed.filter(pl.col("is_aluguel")).group_by("Ano-Semestre").agg(pl.col("valor_recebivel").sum().alias("aluguel_maquinas"))
+            outros = rec_processed.filter(pl.col("is_aluguel").not_()).group_by("Ano-Semestre").agg(pl.col("valor_recebivel").sum().alias("outros_recebiveis"))
+
+            df_final_pl = (
+                perdas_semestre.join(alugueis, on="Ano-Semestre", how="outer")
+                .join(outros, on="Ano-Semestre", how="outer")
+                .fill_null(0)
+                .sort("Ano-Semestre")
+            )
     except Exception as e:
-        print(f"[DEBUG] Erro ao buscar recebíveis processados: {e}")
-        alugueis_semestre = pd.DataFrame(columns=["Ano-Semestre", "aluguel_maquinas"])
-        outros_recebiveis_semestre = pd.DataFrame(
-            columns=["Ano-Semestre", "outros_recebiveis"]
-        )
+        print(f"[DEBUG] Erro em calcular_tabela_consolidada_mensal: {e}")
 
-    # 3. Consolidar todos os dados
-    # Começar com perdas
-    df_consolidado = perdas_semestre.copy()
+    # 3. Formatação Final
+    df_final = df_final_pl.to_pandas()
+    if df_final.empty: return pd.DataFrame()
+    
+    total_mdr = df_final["perda_mdr"].sum()
+    total_rr = df_final["perda_rr"].sum()
+    total_alu = df_final["aluguel_maquinas"].sum()
+    total_out = df_final["outros_recebiveis"].sum()
 
-    # Merge com aluguéis
-    if not alugueis_semestre.empty:
-        df_consolidado = pd.merge(
-            df_consolidado, alugueis_semestre, on="Ano-Semestre", how="outer"
-        )
-    else:
-        df_consolidado["aluguel_maquinas"] = 0
+    df_display = pd.DataFrame()
+    df_display["Ano-Semestre"] = df_final["Ano-Semestre"]
+    df_display["Perda Monetária MDR"] = df_final["perda_mdr"].apply(format_currency_br)
+    df_display["Perdas por Antecipações"] = df_final["perda_rr"].apply(format_currency_br)
+    df_display["Aluguéis de Máquinas"] = df_final["aluguel_maquinas"].apply(format_currency_br)
+    df_display["Outros Recebíveis"] = df_final["outros_recebiveis"].apply(format_currency_br)
 
-    # Merge com outros recebíveis
-    if not outros_recebiveis_semestre.empty:
-        df_consolidado = pd.merge(
-            df_consolidado, outros_recebiveis_semestre, on="Ano-Semestre", how="outer"
-        )
-    else:
-        df_consolidado["outros_recebiveis"] = 0
-
-    # Preencher NaN com 0
-    df_consolidado.fillna(0, inplace=True)
-
-    # Ordenar por Ano-Semestre
-    df_consolidado.sort_values("Ano-Semestre", inplace=True)
-
-    # Calcular totais
-    total_perda_mdr = df_consolidado["perda_mdr"].sum()
-    total_perda_rr = df_consolidado["perda_rr"].sum()
-    total_alugueis = df_consolidado["aluguel_maquinas"].sum()
-    total_outros = df_consolidado["outros_recebiveis"].sum()
-
-    print(f"\n[DEBUG] === TOTAIS DA TABELA CONSOLIDADA ===")
-    print(f"Total Perda MDR: {format_currency_br(total_perda_mdr)}")
-    print(f"Total Perda RR: {format_currency_br(total_perda_rr)}")
-    print(f"Total Aluguéis: {format_currency_br(total_alugueis)}")
-    print(f"Total Outros Recebíveis: {format_currency_br(total_outros)}")
-    print(
-        f"SOMA CONSOLIDADA: {format_currency_br(total_perda_mdr + total_perda_rr + total_alugueis + total_outros)}"
-    )
-    print(f"=" * 50 + "\n")
-
-    # Formatar valores monetários
-    df_consolidado["Perda Monetária MDR"] = df_consolidado["perda_mdr"].apply(
-        format_currency_br
-    )
-    df_consolidado["Perda por RR"] = df_consolidado["perda_rr"].apply(
-        format_currency_br
-    )
-    df_consolidado["Aluguéis de Máquinas"] = df_consolidado["aluguel_maquinas"].apply(
-        format_currency_br
-    )
-    df_consolidado["Outros Recebíveis"] = df_consolidado["outros_recebiveis"].apply(
-        format_currency_br
-    )
-
-    # Adicionar linha de total
-    linha_total = pd.DataFrame(
-        [
-            {
-                "Ano-Semestre": "** TOTAL GERAL **",
-                "Perda Monetária MDR": format_currency_br(total_perda_mdr),
-                "Perda por RR": format_currency_br(total_perda_rr),
-                "Aluguéis de Máquinas": format_currency_br(total_alugueis),
-                "Outros Recebíveis": format_currency_br(total_outros),
-            }
-        ]
-    )
-
-    # Selecionar apenas colunas formatadas
-    df_final = df_consolidado[
-        [
-            "Ano-Semestre",
-            "Perda Monetária MDR",
-            "Perda por RR",
-            "Aluguéis de Máquinas",
-            "Outros Recebíveis",
-        ]
-    ]
-    df_final = pd.concat([df_final, linha_total], ignore_index=True)
-
-    print(f"[DEBUG] Tabela consolidada gerada com {len(df_final)-1} semestres + total")
-
-    return df_final
+    total_row = pd.DataFrame([{
+        "Ano-Semestre": "** TOTAL GERAL **",
+        "Perda Monetária MDR": format_currency_br(total_mdr),
+        "Perdas por Antecipações": format_currency_br(total_rr),
+        "Aluguéis de Máquinas": format_currency_br(total_alu),
+        "Outros Recebíveis": format_currency_br(total_out)
+    }])
+    
+    final_df = pd.concat([df_display, total_row], ignore_index=True)
+    print(f"[DEBUG] Tabela consolidada gerada: {len(final_df)} linhas")
+    return final_df
 
 
 def obter_dados_bancarios_distintos(
-    engine: Engine, processamento_id: str
+    engine: Engine,
+    processamento_id: str,
+    data_inicio: Optional[datetime] = None,
+    data_fim: Optional[datetime] = None,
 ) -> pd.DataFrame:
     """
     Busca todas as combinações distintas de banco, agência e conta-corrente
@@ -1101,21 +1397,25 @@ def obter_dados_bancarios_distintos(
     Args:
         engine: Engine de conexão com o banco de dados
         processamento_id: ID do processamento
+        data_inicio: Data inicial para filtro (opcional)
+        data_fim: Data final para filtro (opcional)
 
     Returns:
         DataFrame com as combinações distintas de banco, agência e conta-corrente
     """
+    base_id = _get_base_id(processamento_id)
     print(
-        f"[DEBUG] Buscando dados bancários distintos para processamento: {processamento_id}"
+        f"[DEBUG] Buscando dados bancários distintos para processamento: {base_id} (usando LIKE)"
     )
 
+    params = [f"{base_id}%"]
     sql = """
         SELECT DISTINCT 
             banco as 'Banco',
             agencia as 'Agência', 
             conta as 'Conta-Corrente'
         FROM recebiveis_processados 
-        WHERE processamentoid = %s 
+        WHERE processamentoid LIKE %s 
             AND banco IS NOT NULL 
             AND banco != ''
             AND banco != '-'
@@ -1125,11 +1425,22 @@ def obter_dados_bancarios_distintos(
             AND conta IS NOT NULL
             AND conta != ''
             AND conta != '-'
-        ORDER BY banco, agencia, conta
     """
 
+    if data_inicio is not None:
+        sql += " AND data_recebivel >= %s"
+        params.append(data_inicio)
+
+    if data_fim is not None:
+        sql += " AND data_recebivel <= %s"
+        params.append(data_fim)
+
+    sql += " ORDER BY banco, agencia, conta"
+    sql = _convert_placeholders(engine, sql)
+
     try:
-        df = pd.read_sql(sql, engine, params=(processamento_id,))
+        pl_df = read_sql_polars(sql, engine, params=tuple(params))
+        df = pl_df.to_pandas()
         print(f"[DEBUG] Dados bancários encontrados: {len(df)} combinações distintas")
         return df
     except Exception as e:
@@ -1144,9 +1455,52 @@ def criar_diretorio_relatorios():
     return dir_path
 
 
-def obter_dados_processamento(
+def gerar_excel_relatorio(
+    dataframes_dict: Dict[str, pd.DataFrame], nome_arquivo: str
+) -> str:
+    """
+    Gera arquivo Excel com múltiplas abas, cada uma contendo um DataFrame do relatório.
+
+    Args:
+        dataframes_dict: Dicionário com {nome_aba: dataframe}
+        nome_arquivo: Nome base do arquivo (sem extensão)
+
+    Returns:
+        Caminho completo do arquivo Excel gerado
+    """
+    try:
+        dir_path = criar_diretorio_relatorios()
+        excel_path = os.path.join(dir_path, f"{nome_arquivo}.xlsx")
+
+        print(f"[DEBUG] Gerando Excel com {len(dataframes_dict)} abas: {excel_path}")
+
+        with pd.ExcelWriter(excel_path, engine="xlsxwriter") as writer:
+            for nome_aba, df in dataframes_dict.items():
+                if df is not None and not df.empty:
+                    # Limitar nome da aba a 31 caracteres (limite do Excel)
+                    nome_aba_limpo = nome_aba[:31]
+                    print(
+                        f"[DEBUG]   - Escrevendo aba '{nome_aba_limpo}': {len(df)} linhas"
+                    )
+                    df.to_excel(writer, sheet_name=nome_aba_limpo, index=False)
+                else:
+                    print(f"[DEBUG]   - Pulando aba '{nome_aba}': DataFrame vazio")
+
+        print(f"[DEBUG] [OK] Excel gerado com sucesso: {excel_path}")
+        return excel_path
+
+    except Exception as e:
+        print(f"[ERROR] Erro ao gerar Excel: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return ""
+
+
+def obter_dados_processamento_v1(
     engine: Engine, processamento_id: str, max_rows: int = 100000000
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
+    """Versão antiga de obter_dados_processamento que retorna tupla."""
     try:
         from conf.check_system import verificar_espaco_temp
 
@@ -1157,13 +1511,27 @@ def obter_dados_processamento(
     except ImportError:
         pass
 
+    base_id = _get_base_id(processamento_id)
     metadados_sql = (
-        "SELECT * FROM controle_processamentos WHERE id_processamento = :proc_id"
+        "SELECT * FROM controle_processamentos WHERE id_processamento LIKE :proc_id"
     )
-    metadados = fetch_all(engine, metadados_sql, {"proc_id": processamento_id})
-    if not metadados:
-        raise ValueError(f"Processamento ID {processamento_id} não encontrado.")
-    metadados = metadados[0]
+    metadados_list = fetch_all(engine, metadados_sql, {"proc_id": f"{base_id}%"})
+    
+    if not metadados_list:
+        # Fallback para metadados vazios em vez de erro fatal
+        print(f"[WARNING] Processamento {base_id} não encontrado em controle_processamentos. Usando genérico.")
+        metadados = {"id_processamento": processamento_id, "cliente_nome": "Cliente Genérico"}
+    else:
+        metadados = metadados_list[0]
+
+    if metadados.get("cliente_id"):
+        cliente_sql = "SELECT nome_fantasia, cnpj FROM clientes WHERE cliente_id = :cid"
+        cliente = fetch_one(engine, cliente_sql, {"cid": metadados["cliente_id"]})
+        if cliente:
+            metadados["cliente_nome"] = cliente["nome_fantasia"]
+            
+    # Como esta função prometia retornar DataFrames, retornamos vazios
+    return pd.DataFrame(), pd.DataFrame(), metadados
 
     if metadados.get("cliente_id"):
         cliente_sql = "SELECT nome_fantasia, cnpj FROM clientes WHERE cliente_id = :cid"
@@ -1178,15 +1546,22 @@ def obter_dados_processamento(
                 nome = f"{nome} ({cnpj})"
             metadados["cliente_nome"] = nome
 
-    df_processadas = pd.read_sql(
-        "SELECT * FROM vendas_processadas WHERE processamentoid = %s LIMIT %s",
-        engine,
-        params=(processamento_id, max_rows),
+    sql_processadas = (
+        "SELECT * FROM vendas_processadas WHERE processamentoid = %s LIMIT %s"
     )
-    df_filtradas = pd.read_sql(
-        "SELECT * FROM vendas_filtradas WHERE processamentoid = %s LIMIT %s",
+    sql_processadas = _convert_placeholders(engine, sql_processadas)
+    df_processadas = read_sql_safe(
+        sql_processadas,
         engine,
-        params=(processamento_id, max_rows),
+        params=(base_id, max_rows),
+    )
+
+    sql_filtradas = "SELECT * FROM vendas_filtradas WHERE processamentoid = %s LIMIT %s"
+    sql_filtradas = _convert_placeholders(engine, sql_filtradas)
+    df_filtradas = read_sql_safe(
+        sql_filtradas,
+        engine,
+        params=(base_id, max_rows),
     )
 
     return df_processadas, df_filtradas, metadados
@@ -1195,11 +1570,15 @@ def obter_dados_processamento(
 def criar_grafico_vendas_por_bandeira(df: pd.DataFrame) -> str:
     """Cria gráfico de pizza de vendas por bandeira com tratamento de erro."""
     try:
-        if df.empty or "Bandeira" not in df.columns:
-            print("[DEBUG] DataFrame vazio ou sem coluna Bandeira - pulando gráfico")
+        # Tentar detectar coluna Bandeira de forma case-insensitive
+        cols = [c for c in df.columns if c.lower() == "bandeira"]
+        bandeira_col = cols[0] if cols else None
+
+        if df.empty or not bandeira_col:
+            print(f"[DEBUG] DataFrame vazio ou sem coluna Bandeira (detectada: {bandeira_col}) - pulando gráfico")
             return ""
 
-        df_agg = df["Bandeira"].value_counts().reset_index()
+        df_agg = df[bandeira_col].value_counts().reset_index()
         df_agg.columns = ["Bandeira", "Quantidade"]
         fig = px.pie(
             df_agg,
@@ -1211,15 +1590,10 @@ def criar_grafico_vendas_por_bandeira(df: pd.DataFrame) -> str:
         )
         fig.update_traces(textposition="inside", textinfo="percent+label")
 
-        dir_path = criar_diretorio_relatorios()
-        img_path = os.path.join(
-            dir_path, f'vendas_bandeira_{datetime.now().strftime("%Y%m%d%H%M%S")}.png'
-        )
-
-        # Tentar escrever imagem com timeout e retry
-        fig.write_image(img_path, width=800, height=600, engine="kaleido")
-        print(f"[DEBUG] Gráfico de bandeiras criado: {img_path}")
-        return img_path
+        fig.update_layout(width=800, height=400, margin=dict(l=20, r=20, t=40, b=20))
+        html_str = fig.to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
+        print("[DEBUG] Gráfico de bandeiras gerado como HTML interativo")
+        return html_str
     except Exception as e:
         print(f"[AVISO] Erro ao criar gráfico de bandeiras: {e}")
         print("[AVISO] Relatório será gerado sem este gráfico")
@@ -1229,13 +1603,17 @@ def criar_grafico_vendas_por_bandeira(df: pd.DataFrame) -> str:
 def criar_grafico_vendas_por_forma_pagamento(df: pd.DataFrame) -> str:
     """Cria gráfico de pizza de vendas por forma de pagamento com tratamento de erro."""
     try:
-        if df.empty or "Forma_de_pagamento" not in df.columns:
+        # Tentar detectar coluna Forma de Pagamento de forma case-insensitive
+        cols = [c for c in df.columns if c.lower() in ["forma_de_pagamento", "forma_pagamento", "forma de pagamento"]]
+        forma_col = cols[0] if cols else None
+
+        if df.empty or not forma_col:
             print(
-                "[DEBUG] DataFrame vazio ou sem coluna Forma_de_pagamento - pulando gráfico"
+                f"[DEBUG] DataFrame vazio ou sem coluna Forma de Pagamento (detectada: {forma_col}) - pulando gráfico"
             )
             return ""
 
-        df_agg = df["Forma_de_pagamento"].value_counts().reset_index()
+        df_agg = df[forma_col].value_counts().reset_index()
         df_agg.columns = ["Forma de Pagamento", "Quantidade"]
         fig = px.pie(
             df_agg,
@@ -1247,21 +1625,14 @@ def criar_grafico_vendas_por_forma_pagamento(df: pd.DataFrame) -> str:
         )
         fig.update_traces(textposition="inside", textinfo="percent+label")
 
-        dir_path = criar_diretorio_relatorios()
-        img_path = os.path.join(
-            dir_path,
-            f'vendas_forma_pagamento_{datetime.now().strftime("%Y%m%d%H%M%S")}.png',
-        )
-
-        # Tentar escrever imagem com timeout e retry
-        fig.write_image(img_path, width=800, height=600, engine="kaleido")
-        print(f"[DEBUG] Gráfico de forma de pagamento criado: {img_path}")
-        return img_path
+        fig.update_layout(width=800, height=400, margin=dict(l=20, r=20, t=40, b=20))
+        html_str = fig.to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
+        print("[DEBUG] Gráfico de forma de pagamento gerado como HTML interativo")
+        return html_str
     except Exception as e:
         print(f"[AVISO] Erro ao criar gráfico de forma de pagamento: {e}")
         print("[AVISO] Relatório será gerado sem este gráfico")
         return ""
-    return img_path
 
 
 def criar_grafico_vendas_por_mes(df: pd.DataFrame) -> str:
@@ -1287,12 +1658,8 @@ def criar_grafico_vendas_por_mes(df: pd.DataFrame) -> str:
             title="Quantidade de Vendas por Mês",
             color_discrete_sequence=["#636EFA"],
         )
-    dir_path = criar_diretorio_relatorios()
-    img_path = os.path.join(
-        dir_path, f'vendas_mes_{datetime.now().strftime("%Y%m%d%H%M%S")}.png'
-    )
-    fig.write_image(img_path, width=800, height=600)
-    return img_path
+    fig.update_layout(width=800, height=400, margin=dict(l=20, r=20, t=40, b=20))
+    return fig.to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
 
 
 def criar_grafico_valor_medio_por_bandeira(df: pd.DataFrame) -> str:
@@ -1321,12 +1688,8 @@ def criar_grafico_valor_medio_por_bandeira(df: pd.DataFrame) -> str:
             color_discrete_sequence=px.colors.qualitative.Pastel,
         )
         fig.update_layout(yaxis_tickprefix="R$ ", yaxis_tickformat=",.2f")
-    dir_path = criar_diretorio_relatorios()
-    img_path = os.path.join(
-        dir_path, f'valor_medio_bandeira_{datetime.now().strftime("%Y%m%d%H%M%S")}.png'
-    )
-    fig.write_image(img_path, width=800, height=600)
-    return img_path
+    fig.update_layout(width=800, height=400, margin=dict(l=20, r=20, t=40, b=20))
+    return fig.to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
 
 
 def criar_tabela_sumario(
@@ -1390,14 +1753,24 @@ def criar_tabela_sumario(
     # Prepara a lista de ECs distintos para exibição
     ecs_distintos_str = "N/A"
     if ecs_distintos:
-        if len(ecs_distintos) == 1:
-            ecs_distintos_str = ecs_distintos[0]
-        elif len(ecs_distintos) <= 5:
-            ecs_distintos_str = ", ".join(ecs_distintos)
-        else:
+        # Remover duplicatas e nulos
+        ecs_limpos = sorted(list(set([str(ec).strip() for ec in ecs_distintos if ec and str(ec).strip()])))
+        if len(ecs_limpos) == 1:
+            ecs_distintos_str = ecs_limpos[0]
+        elif 1 < len(ecs_limpos) <= 5:
+            ecs_distintos_str = ", ".join(ecs_limpos)
+        elif len(ecs_limpos) > 5:
             ecs_distintos_str = (
-                f"{', '.join(ecs_distintos[:5])} e mais {len(ecs_distintos) - 5} ECs"
+                f"{', '.join(ecs_limpos[:5])} e mais {len(ecs_limpos) - 5} ECs"
             )
+
+    # Garantir que data_processamento seja datetime
+    data_proc = metadados.get("data_processamento", datetime.now())
+    if isinstance(data_proc, str):
+        try:
+            data_proc = pd.to_datetime(data_proc)
+        except:
+            data_proc = datetime.now()
 
     cabecalho = {
         "ID Processamento": metadados.get("id_processamento"),
@@ -1408,9 +1781,7 @@ def criar_tabela_sumario(
         "Adquirente": metadados.get("adquirente", "Não informado"),
         "Período das Transações": periodo_str,
         "Período (Dias)": periodo_dias_str,
-        "Data Processamento": metadados.get(
-            "data_processamento", datetime.now()
-        ).strftime("%d/%m/%Y %H:%M:%S"),
+        "Data Processamento": data_proc.strftime("%d/%m/%Y %H:%M:%S"),
     }
 
     estatisticas = {
@@ -1444,7 +1815,7 @@ def criar_tabela_sumario(
 
     html = '<div class="report-section"><h3>Informações do Processamento</h3><table class="report-table">'
     for k, v in cabecalho.items():
-        if k in ["Cliente", "Processamento ID"]:
+        if k in ["Cliente", "ID Processamento"]:
             html += f"<tr><td><strong>{k}</strong></td><td><strong style='color: #223a6b;'>{v}</strong></td></tr>"
         else:
             html += f"<tr><td>{k}</td><td>{v}</td></tr>"
@@ -1452,10 +1823,10 @@ def criar_tabela_sumario(
 
     html += '<div class="report-section"><h3>Estatísticas Gerais</h3><table class="report-table">'
     for k, v in estatisticas.items():
-        if k in ["Faturamento Bruto", "Quantidade de Vendas"]:
+        if k in ["Faturamento Bruto", "Quantidade de Vendas", "Faturamento Líquido"]:
             html += f"<tr><td><strong>{k}</strong></td><td><strong style='color: #223a6b;'>{v}</strong></td></tr>"
         elif "Taxa" in k:
-            color = "#9c1313" if "Maior" in k else "#9c1313"
+            color = "#9c1313" if "Maior" in k else "#223a6b"
             html += f"<tr><td><strong>{k}</strong></td><td><strong style='color: {color};'>{v}</strong></td></tr>"
         else:
             html += f"<tr><td>{k}</td><td>{v}</td></tr>"
@@ -1474,8 +1845,12 @@ def sumarizar_perdas_por_semestre(df_perdas: pd.DataFrame) -> pd.DataFrame:
         # Primeiro, precisamos trabalhar com valores numéricos se os dados chegam formatados
         df_trabalho = df_perdas.copy()
 
+        # Identificar colunas de perda (MDR ou Total)
+        perda_cols = [c for c in df_trabalho.columns if "Perda Monetária" in c or "Perda Total" in c]
+        faturamento_cols = [c for c in df_trabalho.columns if "Faturamento Bruto" in c]
+
         # Se os valores já vêm formatados como string, converter para numérico
-        for col in ["Faturamento Bruto", "Perda Monetária"]:
+        for col in faturamento_cols + perda_cols:
             if col in df_trabalho.columns:
                 if df_trabalho[col].dtype == "object":
                     # Remove formatação R$, pontos e vírgulas para converter para numérico
@@ -1490,17 +1865,24 @@ def sumarizar_perdas_por_semestre(df_perdas: pd.DataFrame) -> pd.DataFrame:
                     df_trabalho[col] = pd.to_numeric(df_trabalho[col], errors="coerce")
 
         # Agrupar por Ano-Semestre e somar os valores
+        agg_dict = {}
+        if faturamento_cols: agg_dict[faturamento_cols[0]] = "sum"
+        for pc in perda_cols: agg_dict[pc] = "sum"
+
         df_sumarizado = (
             df_trabalho.groupby("Ano-Semestre")
-            .agg({"Faturamento Bruto": "sum", "Perda Monetária": "sum"})
+            .agg(agg_dict)
             .reset_index()
         )
 
-        # Recalcular o percentual de perda
-        df_sumarizado["% Perda"] = (
-            df_sumarizado["Perda Monetária"]
-            / df_sumarizado["Faturamento Bruto"].replace(0, pd.NA)
-        ) * 100
+        # Recalcular o percentual de perda (usando a primeira coluna de perda encontrada)
+        if faturamento_cols and perda_cols:
+            df_sumarizado["% Perda"] = (
+                df_sumarizado[perda_cols[0]]
+                / df_sumarizado[faturamento_cols[0]].replace(0, pd.NA)
+            ) * 100
+        else:
+            df_sumarizado["% Perda"] = 0
 
         # Calcular totais gerais ANTES da formatação
         total_faturamento = df_sumarizado["Faturamento Bruto"].sum()
@@ -1510,12 +1892,9 @@ def sumarizar_perdas_por_semestre(df_perdas: pd.DataFrame) -> pd.DataFrame:
         )
 
         # Formatar valores monetários dos dados sumarizados
-        df_sumarizado["Faturamento Bruto"] = df_sumarizado["Faturamento Bruto"].apply(
-            format_currency_br
-        )
-        df_sumarizado["Perda Monetária"] = df_sumarizado["Perda Monetária"].apply(
-            format_currency_br
-        )
+        for col in faturamento_cols + perda_cols:
+            df_sumarizado[col] = df_sumarizado[col].apply(format_currency_br)
+
         df_sumarizado["% Perda"] = df_sumarizado["% Perda"].apply(
             lambda x: f"{x:.2f}%" if pd.notna(x) else "0.00%"
         )
@@ -1768,7 +2147,10 @@ def sumarizar_contagem_transacoes(df_contagem: pd.DataFrame) -> pd.DataFrame:
 
 
 def gerar_demonstrativo_vendas_filtradas(
-    engine: Engine, processamento_id: str
+    engine: Engine,
+    processamento_id: str,
+    data_inicio: Optional[datetime] = None,
+    data_fim: Optional[datetime] = None,
 ) -> pd.DataFrame:
     """
     Gera demonstrativo de vendas filtradas agrupado por:
@@ -1783,14 +2165,18 @@ def gerar_demonstrativo_vendas_filtradas(
         processamento_id: ID do processamento
 
     Returns:
-        DataFrame com o demonstrativo das vendas filtradas
     """
+    debug_to_file(f"ENTROU EM gerar_demonstrativo_vendas_filtradas: {processamento_id}")
     print(
         f"[DEBUG] Gerando demonstrativo de vendas filtradas para processamento: {processamento_id}"
     )
 
+    base_id = _get_base_id(processamento_id)
+    debug_to_file(f"base_id = {base_id}")
     try:
-        # Buscar vendas filtradas do processamento
+        # Calcular vendas filtradas do processamento
+        params = [f"{base_id}%"]
+        # MySQL no Windows ignora case, mas usar o nome real 'processamentoId' é recomendável
         sql = """
         SELECT 
             status_da_venda,
@@ -1799,12 +2185,23 @@ def gerar_demonstrativo_vendas_filtradas(
             COUNT(*) as Quantidade_Vendas,
             SUM(COALESCE(Valor_da_venda, 0)) as Soma_Valor_Bruto
         FROM vendas_filtradas 
-        WHERE processamentoid = %s
+        WHERE processamentoId LIKE %s
+        """
+
+        if data_inicio is not None:
+            sql += " AND Data_da_venda >= %s"
+            params.append(data_inicio)
+
+        if data_fim is not None:
+            sql += " AND Data_da_venda <= %s"
+            params.append(data_fim)
+
+        sql += """
         GROUP BY status_da_venda, Bandeira, Forma_de_pagamento
         ORDER BY status_da_venda, Bandeira, Forma_de_pagamento
         """
-
-        df_demonstrativo = pd.read_sql(sql, engine, params=(processamento_id,))
+        pl_demonstrativo = read_sql_polars(sql, engine, params=tuple(params))
+        df_demonstrativo = pl_demonstrativo.to_pandas()
 
         if df_demonstrativo.empty:
             print("[DEBUG] Nenhuma venda filtrada encontrada para o processamento")
@@ -1822,7 +2219,7 @@ def gerar_demonstrativo_vendas_filtradas(
         df_demonstrativo.columns = [
             "Status da Venda",
             "Bandeira",
-            "Forma de Pagamento",
+            "Forma_de_pagamento",
             "Quantidade de Vendas",
             "Valor Bruto Total",
         ]
@@ -1836,14 +2233,28 @@ def gerar_demonstrativo_vendas_filtradas(
         total_quantidade = df_demonstrativo["Quantidade de Vendas"].sum()
 
         # Para o total do valor, precisamos recalcular sem formatação
+        params_total = [f"{base_id}%"]
         sql_total = """
         SELECT SUM(COALESCE(Valor_da_venda, 0)) as total_valor
         FROM vendas_filtradas 
-        WHERE processamentoid = %s
+        WHERE processamentoId LIKE %s
         """
-        total_valor_df = pd.read_sql(sql_total, engine, params=(processamento_id,))
+
+        if data_inicio is not None:
+            sql_total += " AND Data_da_venda >= %s"
+            params_total.append(data_inicio)
+
+        if data_fim is not None:
+            sql_total += " AND Data_da_venda <= %s"
+            params_total.append(data_fim)
+
+        pl_total = read_sql_polars(sql_total, engine, params=tuple(params_total))
+        total_valor_df = pl_total.to_pandas()
+        # Case-insensitive: usar nome real da coluna
         total_valor = (
-            total_valor_df.iloc[0]["total_valor"] if not total_valor_df.empty else 0
+            total_valor_df.iloc[0][total_valor_df.columns[0]]
+            if not total_valor_df.empty
+            else 0
         )
 
         linha_total = pd.DataFrame(
@@ -1851,7 +2262,7 @@ def gerar_demonstrativo_vendas_filtradas(
                 {
                     "Status da Venda": "** TOTAL GERAL **",
                     "Bandeira": "",
-                    "Forma de Pagamento": "",
+                    "Forma_de_pagamento": "",
                     "Quantidade de Vendas": total_quantidade,
                     "Valor Bruto Total": format_currency_br(total_valor),
                 }
@@ -1880,7 +2291,10 @@ def gerar_demonstrativo_vendas_filtradas(
 
 
 def gerar_demonstrativo_recebiveis_filtrados(
-    engine: Engine, processamento_id: str
+    engine: Engine,
+    processamento_id: str,
+    data_inicio: Optional[datetime] = None,
+    data_fim: Optional[datetime] = None,
 ) -> pd.DataFrame:
     """
     Gera demonstrativo de recebíveis filtrados agrupado por:
@@ -1893,6 +2307,8 @@ def gerar_demonstrativo_recebiveis_filtrados(
     Args:
         engine: Conexão com o banco de dados
         processamento_id: ID do processamento
+        data_inicio: Data inicial para filtro (opcional)
+        data_fim: Data final para filtro (opcional)
 
     Returns:
         DataFrame com o demonstrativo dos recebíveis filtrados
@@ -1903,16 +2319,29 @@ def gerar_demonstrativo_recebiveis_filtrados(
 
     try:
         # Primeiro verificar se a tabela recebiveis_filtrados existe e tem dados
+        base_id = _get_base_id(processamento_id)
+        params_verif = [f"{base_id}%"]
         verificacao_sql = """
         SELECT COUNT(*) as total_registros 
         FROM recebiveis_filtrados 
-        WHERE processamentoid = %s
+        WHERE processamentoid LIKE %s
         """
-        df_verificacao = pd.read_sql(
-            verificacao_sql, engine, params=(processamento_id,)
-        )
+
+        if data_inicio is not None:
+            verificacao_sql += " AND data_recebivel >= %s"
+            params_verif.append(data_inicio)
+
+        if data_fim is not None:
+            verificacao_sql += " AND data_recebivel <= %s"
+            params_verif.append(data_fim)
+
+        pl_verif = read_sql_polars(verificacao_sql, engine, params=tuple(params_verif))
+        df_verificacao = pl_verif.to_pandas()
+        # Case-insensitive: usar nome real da coluna
         total_registros = (
-            df_verificacao.iloc[0]["total_registros"] if not df_verificacao.empty else 0
+            df_verificacao.iloc[0][df_verificacao.columns[0]]
+            if not df_verificacao.empty
+            else 0
         )
 
         print(
@@ -1933,6 +2362,7 @@ def gerar_demonstrativo_recebiveis_filtrados(
             )
 
         # Buscar recebíveis filtrados do processamento - usando estrutura real da tabela
+        params_rec = [f"{base_id}%"]
         sql = """
         SELECT 
             lancamento as Tipo_Lancamento,
@@ -1940,12 +2370,23 @@ def gerar_demonstrativo_recebiveis_filtrados(
             SUM(COALESCE(valor_recebivel, 0)) as Soma_Valor_Recebivel,
             SUM(COALESCE(valor_liquido, 0)) as Soma_Valor_Liquido
         FROM recebiveis_filtrados 
-        WHERE processamentoid = %s
+        WHERE processamentoid LIKE %s
+        """
+
+        if data_inicio is not None:
+            sql += " AND data_recebivel >= %s"
+            params_rec.append(data_inicio)
+
+        if data_fim is not None:
+            sql += " AND data_recebivel <= %s"
+            params_rec.append(data_fim)
+
+        sql += """
         GROUP BY lancamento
         ORDER BY lancamento
         """
-
-        df_demonstrativo = pd.read_sql(sql, engine, params=(processamento_id,))
+        pl_demonstrativo = read_sql_polars(sql, engine, params=tuple(params_rec))
+        df_demonstrativo = pl_demonstrativo.to_pandas()
 
         if df_demonstrativo.empty:
             print("[DEBUG] Nenhum recebível filtrado encontrado para o processamento")
@@ -1979,6 +2420,7 @@ def gerar_demonstrativo_recebiveis_filtrados(
         total_quantidade = df_demonstrativo["Quantidade de Recebíveis"].sum()
 
         # Para os totais dos valores, precisamos recalcular sem formatação
+        params_total = [processamento_id]
         sql_total = """
         SELECT 
             SUM(COALESCE(valor_recebivel, 0)) as total_valor_recebivel,
@@ -1986,11 +2428,23 @@ def gerar_demonstrativo_recebiveis_filtrados(
         FROM recebiveis_filtrados 
         WHERE processamentoid = %s
         """
-        total_valor_df = pd.read_sql(sql_total, engine, params=(processamento_id,))
+
+        if data_inicio is not None:
+            sql_total += " AND data_recebivel >= %s"
+            params_total.append(data_inicio)
+
+        if data_fim is not None:
+            sql_total += " AND data_recebivel <= %s"
+            params_total.append(data_fim)
+
+        pl_total_valor = read_sql_polars(sql_total, engine, params=tuple(params_total))
+        total_valor_df = pl_total_valor.to_pandas()
 
         if not total_valor_df.empty:
-            total_valor_recebivel = total_valor_df.iloc[0]["total_valor_recebivel"]
-            total_valor_liquido = total_valor_df.iloc[0]["total_valor_liquido"]
+            # Case-insensitive: usar índice das colunas
+            cols = total_valor_df.columns.tolist()
+            total_valor_recebivel = total_valor_df.iloc[0][cols[0]]
+            total_valor_liquido = total_valor_df.iloc[0][cols[1]]
         else:
             total_valor_recebivel = 0
             total_valor_liquido = 0
@@ -2036,12 +2490,36 @@ def gerar_relatorio_html(
     adquirente: str = None,
     incluir_filtradas: bool = False,
     incluir_recebiveis_filtrados: bool = False,
+    apenas_com_perdas: bool = False,
+    progress_callback: Optional[Any] = None,
+    modelo: str = "completo",
 ) -> Tuple[str, Optional["pd.DataFrame"]]:
-    # Inicialização preventiva de variáveis para evitar erros de referência
-    grafico_bandeiras_path = ""
-    grafico_forma_pagamento_path = ""
-    grafico_meses_path = ""
-    grafico_valores_path = ""
+    """
+    Versão otimizada com Polars para máxima performance.
+    """
+    debug_to_file("==============================")
+    debug_to_file(f"INICIO gerar_relatorio_html | BaseID: {processamento_id}")
+    debug_to_file(f"incluir_filtradas: {incluir_filtradas}")
+    debug_to_file(f"incluir_rec_filtrados: {incluir_recebiveis_filtrados}")
+
+    # Funções auxiliares para o template
+    def to_file_url(path):
+        return to_base64_url(path)
+
+    # Configuração de caminhos e URLs de assets (Capa/Logos)
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assets_path = os.path.join(project_root, "assets")
+    caminho_capa = os.path.join(assets_path, "capa_relatorio.jpg")
+    caminho_cabecalho = os.path.join(assets_path, "cabecalho_financial.png")
+
+    cover_image_url = to_file_url(caminho_capa) if os.path.exists(caminho_capa) else ""
+    header_image_url = to_file_url(caminho_cabecalho) if os.path.exists(caminho_cabecalho) else ""
+
+    # Inicialização preventiva de variáveis
+    grafico_bandeiras_html = ""
+    grafico_forma_pagamento_html = ""
+    grafico_meses_html = ""
+    grafico_valores_html = ""
     primeira_venda = None
     ultima_venda = None
     quantidade = 0
@@ -2051,112 +2529,242 @@ def gerar_relatorio_html(
     valor_max = 0
     min_taxa = 0
     max_taxa = 0
+    diferenca_taxa = 0
+    ecs_distintos = []
+    adquirentes_distintos = []
+    metadados = {}
+    total_transacoes = 0
+    faturamento_bruto = 0
+    valor_liquido = 0
+    valor_medio = 0
+    total_materialidade = 0
+    materialidade_percentual = 0
+    adquirente_principal = adquirente or "Todos"
+    
+    # Inicilização de tabelas HTML
+    tabela_sumario_html = ""
+    tabela_perdas_semestre_html = ""
+    tabela_min_max_taxas_html = ""
+    tabela_contagem_taxas_html = ""
+    tabela_sumario_recebiveis_html = ""
+    tabela_dados_bancarios_html = ""
+    tabela_vendas_filtradas_html = ""
+    tabela_recebiveis_filtrados_html = ""
+    tabela_evidencias_maiores_valores_html = ""
+    tabela_evidencias_menores_valores_html = ""
+    tabela_evidencias_maiores_taxas_html = ""
+    tabela_evidencias_menores_taxas_html = ""
+    
+    # Inicialização de DataFrames (Excel e Cálculos)
+    df_main = pl.DataFrame()
+    df_perdas_sumarizado = pd.DataFrame()
+    df_taxas_sumarizado = pd.DataFrame()
+    df_contagem_sumarizado = pd.DataFrame()
+    df_recebiveis_sumarizado = pd.DataFrame()
+    df_dados_bancarios = pd.DataFrame()
+    df_vendas_filtradas = pd.DataFrame()
+    df_recebiveis_filtrados = pl.DataFrame() # Polars por padrão
+    evidencias = {}
+
+    import gc
+    gc.collect()
 
     inicio_total = time.time()
-    print(f"[DEBUG] === INÍCIO GERAÇÃO RELATÓRIO HTML ===")
-    print(f"[DEBUG] Processamento ID: {processamento_id}, Tipo: {calc_tipo}")
 
-    inicio_metadados = time.time()
+    debug_log(f"START GERAÇÃO: proc='{processamento_id}', tipo='{calc_tipo}', adq='{adquirente}'")
+
+    print("[DEBUG] === INÍCIO GERAÇÃO RELATÓRIO OTIMIZADO (POLARS) ===")
+    if progress_callback: progress_callback(10, "Iniciando geração de relatório...")
+
+    # Configurar timeouts
+    with engine.connect() as conn:
+        if "mysql" in str(engine.url):
+            try:
+                conn.execute(text("SET SESSION net_read_timeout = 600"))
+                conn.execute(text("SET SESSION net_write_timeout = 600"))
+                conn.commit()
+            except: pass
+
+    # 1. Metadados e Contexto (Consolidado)
     metadados = obter_dados_processamento(engine, processamento_id)
-    log_tempo_execucao("obter_dados_processamento", inicio_metadados)
-
-    # Buscar ECs distintos no processamento (filtrado por adquirente se aplicável)
-    inicio_ecs = time.time()
-    ecs_distintos = obter_ecs_distintos_processamento(
-        engine, processamento_id, adquirente
-    )
-    log_tempo_execucao("obter_ecs_distintos", inicio_ecs)
-
-    # Buscar adquirentes distintos no processamento
-    inicio_adquirentes = time.time()
-    adquirentes_distintos = obter_adquirentes_distintos_processamento(
-        engine, processamento_id
-    )
-    log_tempo_execucao("obter_adquirentes_distintos", inicio_adquirentes)
-
-    # Preencher adquirente com base no filtro aplicado ou adquirentes encontrados no processamento
-    print(f"Debug: Adquirentes distintos encontrados: {adquirentes_distintos}")
-    print(f"Debug: Filtro de adquirente aplicado: {adquirente}")
-
-    if adquirente:
-        # Se um filtro específico foi aplicado, mostrar apenas o nome da adquirente
+    adquirentes_distintos = obter_adquirentes_distintos_processamento(engine, processamento_id)
+    ecs_distintos = obter_ecs_distintos_processamento(engine, processamento_id)
+    
+    # Adquirente principal
+    if adquirente and adquirente not in ("Todos", "None"):
         metadados["adquirente"] = adquirente
-        print(f"Debug: Filtro de adquirente aplicado: {metadados['adquirente']}")
     elif adquirentes_distintos:
-        if len(adquirentes_distintos) == 1:
-            metadados["adquirente"] = adquirentes_distintos[0]
-            print(f"Debug: Adquirente único definido: {metadados['adquirente']}")
-        else:
-            # Exibir todos os adquirentes separados por vírgula
-            metadados["adquirente"] = ", ".join(adquirentes_distintos)
-            print(f"Debug: Múltiplos adquirentes definidos: {metadados['adquirente']}")
+        metadados["adquirente"] = ", ".join(adquirentes_distintos)
     else:
         metadados["adquirente"] = "Não identificado"
-        print(
-            f"Debug: Nenhum adquirente encontrado, definindo como: {metadados['adquirente']}"
+
+    if progress_callback: progress_callback(20, "Carregando dados financeiros via Polars...")
+
+    # Validar ou Auto-detectar calc_tipo
+    needs_detection = not calc_tipo
+    if calc_tipo:
+        try:
+            with engine.connect() as temp_conn:
+                sql_check = "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :p1 AND calc_tipo = :p2"
+                count = temp_conn.execute(text(sql_check), {"p1": processamento_id, "p2": calc_tipo}).scalar()
+                if count == 0:
+                    print(f"[DEBUG] calc_tipo '{calc_tipo}' informado não possui registros para {processamento_id}. Tentando auto-detecção.")
+                    needs_detection = True
+        except Exception as e:
+            print(f"[DEBUG] Erro ao validar calc_tipo: {e}")
+            needs_detection = True
+
+    if needs_detection:
+        debug_log(f"Needs detection for {processamento_id}")
+        try:
+            with engine.connect() as temp_conn:
+                sql_tipo = "SELECT calc_tipo FROM vendas_calculos WHERE calc_id = :p1 LIMIT 1"
+                res_tipo = temp_conn.execute(text(sql_tipo), {"p1": processamento_id}).scalar()
+                if res_tipo:
+                    calc_tipo = res_tipo
+                    debug_log(f"Auto-detected calc_tipo: {calc_tipo}")
+                else:
+                    if not calc_tipo: calc_tipo = "log_mensal" # Fallback final
+                    debug_log(f"No calc_tipo found in DB. Using fallback: {calc_tipo}")
+        except Exception as e:
+            debug_log(f"Error during auto-detection: {e}")
+            if not calc_tipo: calc_tipo = "log_mensal"
+    else:
+        debug_log(f"Using provided calc_tipo: {calc_tipo}")
+
+    debug_log(f"Main query starting for {processamento_id} / {calc_tipo}")
+
+    # 2. Busca de dados principal via cache Parquet (evita re-query do MySQL)
+    # Carrega o dataset completo do cálculo; filtros de adquirente/período aplicados no Polars.
+    df_cached = load_vendas_calculos_cached(engine, processamento_id, calc_tipo)
+
+    # Fallback sem calc_tipo se cache retornou vazio
+    if df_cached.is_empty() and calc_tipo:
+        base_id = _get_base_id(processamento_id)
+        debug_log(f"Cache vazio para calc_tipo={calc_tipo}. Tentando sem filtro de tipo com base_id={base_id}...")
+        sql_fallback = "SELECT vc.id_venda, vc.data_venda, vc.bandeira, vc.forma_pagamento, vc.tx_rr_venda, vc.vl_rr_venda, vc.vl_venda, vc.tx_venda, vc.desc_venda, vc.vl_liq_venda, vc.tx_calc, vc.desc_calc, vc.vl_liq_calc, vc.perda, vc.adquirente, vc.nsu, vc.cod_autorizacao, vc.perda_rr, vc.ec_id, vp.Tratar_ou_Ignorar FROM vendas_calculos vc LEFT JOIN vendas_processadas vp ON vc.id_venda = vp.id WHERE vc.calc_id LIKE %s"
+        df_cached = read_sql_polars(sql_fallback, engine, params=(f"{base_id}%",))
+
+    # Usar nomes de colunas estáveis internamente
+    debug_log(f"Cached data loaded: {len(df_cached)} rows")
+
+    # Aplicar filtros no Polars (evita queries adicionais ao MySQL)
+    lf_filtered = df_cached.lazy()
+    if adquirente and adquirente not in ("Todos", "None", "todos"):
+        lf_filtered = lf_filtered.filter(pl.col("adquirente") == adquirente)
+    
+    # Identificar coluna de data correta
+    cols = lf_filtered.collect_schema().names()
+    data_col = next((c for c in ["Data_da_venda", "data_venda", "Data"] if c in cols), "data_venda")
+
+    if data_inicio:
+        dt_ini = pl.lit(data_inicio).cast(pl.Date)
+        lf_filtered = lf_filtered.filter(pl.col(data_col).cast(pl.Date) >= dt_ini)
+    if data_fim:
+        dt_fim = pl.lit(data_fim).cast(pl.Date)
+        lf_filtered = lf_filtered.filter(pl.col(data_col).cast(pl.Date) <= dt_fim)
+    
+    df_pl_raw = lf_filtered.collect()
+
+    # Excluir registros marcados como "Ignorar" pelo usuário
+    if "Tratar_ou_Ignorar" in df_pl_raw.columns:
+        antes = len(df_pl_raw)
+        df_pl_raw = df_pl_raw.filter(
+            pl.col("Tratar_ou_Ignorar").is_null() | (pl.col("Tratar_ou_Ignorar") != "Ignorar")
+        )
+        debug_log(f"Filtro Tratar_ou_Ignorar: {antes} -> {len(df_pl_raw)} rows ({antes - len(df_pl_raw)} ignorados)")
+
+    debug_log(f"Main query result (Full for Charts): {len(df_pl_raw)} rows")
+    
+    if df_pl_raw.is_empty():
+        debug_log(f"EMPTY result even after fallback for {processamento_id}")
+        quantidade = 0
+        valor_total = 0
+        df_main = df_pl_raw
+        df_charts = df_pl_raw # Para charts também estar vazio
+    else:
+        # 3. Processamento Otimizado (Polars Lazy)
+        lf_full = df_pl_raw.lazy()
+        lf_full = filtrar_valores_rede_depara(lf_full)
+        lf_full = calcular_previsao_pagamento_rede(lf_full)
+        
+        # DataFrame para os Gráficos (Full)
+        df_charts = lf_full.collect()
+        
+        # Aplicar filtro de perdas para o df_main (usado nas tabelas de evidência e estatísticas)
+        if apenas_com_perdas:
+            debug_log("Aplicando filtro APENAS_COM_PERDAS para tabelas/stats")
+            # Considerar tanto perda de taxa quanto perda de recebimento antecipado (perda_rr)
+            df_main = df_charts.filter(
+                (pl.col("perda") != 0) | 
+                (pl.col("perda_rr").fill_null(0) != 0)
+            )
+        else:
+            df_main = df_charts
+        
+        if not df_main.is_empty():
+            stats = df_main.select([
+                pl.len().alias("count"),
+                pl.col("vl_venda").cast(pl.Float64).sum().fill_null(0).alias("total"),
+                pl.col("vl_venda").cast(pl.Float64).mean().fill_null(0).alias("mean"),
+                pl.col("vl_venda").min().alias("min"),
+                pl.col("vl_venda").max().alias("max"),
+                pl.col("tx_venda").filter(pl.col("tx_venda") > 0).min().alias("min_taxa"),
+                pl.col("tx_venda").filter(pl.col("tx_venda") > 0).max().alias("max_taxa"),
+                pl.col(data_col).min().alias("primeira"),
+                pl.col(data_col).max().alias("ultima")
+            ]).row(0, named=True)
+
+            quantidade = stats["count"]
+            valor_total = stats["total"] or 0
+            valor_medio = stats["mean"] or 0
+            valor_min = stats["min"] or 0
+            valor_max = stats["max"] or 0
+            min_taxa = stats["min_taxa"] or 0
+            max_taxa = stats["max_taxa"] or 0
+            primeira_venda = stats["primeira"]
+            ultima_venda = stats["ultima"]
+            # Garantir que sejam objetos date
+            if isinstance(primeira_venda, str): primeira_venda = datetime.strptime(primeira_venda, "%Y-%m-%d").date()
+            if isinstance(ultima_venda, str): ultima_venda = datetime.strptime(ultima_venda, "%Y-%m-%d").date()
+            # Garantir ordenação correta para evitar diferença negativa bizarra
+            if max_taxa < min_taxa:
+                print(f"[DEBUG] SWAP TAXAS: min={min_taxa}, max={max_taxa}")
+                max_taxa, min_taxa = min_taxa, max_taxa
+            
+            diferenca_taxa = max_taxa - min_taxa
+            
+            # Se a diferença for absurda (>100%), algo está errado no dado ou escala
+            if abs(diferenca_taxa) > 100:
+                print(f"[AVISO] Diferença de taxa absurda detectada: {diferenca_taxa:.2f}% (max={max_taxa}, min={min_taxa})")
+                # Se min_taxa for muito pequena perto de 0, talvez seja erro de escala
+                if min_taxa < 1e-5:
+                    diferenca_taxa = 0
+            
+            print(f"[DEBUG] Polars Stats: Qtd={quantidade}, Total={valor_total:.2f}")
+        else:
+            quantidade = 0
+            valor_total = 0
+
+    # Ajustar períodos se datas não vieram da query ou df_main vazio
+    if not primeira_venda or not ultima_venda:
+        primeira_venda, ultima_venda = calcular_periodo_completo(
+            engine, processamento_id, adquirente, data_inicio, data_fim
         )
 
-    # Buscar base joinada (JOIN vendas_calculos + vendas_processadas)
-    inicio_join = time.time()
-    join_sql = """
-        SELECT 
-            vp.id AS venda_id, vp.Data_da_venda, vp.Bandeira, 
-            vc.forma_pagamento AS Forma_de_pagamento,
-            vp.Taxas_RR, vp.Valor_RR, vc.vl_venda, vc.tx_venda, vc.desc_venda,
-            vc.vl_liq_venda, vc.tx_calc, vc.desc_calc, vc.vl_liq_calc, vc.perda
-        FROM vendas_processadas vp
-        JOIN vendas_calculos vc ON vp.id = vc.id_venda
-        WHERE vc.calc_id = %s AND vc.calc_tipo = %s
-    """
-    # Adiciona filtro de adquirente se fornecido
-    if adquirente:
-        join_sql += " AND vp.adquirente = %s"
-        params = (processamento_id, calc_tipo, adquirente)
-    else:
-        params = (processamento_id, calc_tipo)
-    df_join = pd.read_sql(join_sql, engine, params=params)
-    log_tempo_execucao("buscar_base_joinada", inicio_join)
-
-    # Aplicar filtro específico para valores da REDE após de-para
-    inicio_filtro_rede = time.time()
-    df_join = filtrar_valores_rede_depara(df_join)
-    log_tempo_execucao("filtrar_valores_rede_depara", inicio_filtro_rede)
-
-    # Calcular previsão de pagamento específica da REDE (31 dias + data_da_venda)
-    inicio_previsao_rede = time.time()
-    df_join = calcular_previsao_pagamento_rede(df_join)
-    log_tempo_execucao("calcular_previsao_pagamento_rede", inicio_previsao_rede)
-
-    # Calcular agregados diretamente sobre o resultado do JOIN
-    if not df_join.empty:
-        datas = pd.to_datetime(df_join["Data_da_venda"], errors="coerce").dropna()
-        valor_total = pd.to_numeric(df_join["vl_venda"], errors="coerce").sum()
-        valor_medio = pd.to_numeric(df_join["vl_venda"], errors="coerce").mean()
-        valor_min = pd.to_numeric(df_join["vl_venda"], errors="coerce").min()
-        valor_max = pd.to_numeric(df_join["vl_venda"], errors="coerce").max()
-
-        # Calcular taxas filtrando valores 0 e NULL
-        taxas = pd.to_numeric(df_join["tx_venda"], errors="coerce").dropna()
-        taxas_validas = taxas[taxas > 0]  # Filtrar taxas maiores que 0
-        min_taxa = taxas_validas.min() if not taxas_validas.empty else 0
-        max_taxa = taxas_validas.max() if not taxas_validas.empty else 0
-        diferenca_taxa = max_taxa - min_taxa if not taxas_validas.empty else 0
-        quantidade = len(df_join)
-    else:
-        valor_total = valor_medio = valor_min = valor_max = 0
-        min_taxa = max_taxa = diferenca_taxa = 0
-        quantidade = 0
-
-    # Calcular período considerando todas as tabelas relacionadas ao processamento
-    primeira_venda, ultima_venda = calcular_periodo_completo(
-        engine, processamento_id, adquirente
-    )
-
-    print(
-        f"[DEBUG] Resultado calcular_periodo_completo: primeira={primeira_venda}, ultima={ultima_venda}"
-    )
-
-    # Calcular período em dias
+    # 4. Cálculo de Perdas (Consolidado via Polars - ZERO SQL!)
+    print("[DEBUG] Calculando materialidade via Polars...")
+    total_perdas = 0
+    if not df_main.is_empty():
+        # Sumariza perda (taxa) e perda_rr (recebimento)
+        perda_taxa = df_main.select(pl.col("perda").cast(pl.Float64).sum().fill_null(0)).row(0)[0] or 0
+        perda_rr = 0
+        if "perda_rr" in df_main.columns:
+            perda_rr = df_main.select(pl.col("perda_rr").cast(pl.Float64).sum().fill_null(0)).row(0)[0] or 0
+        
+        total_perdas = perda_taxa + perda_rr
+    
+    print(f"[DEBUG] Total Perdas (Polars): {total_perdas:.2f}")
     periodo_dias = 0
     if primeira_venda and ultima_venda:
         try:
@@ -2177,12 +2785,21 @@ def gerar_relatorio_html(
     tipos_lancamentos_distintos = 0
     try:
         recebiveis_sql = "SELECT DISTINCT lancamento FROM recebiveis_processados WHERE processamentoid = %s AND lancamento IS NOT NULL AND lancamento != ''"
-        recebiveis_result = pd.read_sql(
-            recebiveis_sql, engine, params=(processamento_id,)
+        recebiveis_params = (processamento_id,)
+        pl_recebiveis = read_sql_polars(recebiveis_sql, engine, params=recebiveis_params)
+        recebiveis_result = pl_recebiveis.to_pandas()
+
+        # SQLite pode retornar 'Lancamento' (case preservado do schema)
+        # MySQL retorna 'lancamento' (case-insensitive)
+        col_lancamento = (
+            recebiveis_result.columns[0]
+            if not recebiveis_result.empty
+            else "lancamento"
         )
+
         inconsistencias = [
             str(l).strip().capitalize()
-            for l in recebiveis_result["lancamento"].unique()
+            for l in recebiveis_result[col_lancamento].unique()
             if l and str(l).strip()
         ]
 
@@ -2207,17 +2824,15 @@ def gerar_relatorio_html(
         # Verificar se há perdas nas vendas calculadas (oscilações de taxa MDR)
         try:
             if adquirente:
-                # Com filtro de adquirente - usar JOIN com vendas_processadas
+                # Com filtro de adquirente - usar campo local de vendas_calculos
                 perdas_sql = """
                     SELECT COUNT(*) as total_perdas
-                    FROM vendas_calculos vc
-                    INNER JOIN vendas_processadas vp ON vp.id = vc.id_venda
-                    WHERE vc.calc_id = %s AND vc.perda IS NOT NULL AND vc.perda != 0
-                    AND vp.adquirente = %s
+                    FROM vendas_calculos
+                    WHERE calc_id = %s AND perda IS NOT NULL AND perda != 0
+                    AND adquirente = %s
                 """
-                perdas_result = pd.read_sql(
-                    perdas_sql, engine, params=(processamento_id, adquirente)
-                )
+                pl_perdas = read_sql_polars(perdas_sql, engine, params=(processamento_id, adquirente))
+                perdas_result = pl_perdas.to_pandas()
             else:
                 # Sem filtro de adquirente - query simples
                 perdas_sql = """
@@ -2225,12 +2840,15 @@ def gerar_relatorio_html(
                     FROM vendas_calculos 
                     WHERE calc_id = %s AND perda IS NOT NULL AND perda != 0
                 """
-                perdas_result = pd.read_sql(
-                    perdas_sql, engine, params=(processamento_id,)
-                )
+                pl_perdas = read_sql_polars(perdas_sql, engine, params=(processamento_id,))
+                perdas_result = pl_perdas.to_pandas()
 
+            # SQLite pode retornar 'Total_perdas' ou 'total_perdas' dependendo do alias
+            # Usar acesso seguro à primeira coluna
             total_perdas = (
-                perdas_result.iloc[0]["total_perdas"] if not perdas_result.empty else 0
+                perdas_result.iloc[0][perdas_result.columns[0]]
+                if not perdas_result.empty
+                else 0
             )
 
             if total_perdas > 0:
@@ -2262,21 +2880,31 @@ def gerar_relatorio_html(
 
     if primeira_venda is not None:
         try:
-            primeira_venda_str = pd.to_datetime(primeira_venda).strftime("%d/%m/%Y")
-            print(f"[DEBUG] primeira_venda formatada: {primeira_venda_str}")
+            # Verificar se já é string ou precisa converter
+            if isinstance(primeira_venda, str):
+                primeira_venda_str = primeira_venda
+                print(f"[DEBUG] primeira_venda já é string: {primeira_venda_str}")
+            else:
+                primeira_venda_str = pd.to_datetime(primeira_venda).strftime("%d/%m/%Y")
+                print(f"[DEBUG] primeira_venda formatada: {primeira_venda_str}")
         except Exception as e:
             print(f"[DEBUG] Erro ao formatar primeira_venda: {e}")
-            primeira_venda_str = None
+            primeira_venda_str = str(primeira_venda) if primeira_venda else None
     else:
         print("[DEBUG] primeira_venda é None - mantendo como None")
 
     if ultima_venda is not None:
         try:
-            ultima_venda_str = pd.to_datetime(ultima_venda).strftime("%d/%m/%Y")
-            print(f"[DEBUG] ultima_venda formatada: {ultima_venda_str}")
+            # Verificar se já é string ou precisa converter
+            if isinstance(ultima_venda, str):
+                ultima_venda_str = ultima_venda
+                print(f"[DEBUG] ultima_venda já é string: {ultima_venda_str}")
+            else:
+                ultima_venda_str = pd.to_datetime(ultima_venda).strftime("%d/%m/%Y")
+                print(f"[DEBUG] ultima_venda formatada: {ultima_venda_str}")
         except Exception as e:
             print(f"[DEBUG] Erro ao formatar ultima_venda: {e}")
-            ultima_venda_str = None
+            ultima_venda_str = str(ultima_venda) if ultima_venda else None
     else:
         print("[DEBUG] ultima_venda é None - mantendo como None")
 
@@ -2296,7 +2924,7 @@ def gerar_relatorio_html(
         "inconsistencias_str": inconsistencias_str,
     }
 
-    print(f"[DEBUG] Dicionário estatisticas_sumario criado:")
+    print("[DEBUG] Dicionário estatisticas_sumario criado:")
     print(f"[DEBUG] - primeira_venda: '{primeira_venda_str}'")
     print(f"[DEBUG] - ultima_venda: '{ultima_venda_str}'")
     print(f"[DEBUG] - periodo_dias: {periodo_dias}")
@@ -2319,107 +2947,58 @@ def gerar_relatorio_html(
     FROM vendas_processadas 
     WHERE processamentoid = %s
     """
-    df_vendas_proc = pd.read_sql(
-        sql_vendas_processadas, engine, params=(processamento_id,)
-    )
+    # 4. Cálculo de Perdas por Semestre (ZERO SQL!)
+    print("[DEBUG] Calculando perdas por semestre via Polars...")
+    inicio_perdas = time.time()
+    df_perdas_sumarizado = calcular_perdas_por_semestre(df_main, incluir_faturamento=True)
+    tabela_perdas_semestre_html = gerar_tabela_html(df_perdas_sumarizado, "Análise de Perdas Estimadas por Semestre")
+    log_tempo_execucao("Polars: calcular_perdas_por_semestre", inicio_perdas)
 
-    sql_vendas_calculos = """
-    SELECT id_venda, perda, perda_rr, vl_venda 
-    FROM vendas_calculos 
-    WHERE calc_id = %s AND calc_tipo = %s
-    """
-    df_vendas_calc = pd.read_sql(
-        sql_vendas_calculos, engine, params=(processamento_id, calc_tipo)
-    )
-
-    # Usar a função atualizada que suporta perda_rr - SEM faturamento no relatório normal
-    df_perdas_sumarizado = calcular_perdas_por_semestre(
-        df_vendas_proc, df_vendas_calc, incluir_faturamento=False
-    )
-
-    log_tempo_execucao("calcular_perdas_por_semestre_com_rr", inicio_perdas)
-    inicio_perdas_tab = time.time()
-    tabela_perdas_semestre_html = gerar_tabela_html(
-        df_perdas_sumarizado,
-        "Análise de Perdas Estimadas por Semestre",
-    )
-    log_tempo_execucao("gerar_tabela_perdas_semestre_html", inicio_perdas_tab)
-
-    # Bloco min/max taxas
+    # 5. Min/Max Taxas por Semestre (ZERO SQL!)
     inicio_taxas = time.time()
-    df_taxas_raw = ler_view(engine, "vw_min_max_taxas_semestre", processamento_id)
-    log_tempo_execucao("ler_view(vw_min_max_taxas_semestre)", inicio_taxas)
-    inicio_taxas_sum = time.time()
-    df_taxas_sumarizado = sumarizar_taxas_min_max_por_semestre(df_taxas_raw)
-    log_tempo_execucao("sumarizar_taxas_min_max_por_semestre", inicio_taxas_sum)
-    inicio_taxas_tab = time.time()
-    tabela_min_max_taxas_html = gerar_tabela_html(
-        df_taxas_sumarizado,
-        "Análise de Taxas Mínimas e Máximas por Semestre",
-    )
-    log_tempo_execucao("gerar_tabela_min_max_taxas_html", inicio_taxas_tab)
+    df_taxas_sumarizado = calcular_min_max_taxas_agrupado(df_main)
+    tabela_min_max_taxas_html = gerar_tabela_html(df_taxas_sumarizado, "Análise de Taxas Mínimas e Máximas por Semestre")
+    log_tempo_execucao("Polars: calcular_min_max_taxas_agrupado", inicio_taxas)
 
-    # Bloco contagem transações - usar dados do JOIN ao invés da view para garantir precisão
+    # 6. Contagem de Transações (ZERO SQL!)
     inicio_contagem = time.time()
-    if not df_join.empty:
-        # Usar a função correta que já gera Ano-Semestre
-        df_contagem_sumarizado = calcular_contagem_taxas_agrupado(df_join)
+    df_contagem_sumarizado = calcular_contagem_taxas_agrupado(df_main)
+    tabela_contagem_taxas_html = gerar_tabela_html(df_contagem_sumarizado, "Contagem de Transações por Ano-Semestre, Bandeira e Modalidade")
+    log_tempo_execucao("Polars: calcular_contagem_taxas_agrupado", inicio_contagem)
 
-        print(
-            f"Debug: Contagem de transações calculada - {len(df_contagem_sumarizado)} grupos"
+    # 6b. Sumário de Recebíveis com Descontos Contestáveis por Semestre
+    df_sumario_recebiveis = calcular_sumario_recebiveis(engine, processamento_id, data_inicio, data_fim)
+    if not df_sumario_recebiveis.empty:
+        df_sumario_recebiveis = sumarizar_recebiveis_por_semestre(df_sumario_recebiveis)
+        tabela_sumario_recebiveis_html = gerar_tabela_html(
+            df_sumario_recebiveis, "Sumário de Registros com Descontos Contestáveis/ por Semestre"
         )
-        if (
-            not df_contagem_sumarizado.empty
-            and "Ano-Semestre" in df_contagem_sumarizado.columns
-        ):
-            print(
-                f"Debug: Ano-Semestres encontrados: {sorted(df_contagem_sumarizado['Ano-Semestre'].unique())}"
-            )
-    else:
-        # Fallback para view se JOIN estiver vazio
-        df_contagem_raw = ler_view(
-            engine, "vw_contagem_transacoes_ano_bandeira_modalidade", processamento_id
+
+    # 6c. Dados Bancários Distintos nos Recebíveis
+    df_dados_bancarios = obter_dados_bancarios_distintos(engine, processamento_id, data_inicio, data_fim)
+    if df_dados_bancarios is not None and not df_dados_bancarios.empty:
+        tabela_dados_bancarios_html = gerar_tabela_html(
+            df_dados_bancarios, "Dados Bancários Distintos nos Recebíveis"
         )
-        df_contagem_sumarizado = sumarizar_contagem_transacoes(df_contagem_raw)
 
-    log_tempo_execucao("calcular_contagem_transacoes", inicio_contagem)
-    inicio_contagem_tab = time.time()
-    tabela_contagem_taxas_html = gerar_tabela_html(
-        df_contagem_sumarizado,
-        "Contagem de Transações por Ano-Semestre, Bandeira e Modalidade",
-    )
-    log_tempo_execucao("gerar_tabela_contagem_taxas_html", inicio_contagem_tab)
-
-    # Sumarizar dados de recebíveis
-    inicio_recebiveis = time.time()
-    df_recebiveis_raw = ler_view(
-        engine, "vw_sumario_recebiveis_semestre", processamento_id
-    )
-    log_tempo_execucao("ler_view(vw_sumario_recebiveis_semestre)", inicio_recebiveis)
-    inicio_recebiveis_sum = time.time()
-    df_recebiveis_sumarizado = sumarizar_recebiveis_por_semestre(df_recebiveis_raw)
-    log_tempo_execucao("sumarizar_recebiveis_por_semestre", inicio_recebiveis_sum)
-    inicio_recebiveis_tab = time.time()
-    tabela_sumario_recebiveis_html = gerar_tabela_html(
-        df_recebiveis_sumarizado,
-        "Sumário de Registros com Descontos Contestáveis/ por Semestre",
-    )
-    log_tempo_execucao("gerar_tabela_sumario_recebiveis_html", inicio_recebiveis_tab)
-
-    # Gerar tabela de dados bancários distintos
-    inicio_dados_bancarios = time.time()
-    df_dados_bancarios = obter_dados_bancarios_distintos(engine, processamento_id)
-    tabela_dados_bancarios_html = gerar_tabela_html(
-        df_dados_bancarios, "Dados Bancários Distintos nos Recebíveis"
-    )
-    log_tempo_execucao("gerar_tabela_dados_bancarios_html", inicio_dados_bancarios)
+    # 7. Evidências de Transações (ZERO SQL!)
+    inicio_evidencias = time.time()
+    # PASSA DIRETAMENTE O POLARS DATAFRAME para evitar conversão pesada para Pandas
+    evidencias = obter_evidencias_transacoes(engine, processamento_id, calc_tipo, df=df_main)
+    
+    tabela_evidencias_maiores_valores_html = gerar_tabela_html(evidencias["maiores_valores"], "Top 3 Maiores Valores de Transação") if not evidencias["maiores_valores"].empty else ""
+    tabela_evidencias_menores_valores_html = gerar_tabela_html(evidencias["menores_valores"], "Top 3 Menores Valores de Transação") if not evidencias["menores_valores"].empty else ""
+    tabela_evidencias_maiores_taxas_html = gerar_tabela_html(evidencias["maiores_taxas"], "Top 3 Maiores Taxas Aplicadas") if not evidencias["maiores_taxas"].empty else ""
+    tabela_evidencias_menores_taxas_html = gerar_tabela_html(evidencias["menores_taxas"], "Top 3 Menores Taxas Aplicadas") if not evidencias["menores_taxas"].empty else ""
+    log_tempo_execucao("Polars: obter_evidencias_transacoes", inicio_evidencias)
 
     # Gerar demonstrativo de vendas filtradas (se solicitado)
     tabela_vendas_filtradas_html = ""
+    df_vendas_filtradas = pd.DataFrame()  # Inicializar vazio
     if incluir_filtradas:
         inicio_filtradas = time.time()
         df_vendas_filtradas = gerar_demonstrativo_vendas_filtradas(
-            engine, processamento_id
+            engine, processamento_id, data_inicio, data_fim
         )
         log_tempo_execucao("gerar_demonstrativo_vendas_filtradas", inicio_filtradas)
 
@@ -2433,7 +3012,7 @@ def gerar_relatorio_html(
     tabela_recebiveis_filtrados_html = ""
     inicio_rec_filtrados = time.time()
     df_recebiveis_filtrados = gerar_demonstrativo_recebiveis_filtrados(
-        engine, processamento_id
+        engine, processamento_id, data_inicio, data_fim
     )
     log_tempo_execucao("gerar_demonstrativo_recebiveis_filtrados", inicio_rec_filtrados)
 
@@ -2443,231 +3022,462 @@ def gerar_relatorio_html(
         tabela_recebiveis_filtrados_html = gerar_tabela_html(
             df_recebiveis_filtrados, "Demonstrativo de Outros Registros de Desconto"
         )
-        log_tempo_execucao(
-            "gerar_tabela_recebiveis_filtrados_html", inicio_rec_filtrados_tab
-        )
+        log_tempo_execucao("gerar_tabela_recebiveis_filtrados_html", inicio_rec_filtrados_tab)
 
-    # Gerar gráficos
+    # 8. Gráficos (ZERO SQL!)
+    print("[DEBUG] Gerando dados dos gráficos via Polars...")
     inicio_graficos = time.time()
-    print(f"[DEBUG] Iniciando geração de gráficos")
+    
+    # Paralelizar criação de gráficos para performance
+    def target_worker(df, tipo, titulo, paths_dict, key):
+        print(f"[DEBUG] Thread iniciando para gráfico {tipo} (key={key}). DF shape: {df.shape if hasattr(df, 'shape') else 'N/A'}")
+        paths_dict[key] = criar_grafico(df, tipo, titulo)
+        print(f"[DEBUG] Thread finalizada para gráfico {tipo}. Caminho: {paths_dict[key]}")
 
-    # Gráfico por bandeira
-    inicio_grafico_bandeira = time.time()
-    df_grafico_bandeira = ler_view(
-        engine, "vw_grafico_vendas_por_bandeira", processamento_id
-    )
-    log_tempo_execucao(
-        "ler_view(vw_grafico_vendas_por_bandeira)", inicio_grafico_bandeira
-    )
-    grafico_bandeiras_path = criar_grafico(
-        df_grafico_bandeira, "bandeira", "Distribuição de Vendas por Bandeira"
-    )
+    graficos_paths = {}
+    threads = []
+    
+    # Dados para os gráficos via Polars - USAR df_charts (Full) em vez de df_main
+    bandeira_col = next((c for c in ["bandeira", "Bandeira"] if c in df_charts.columns), "bandeira")
+    forma_col = next((c for c in ["forma_pagamento", "Forma_de_pagamento"] if c in df_charts.columns), "forma_pagamento")
+    
+    df_g_bandeira = df_charts.group_by(bandeira_col).agg(pl.len().alias("Quantidade")).rename({bandeira_col: "Bandeira"}).to_pandas()
+    df_g_forma = df_charts.group_by(forma_col).agg(pl.len().alias("Quantidade")).rename({forma_col: "Forma_de_pagamento"}).to_pandas()
+    df_g_mes = df_charts.group_by(pl.col(data_col).cast(pl.Date).dt.truncate("1mo")).agg(pl.len().alias("Quantidade")).to_pandas()
+    if not df_g_mes.empty:
+        # Polars truncate mantém o nome original ou o date truncado
+        # Se data_col for 'data_venda', o nome da coluna agrupada será 'data_venda'
+        df_g_mes["MesAno"] = df_g_mes[data_col].dt.strftime("%Y-%m")
+        
+    df_g_valores = df_charts.group_by(bandeira_col).agg(pl.col("vl_venda").mean().alias("ValorMedio")).rename({bandeira_col: "Bandeira"}).to_pandas()
 
-    # Gráfico por forma de pagamento
-    inicio_grafico_forma = time.time()
-    df_grafico_forma = ler_view(
-        engine, "vw_grafico_vendas_por_forma_pagamento", processamento_id
-    )
-    log_tempo_execucao(
-        "ler_view(vw_grafico_vendas_por_forma_pagamento)", inicio_grafico_forma
-    )
+    args = [
+        (df_g_bandeira, "bandeira", "Distribuição por Bandeira", graficos_paths, "bandeira"),
+        (df_g_forma, "forma_pagamento", "Distribuição por Forma", graficos_paths, "forma"),
+        (df_g_mes, "vendas_mes", "Vendas Mensais", graficos_paths, "mes"),
+        (df_g_valores, "valor_medio_bandeira", "Ticket Médio por Bandeira", graficos_paths, "valor"),
+    ]
 
-    # Normalizar forma de pagamento nos dados do gráfico
-    if not df_grafico_forma.empty and "forma_pagamento" in df_grafico_forma.columns:
-        df_grafico_forma["forma_pagamento"] = df_grafico_forma["forma_pagamento"].apply(
-            normalizar_forma_pagamento
-        )
+    for a in args:
+        t = threading.Thread(target=target_worker, args=a)
+        threads.append(t)
+        t.start()
 
-    grafico_forma_pagamento_path = criar_grafico(
-        df_grafico_forma, "forma_pagamento", "Distribuição por Forma de Pagamento"
-    )
+    for t in threads: t.join()
+    
+    grafico_bandeiras_html = graficos_paths.get("bandeira", "")
+    grafico_forma_pagamento_html = graficos_paths.get("forma", "")
+    grafico_meses_html = graficos_paths.get("mes", "")
+    grafico_valores_html = graficos_paths.get("valor", "")
+    
+    log_tempo_execucao("Polars + Threading: Gerar Gráficos", inicio_graficos)
 
-    # Gráfico por mês
-    inicio_grafico_meses = time.time()
-    df_grafico_meses = ler_view(engine, "vw_grafico_vendas_por_mes", processamento_id)
-    log_tempo_execucao("ler_view(vw_grafico_vendas_por_mes)", inicio_grafico_meses)
-    grafico_meses_path = criar_grafico(
-        df_grafico_meses, "vendas_mes", "Quantidade de Vendas por Mês"
-    )
+    if progress_callback: progress_callback(80, "Finalizando relatório...")
 
-    # Gráfico valor médio por bandeira
-    inicio_grafico_valores = time.time()
-    df_grafico_valores = ler_view(
-        engine, "vw_grafico_valor_medio_por_bandeira", processamento_id
-    )
-    log_tempo_execucao(
-        "ler_view(vw_grafico_valor_medio_por_bandeira)", inicio_grafico_valores
-    )
-    grafico_valores_path = criar_grafico(
-        df_grafico_valores,
-        "valor_medio_bandeira",
-        "Valor Médio de Venda por Bandeira (R$)",
-    )
-
-    log_tempo_execucao("gerar_todos_graficos", inicio_graficos)
-
-    # Garantir definição de variáveis obrigatórias para o template
-    base_df = base_df if "base_df" in locals() else None
-
-    # Processar template
-    inicio_template = time.time()
-    print(f"[DEBUG] Iniciando processamento do template")
-
-    def to_file_url(path):
-        return "file:///" + os.path.abspath(path).replace("\\", "/")
-
-    project_root = os.path.dirname(os.path.dirname(__file__))
-    assets_path = os.path.join(project_root, "assets")
-    dir_path_relatorios = criar_diretorio_relatorios()
-
-    caminho_capa = os.path.join(assets_path, "capa_relatorio.jpg")
-    caminho_cabecalho = os.path.join(assets_path, "cabecalho_financial.png")
-
-    cover_image_url = to_file_url(caminho_capa) if os.path.exists(caminho_capa) else ""
-    header_image_url = (
-        to_file_url(caminho_cabecalho) if os.path.exists(caminho_cabecalho) else ""
-    )
-
-    inicio_env = time.time()
-    env = Environment(loader=FileSystemLoader(dir_path_relatorios))
-    template = env.get_template("template_relatorio.html")
-    log_tempo_execucao("carregar_template_html", inicio_env)
-
-    # Calcular materialidade para o relatório
+    # 9. Materialidade (ZERO SQL para perdas!)
     inicio_materialidade = time.time()
-    print(f"[DEBUG] Calculando materialidade...")
-
-    # 1. Soma das perdas monetárias (MDR + RR)
-    total_perdas = 0
-    total_perdas_rr = 0
-    try:
-        sql_perdas = """
-        SELECT 
-            SUM(COALESCE(vc.perda, 0)) as total_perdas_mdr,
-            SUM(COALESCE(vc.perda_rr, 0)) as total_perdas_rr
-        FROM vendas_processadas vp
-        JOIN vendas_calculos vc ON vp.id = vc.id_venda
-        WHERE vc.calc_id = %s AND vc.calc_tipo = %s
-        """
-        params_perdas = (
-            (processamento_id, calc_tipo)
-            if not adquirente
-            else (processamento_id, calc_tipo, adquirente)
-        )
-        if adquirente:
-            sql_perdas += " AND vp.adquirente = %s"
-
-        df_perdas = pd.read_sql(sql_perdas, engine, params=params_perdas)
-        if not df_perdas.empty:
-            total_perdas = df_perdas.iloc[0]["total_perdas_mdr"] or 0
-            total_perdas_rr = df_perdas.iloc[0]["total_perdas_rr"] or 0
-
-        total_perdas = total_perdas if not pd.isna(total_perdas) else 0
-        total_perdas_rr = total_perdas_rr if not pd.isna(total_perdas_rr) else 0
-
-        print(f"[DEBUG] Total de perdas MDR: {format_currency_br(total_perdas)}")
-        print(f"[DEBUG] Total de perdas RR: {format_currency_br(total_perdas_rr)}")
-    except Exception as e:
-        print(f"[DEBUG] Erro ao calcular perdas: {e}")
-        total_perdas = 0
-        total_perdas_rr = 0
-
-    # 2. Soma dos recebíveis (valores com desconto)
+    
+    total_perdas_vendas = df_main.select(pl.col("perda").sum()).row(0)[0] or 0
+    total_perdas_rr = df_main.select(pl.col("perda_rr").sum()).row(0)[0] if "perda_rr" in df_main.columns else 0
+    total_perdas_rr = total_perdas_rr or 0
+    
+    # Única query restante: recebíveis (outra tabela)
     total_recebiveis = 0
     try:
-        sql_recebiveis = """
-        SELECT SUM(COALESCE(valor_recebivel, 0)) as total_recebiveis
-        FROM recebiveis_processados 
-        WHERE processamentoid = %s
-        """
-        df_recebiveis = pd.read_sql(sql_recebiveis, engine, params=(processamento_id,))
-        total_recebiveis = (
-            df_recebiveis.iloc[0]["total_recebiveis"] if not df_recebiveis.empty else 0
-        )
-        total_recebiveis = total_recebiveis if not pd.isna(total_recebiveis) else 0
+        params_rec = [processamento_id]
+        total_recebiveis = engine.connect().execute(text("SELECT SUM(COALESCE(valor_recebivel,0)) FROM recebiveis_processados WHERE processamentoid = :p1"), {"p1": processamento_id}).scalar() or 0
+    except: pass
 
-        print(
-            f"[DEBUG] Total de recebíveis calculado: {format_currency_br(total_recebiveis)}"
-        )
-    except Exception as e:
-        print(f"[DEBUG] Erro ao calcular recebíveis: {e}")
-        total_recebiveis = 0
+    valor_materialidade = total_perdas_vendas + total_perdas_rr + total_recebiveis
+    percentual_materialidade = (valor_materialidade / valor_total * 100) if valor_total > 0 else 0
+    
+    # Formatação Final para Template
+    materialidade_valor = format_currency_br(valor_materialidade)
+    materialidade_percentual = f"{percentual_materialidade:.2f}%".replace(".", ",")
+    
+    log_tempo_execucao("Polars: Materialidade", inicio_materialidade)
 
-    # 3. Calcular valor total da materialidade
-    valor_materialidade = total_perdas + total_perdas_rr + total_recebiveis
-
-    # 4. Calcular percentual em relação ao faturamento bruto
-    percentual_materialidade = 0
-    if valor_total > 0:
-        percentual_materialidade = (valor_materialidade / valor_total) * 100
-
-    # Formatar valores para exibição
-    valor_materialidade_formatado = format_currency_br(valor_materialidade)
-    percentual_formatado = f"{percentual_materialidade:.2f}%".replace(".", ",")
-
-    print(
-        f"[DEBUG] Materialidade - Valor: {valor_materialidade_formatado}, Percentual: {percentual_formatado}"
-    )
-    log_tempo_execucao("calcular_materialidade", inicio_materialidade)
-
-    # Texto de disclaimer/observação para o final do relatório
-    disclaimer_text = "Todas as análises são realizadas com base exclusivamente nos extratos oficiais fornecidos pela Adquirente; não alteramos arquivos."
-
-    # Formatar valores individuais das perdas
-    total_perdas_formatado = format_currency_br(total_perdas)
-    total_perdas_rr_formatado = format_currency_br(total_perdas_rr)
-    total_recebiveis_formatado = format_currency_br(total_recebiveis)
-
-    # Variáveis para o template (apenas valores dinâmicos)
-    materialidade_valor = valor_materialidade_formatado
-    materialidade_percentual = percentual_formatado
-    perda_mdr_valor = total_perdas_formatado
-    perda_rr_valor = total_perdas_rr_formatado
-    recebiveis_valor = total_recebiveis_formatado
-
+    # 10. Renderizar Template HTML
     inicio_render = time.time()
-    html_content = template.render(
-        cover_image_path=cover_image_url,
-        header_image_path=header_image_url,
-        tabela_sumario_html=tabela_sumario_html,
-        tabela_perdas_semestre_html=tabela_perdas_semestre_html,
-        tabela_min_max_taxas_html=tabela_min_max_taxas_html,
-        tabela_contagem_taxas_html=tabela_contagem_taxas_html,
-        tabela_sumario_recebiveis_html=tabela_sumario_recebiveis_html,
-        tabela_dados_bancarios_html=tabela_dados_bancarios_html,
-        tabela_vendas_filtradas_html=tabela_vendas_filtradas_html,
-        tabela_recebiveis_filtrados_html=tabela_recebiveis_filtrados_html,
-        grafico_bandeiras_path=to_file_url(grafico_bandeiras_path),
-        grafico_forma_pagamento_path=to_file_url(grafico_forma_pagamento_path),
-        grafico_meses_path=to_file_url(grafico_meses_path),
-        grafico_valores_path=to_file_url(grafico_valores_path),
-        data_geracao=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-        materialidade_valor=materialidade_valor,
-        materialidade_percentual=materialidade_percentual,
-        perda_mdr_valor=perda_mdr_valor,
-        perda_rr_valor=perda_rr_valor,
-        recebiveis_valor=recebiveis_valor,
-        disclaimer_text=disclaimer_text,
-        adquirente_principal=metadados.get("adquirente", ""),
-    )
-    log_tempo_execucao("renderizar_template_html", inicio_render)
+    
+    # Dados amigáveis para o template
+    ps_str = primeira_venda.strftime("%d/%m/%Y") if primeira_venda else ""
+    us_str = ultima_venda.strftime("%d/%m/%Y") if ultima_venda else ""
+    
+    context = {
+        "cover_image_path": cover_image_url,
+        "header_image_path": header_image_url,
+        "tabela_sumario_html": tabela_sumario_html,
+        "tabela_perdas_semestre_html": tabela_perdas_semestre_html,
+        "tabela_min_max_taxas_html": tabela_min_max_taxas_html,
+        "tabela_contagem_taxas_html": tabela_contagem_taxas_html,
+        "tabela_sumario_recebiveis_html": tabela_sumario_recebiveis_html,
+        "tabela_dados_bancarios_html": tabela_dados_bancarios_html,
+        "tabela_evidencias_maiores_valores_html": tabela_evidencias_maiores_valores_html,
+        "tabela_evidencias_menores_valores_html": tabela_evidencias_menores_valores_html,
+        "tabela_evidencias_maiores_taxas_html": tabela_evidencias_maiores_taxas_html,
+        "tabela_evidencias_menores_taxas_html": tabela_evidencias_menores_taxas_html,
+        "tabela_vendas_filtradas_html": tabela_vendas_filtradas_html,
+        "tabela_recebiveis_filtrados_html": tabela_recebiveis_filtrados_html,
+        "grafico_bandeiras_html": grafico_bandeiras_html,
+        "grafico_forma_pagamento_html": grafico_forma_pagamento_html,
+        "grafico_meses_html": grafico_meses_html,
+        "grafico_valores_html": grafico_valores_html,
+        "data_geracao": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "materialidade_valor": materialidade_valor,
+        "materialidade_percentual": materialidade_percentual,
+        "disclaimer_text": "Todas as análises são baseadas exclusivamente nos extratos oficiais fornecidos pela Adquirente.",
+        "adquirente_principal": metadados.get("adquirente", ""),
+    }
 
-    safe_proc_id = re.sub(r"[^\w\-]", "_", processamento_id)
+    # Carregar e renderizar
+    dir_path_relatorios = criar_diretorio_relatorios()
+    # Tentar resolver o path de templates de forma mais robusta
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    _templates_dir = os.path.normpath(os.path.join(current_dir, "..", "templates"))
+    if not os.path.exists(_templates_dir):
+        # Fallback se estiver rodando de dentro de apps/api
+        _templates_dir = os.path.normpath(os.path.join(current_dir, "..", "..", "templates"))
+    
+    print(f"[DEBUG] templates_dir={_templates_dir!r}")
+    if not os.path.exists(_templates_dir):
+        print(f"[ERROR] Templates dir not found at {_templates_dir}")
+        # Tentativa desesperada: procurar na raiz do projeto
+        _templates_dir = os.path.join(os.getcwd(), "templates")
+
+    env = Environment(loader=FileSystemLoader(_templates_dir))
+    template_name = "template_relatorio_sem_capa.html" if modelo == "sem_capa" else "template_relatorio.html"
+    try:
+        template = env.get_template(template_name)
+    except Exception as e:
+        print(f"[ERROR] Template {template_name} not found in {_templates_dir}: {e}")
+        # Se falhar, tentar o loader com o path absoluto do arquivo se for detectado errado
+        raise e
+
+    html_content = template.render(**context)
+    
+    # Salvar
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    html_path = os.path.join(
-        dir_path_relatorios, f"relatorio_{safe_proc_id}_{timestamp}.html"
-    )
+    safe_proc_id = re.sub(r"[^\w\-]", "_", processamento_id)
+    html_filename = f"relatorio_{safe_proc_id}_{timestamp}.html"
+    html_path = os.path.join(dir_path_relatorios, html_filename)
 
-    inicio_write = time.time()
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html_content)
-    log_tempo_execucao("escrever_arquivo_html", inicio_write)
 
-    log_tempo_execucao("processar_template", inicio_template)
-    log_tempo_execucao("=== RELATÓRIO HTML COMPLETO ===", inicio_total)
-    print(f"[DEBUG] Arquivo gerado: {html_path}")
+    log_tempo_execucao("Template: Render e Salvar", inicio_render)
 
-    return html_path, base_df if return_base else None
+    # 11. Excel (ZERO SQL!)
+    inicio_excel = time.time()
+
+    # Force GC before Excel generation to free memory from chart/table processing
+    gc.collect()
+
+    # IMPORTANTE: Limitar a 100.000 linhas para o Excel (suficiente para auditoria e evita OOM)
+    _excel_row_limit = 100000
+    df_excel_main = df_main
+    if len(df_main) > _excel_row_limit:
+        print(f"[WARNING] Dataset com {len(df_main)} linhas. Truncando para {_excel_row_limit} para o Excel.")
+        df_excel_main = df_main.head(_excel_row_limit)
+        
+    df_join = df_excel_main.to_pandas()
+    
+    dataframes_excel = {
+        "1. Vendas Completas": df_join,
+    }
+
+    # Abas analíticas por Bandeira + Forma de Pagamento
+    _band_col = next((c for c in ["bandeira", "Bandeira"] if c in df_join.columns), None)
+    _forma_col = next((c for c in ["forma_pagamento", "Forma_de_pagamento", "Forma de Pagamento"] if c in df_join.columns), None)
+    if _band_col and _forma_col:
+        _grupos = df_join.groupby([_band_col, _forma_col], sort=True)
+        for (_band, _forma), _grp in _grupos:
+            _nome_aba = f"{_band} - {_forma}"[:31]
+            dataframes_excel[_nome_aba] = _grp.reset_index(drop=True)
+        print(f"[DEBUG] Excel analítico: {len(_grupos)} abas por bandeira+forma geradas")
+
+    dataframes_excel.update({
+        "2. Perdas por Semestre": df_perdas_sumarizado,
+        "3. Taxas Min-Max": df_taxas_sumarizado,
+        "4. Contagem Transações": df_contagem_sumarizado,
+        "5. Sumário Recebíveis": df_recebiveis_sumarizado,
+        "6. Dados Bancários": df_dados_bancarios,
+        "7. Top 3 Maiores Valores": evidencias.get("maiores_valores", pd.DataFrame()),
+    })
+
+    if incluir_filtradas and not df_vendas_filtradas.empty:
+        dataframes_excel["8. Vendas Filtradas"] = df_vendas_filtradas
+    if not df_recebiveis_filtrados.empty:
+        dataframes_excel["9. Recebíveis Filtrados"] = df_recebiveis_filtrados
+
+    excel_filename = f"relatorio_{safe_proc_id}_{timestamp}"
+    excel_path = gerar_excel_relatorio(dataframes_excel, excel_filename)
+    log_tempo_execucao("Excel: Gerar arquivo", inicio_excel)
+
+    # 12. Relatório Sintético (sem converter 3.2M rows para Pandas)
+    try:
+        _vl_liq = float(df_charts.select(pl.col("vl_liq_venda").sum()).item() or 0)
+        # Filtrar tx_venda > 0 para média ser realista
+        _tx_media_res = df_charts.select(pl.col("tx_venda").filter(pl.col("tx_venda") > 0).mean()).item()
+        _tx_media = float(_tx_media_res or 0)
+        _bandeiras_pl = df_charts.group_by("bandeira").agg(
+            pl.len().alias("qtd"),
+            pl.col("vl_venda").sum().alias("valor")
+        ).to_pandas().rename(columns={"bandeira": "Bandeira"})
+        sintetico_path = gerar_relatorio_sintetico_html(
+            metadados=metadados,
+            total_transacoes=int(quantidade),
+            faturamento_bruto=float(valor_total),
+            valor_liquido=_vl_liq,
+            ticket_medio=float(valor_medio),
+            taxa_media=_tx_media,
+            total_divergencias=float(total_perdas),
+            bandeiras=_bandeiras_pl,
+            top_valores=evidencias.get("maiores_valores", pd.DataFrame()),
+            primeira_venda=primeira_venda,
+            ultima_venda=ultima_venda,
+            periodo_dias=int(periodo_dias),
+            adquirente=metadados.get("adquirente", ""),
+            processamento_id=processamento_id
+        )
+    except Exception as e:
+        print(f"[DEBUG] Erro no relatório sintético: {e}")
+        sintetico_path = None
+
+    print(f"[DEBUG] === RELATÓRIO COMPLETO EM {time.time() - inicio_total:.2f}s ===")
+    return html_path, df_main.to_pandas() if return_base else None, sintetico_path
+
+
+def gerar_relatorio_sintetico_html(
+    metadados: Dict,
+    total_transacoes: int,
+    faturamento_bruto: float,
+    valor_liquido: float,
+    ticket_medio: float,
+    taxa_media: float,
+    total_divergencias: float,
+    bandeiras: pd.DataFrame,
+    top_valores: pd.DataFrame,
+    primeira_venda,
+    ultima_venda,
+    periodo_dias: int,
+    adquirente: str,
+    processamento_id: str,
+) -> str:
+    """
+    Gera relatório sintético HTML a partir dos dados do relatório analítico.
+
+    Returns:
+        Caminho do arquivo HTML gerado
+    """
+    print("[DEBUG] Iniciando geração do relatório sintético...")
+
+    # Calcular período
+    if primeira_venda and ultima_venda:
+        if isinstance(primeira_venda, str):
+            primeira_venda_dt = pd.to_datetime(primeira_venda)
+        else:
+            primeira_venda_dt = primeira_venda
+
+        if isinstance(ultima_venda, str):
+            ultima_venda_dt = pd.to_datetime(ultima_venda)
+        else:
+            ultima_venda_dt = ultima_venda
+
+        periodo = f"{primeira_venda_dt.strftime('%d/%m/%Y')} a {ultima_venda_dt.strftime('%d/%m/%Y')}"
+    else:
+        periodo = "Período não disponível"
+
+    # Calcular percentual líquido
+    percentual_liquido = (
+        (valor_liquido / faturamento_bruto * 100) if faturamento_bruto > 0 else 0
+    )
+
+    # Formatar valores
+    ticket_medio_fmt = format_currency_br(ticket_medio)
+    taxa_media_fmt = f"{taxa_media:.2f}"
+    total_divergencias_fmt = format_currency_br(total_divergencias)
+    faturamento_bruto_fmt = format_currency_br(faturamento_bruto)
+    valor_liquido_fmt = format_currency_br(valor_liquido)
+
+    # Preparar resumo do faturamento - Manter os separadores BR (R$ X.XXX,XX)
+    resumo_faturamento = f"""No período de <strong>{periodo}</strong> ({periodo_dias} dias), foram processadas <strong>{total_transacoes:,} transações</strong> via cartão, totalizando um <strong>faturamento bruto de {faturamento_bruto_fmt}</strong>. Após descontos de taxas da operadora, o <strong>valor líquido recebido</strong> foi de <strong>{valor_liquido_fmt}</strong>, representando <strong>{percentual_liquido:.2f}% do faturamento</strong>.""".replace(
+        ",", "TEMP"
+    ).replace(
+        ".", ","
+    ).replace(
+        "TEMP", "."
+    )
+    # Correção: O replace acima pode ter bagunçado o R$ se ele tiver . ou , mas format_currency_br é bem definido.
+    # Na verdade, f"{total_transacoes:,}" gera vírgula como separador de milhar.
+    # format_currency_br gera ponto como milhar e vírgula como decimal.
+    # O objetivo final é: Milhar=. e Decimal=,
+    # Então se total_transacoes for 1,000 -> queremos 1.000
+    total_transacoes_str = f"{total_transacoes:,}".replace(",", ".")
+    resumo_faturamento = f"""No período de <strong>{periodo}</strong> ({periodo_dias} dias), foram processadas <strong>{total_transacoes_str} transações</strong> via cartão, totalizando um <strong>faturamento bruto de {faturamento_bruto_fmt}</strong>. Após descontos de taxas da operadora, o <strong>valor líquido recebido</strong> foi de <strong>{valor_liquido_fmt}</strong>, representando <strong>{percentual_liquido:.2f}% do faturamento</strong>."""
+
+    # Preparar bandeiras
+    bandeiras_lista = []
+    total_faturamento = faturamento_bruto
+    if not bandeiras.empty and len(bandeiras) > 0:
+        for idx, row in bandeiras.iterrows():
+            percentual = (
+                (row["valor"] / total_faturamento * 100) if total_faturamento > 0 else 0
+            )
+            bandeiras_lista.append(
+                {
+                    "nome": row["Bandeira"],
+                    "qtd": int(row["qtd"]),
+                    "valor": format_currency_br(row["valor"]),
+                    "percentual": f"{percentual:.1f}",
+                }
+            )
+
+    # Preparar top valores
+    top_valores_lista = []
+    if not top_valores.empty:
+        # Detectar colunas de forma resiliente
+        cols = top_valores.columns
+        data_col = next((c for c in ["Data", "data_venda", "Data_da_venda"] if c in cols), "Data")
+        bandeira_col = next((c for c in ["Bandeira", "bandeira"] if c in cols), "Bandeira")
+        valor_col = next((c for c in ["Valor", "vl_venda", "valor"] if c in cols), "Valor")
+        taxa_col = next((c for c in ["Taxa (%)", "tx_venda", "taxa"] if c in cols), "Taxa (%)")
+        nsu_col = next((c for c in ["NSU", "nsu"] if c in cols), "NSU")
+        auth_col = next((c for c in ["Cód. Autorização", "cod_autorizacao", "autorizacao"] if c in cols), "Cód. Autorização")
+
+        for idx, row in top_valores.head(3).iterrows():
+            top_valores_lista.append(
+                {
+                    "data": row.get(data_col, ""),
+                    "bandeira": row.get(bandeira_col, ""),
+                    "valor": row.get(valor_col, ""),
+                    "taxa": row.get(taxa_col, ""),
+                    "nsu": row.get(nsu_col, ""),
+                    "cod_autorizacao": row.get(auth_col, ""),
+                }
+            )
+
+    # Gerar destaques automáticos
+    destaques = []
+
+    # Verificar conformidade de taxa
+    if total_divergencias == 0:
+        destaques.append(
+            {
+                "tipo": "success",
+                "icone": "✅",
+                "titulo": "Zero divergências detectadas",
+                "descricao": "Não foram identificadas perdas monetárias por variação de taxas MDR ou cobranças indevidas, demonstrando boa conformidade operacional.",
+            }
+        )
+    else:
+        perc_divergencia = (
+            (total_divergencias / faturamento_bruto * 100)
+            if faturamento_bruto > 0
+            else 0
+        )
+        destaques.append(
+            {
+                "tipo": "warning",
+                "icone": "⚠️",
+                "titulo": f"Divergências detectadas ({perc_divergencia:.2f}%)",
+                "descricao": f"Foram identificadas perdas no valor de {total_divergencias_fmt}, representando {perc_divergencia:.2f}% do faturamento total.",
+            }
+        )
+
+    # Taxa média
+    destaques.append(
+        {
+            "tipo": "success",
+            "icone": "📊",
+            "titulo": "Taxa média aplicada",
+            "descricao": f"A taxa média de {taxa_media_fmt}% foi aplicada nas transações do período.",
+        }
+    )
+
+    # Conclusão e recomendações
+    if total_divergencias == 0:
+        conclusao = f"A conciliação do período apresentou <strong>excelente conformidade</strong>, com <strong>0% de divergências</strong> identificadas. O ticket médio de {ticket_medio_fmt} e o faturamento bruto de {faturamento_bruto_fmt} em {periodo_dias} dias indicam boa movimentação operacional."
+        recomendacoes = [
+            "Manter monitoramento contínuo para detectar variações futuras nas taxas aplicadas.",
+            "Continuar a conciliação periódica mesmo sem divergências detectadas.",
+            "Documentar transações extremas para validar autenticidade das operações.",
+        ]
+    else:
+        perc_div = (
+            (total_divergencias / faturamento_bruto * 100)
+            if faturamento_bruto > 0
+            else 0
+        )
+        conclusao = f"A conciliação do período identificou divergências no valor de {total_divergencias_fmt}, correspondendo a {perc_div:.2f}% do faturamento. Recomenda-se atenção especial às transações com variação de taxas."
+        recomendacoes = [
+            f"Revisar as transações com divergências ({total_divergencias_fmt}) junto à adquirente.",
+            "Solicitar renegociação de taxas caso o padrão de divergências se mantenha.",
+            "Implementar monitoramento em tempo real para detectar cobranças indevidas.",
+        ]
+
+    # Renderizar template
+    template_dir = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "templates"
+    )
+    env = Environment(loader=FileSystemLoader(template_dir))
+    template = env.get_template("template_relatorio_sintetico.html")
+
+    html_content = template.render(
+        cliente_nome=metadados.get("cliente_nome", "Cliente"),
+        periodo=periodo,
+        adquirente=adquirente,
+        data_geracao=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        ticket_medio=ticket_medio_fmt,
+        taxa_media=taxa_media_fmt,
+        total_divergencias=total_divergencias_fmt,
+        total_divergencias_num=total_divergencias,
+        resumo_faturamento=resumo_faturamento,
+        total_transacoes=f"{total_transacoes:,}".replace(",", "."),
+        faturamento_bruto=faturamento_bruto_fmt,
+        valor_liquido=valor_liquido_fmt,
+        percentual_liquido=f"{percentual_liquido:.2f}",
+        bandeiras=bandeiras_lista,
+        destaques=destaques,
+        top_valores=top_valores_lista,
+        conclusao=conclusao,
+        recomendacoes=recomendacoes,
+        disclaimer="Todas as análises são baseadas exclusivamente nos dados fornecidos pela adquirente.",
+    )
+
+    # Salvar arquivo
+    dir_path = criar_diretorio_relatorios()
+
+    # Sanitizar nome do cliente
+    cliente_nome = metadados.get("cliente_nome", "cliente")
+    caracteres_invalidos = [
+        "<",
+        ">",
+        ":",
+        '"',
+        "/",
+        "\\",
+        "|",
+        "?",
+        "*",
+        "(",
+        ")",
+        ".",
+        ",",
+    ]
+    for char in caracteres_invalidos:
+        cliente_nome = cliente_nome.replace(char, "")
+    cliente_nome = cliente_nome.replace(" ", "_")[:50]
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    html_filename = f"relatorio_sintetico_{cliente_nome}_{timestamp}.html"
+    html_path = os.path.join(dir_path, html_filename)
+
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    print(f"[DEBUG] Relatório sintético salvo em: {html_path}")
+    return html_path
 
 
 def ler_view(
@@ -2679,9 +3489,81 @@ def ler_view(
 ) -> pd.DataFrame:
     """
     Lê dados de uma view no banco, aplicando filtros de processamento e data.
+    Para SQLite, usa queries diretas já que as views podem não existir.
     """
     inicio = time.time()
     print(f"[DEBUG] Iniciando leitura da view: {view_name}")
+
+    db_type = engine.dialect.name.lower()
+
+    # Queries de substituição para views que não existem no SQLite
+    view_queries_sqlite = {
+        "vw_grafico_vendas_por_bandeira": """
+            SELECT bandeira AS Bandeira, COUNT(*) AS Quantidade
+            FROM vendas_calculos
+            WHERE calc_id = %s
+            GROUP BY bandeira
+        """,
+        "vw_grafico_vendas_por_forma_pagamento": """
+            SELECT forma_pagamento AS Forma_de_pagamento, COUNT(*) AS Quantidade
+            FROM vendas_calculos
+            WHERE calc_id = %s
+            GROUP BY forma_pagamento
+        """,
+        "vw_grafico_vendas_por_mes": """
+            SELECT 
+                strftime('%Y-%m', data_venda) AS MesAno,
+                COUNT(*) AS Quantidade
+            FROM vendas_calculos
+            WHERE calc_id = %s
+            GROUP BY strftime('%Y-%m', data_venda)
+            ORDER BY MesAno
+        """,
+        "vw_grafico_valor_medio_por_bandeira": """
+            SELECT 
+                bandeira AS Bandeira,
+                AVG(vl_venda) AS ValorMedio
+            FROM vendas_calculos
+            WHERE calc_id = %s
+            GROUP BY bandeira
+        """,
+    }
+
+    view_queries_mysql = {
+        "vw_grafico_vendas_por_bandeira": """
+            SELECT bandeira AS Bandeira, COUNT(*) AS Quantidade
+            FROM vendas_calculos
+            WHERE calc_id = %s
+            GROUP BY bandeira
+        """,
+        "vw_grafico_vendas_por_forma_pagamento": """
+            SELECT forma_pagamento AS Forma_de_pagamento, COUNT(*) AS Quantidade
+            FROM vendas_calculos
+            WHERE calc_id = %s
+            GROUP BY forma_pagamento
+        """,
+        "vw_grafico_vendas_por_mes": """
+            SELECT 
+                DATE_FORMAT(data_venda, '%Y-%m') AS MesAno,
+                COUNT(*) AS Quantidade
+            FROM vendas_calculos
+            WHERE calc_id = %s
+            GROUP BY DATE_FORMAT(data_venda, '%Y-%m')
+            ORDER BY MesAno
+        """,
+        "vw_grafico_valor_medio_por_bandeira": """
+            SELECT 
+                bandeira AS Bandeira,
+                AVG(vl_venda) AS ValorMedio
+            FROM vendas_calculos
+            WHERE calc_id = %s
+            GROUP BY bandeira
+        """,
+    }
+
+    # Escolher queries conforme banco
+    view_queries = view_queries_sqlite if "sqlite" in db_type else view_queries_mysql
+
     params = (processamento_id,)
     date_column_map = {
         "vw_perdas_por_semestre": "Data_da_venda",
@@ -2689,6 +3571,10 @@ def ler_view(
         "vw_contagem_transacoes_ano_bandeira_modalidade": "Data_da_venda",
         "vw_sumario_recebiveis_semestre": "data_recebivel",
         "vendas_processadas": "Data_da_venda",
+        "vw_grafico_vendas_por_bandeira": "data_venda",
+        "vw_grafico_vendas_por_forma_pagamento": "data_venda",
+        "vw_grafico_vendas_por_mes": "data_venda",
+        "vw_grafico_valor_medio_por_bandeira": "data_venda",
     }
 
     # Map different filter columns for different tables/views
@@ -2707,14 +3593,29 @@ def ler_view(
     date_column = date_column_map.get(view_name)
     filter_column = filter_column_map.get(view_name, "calc_id")
 
-    sql = f"SELECT * FROM {view_name} WHERE {filter_column} = %s"
+    # Usar query direta se for uma view de gráfico e não existir como view
+    if view_name in view_queries:
+        sql = view_queries[view_name]
 
-    if data_inicio and data_fim and date_column:
-        sql += f" AND {date_column} BETWEEN %s AND %s"
-        params = params + (data_inicio, data_fim)
+        # Adicionar filtro de data se fornecido
+        if data_inicio and data_fim and date_column:
+            sql = sql.replace(
+                "WHERE calc_id = %s",
+                f"WHERE calc_id = %s AND {date_column} BETWEEN %s AND %s",
+            )
+            params = params + (data_inicio, data_fim)
+    else:
+        sql = f"SELECT * FROM {view_name} WHERE {filter_column} = %s"
+
+        if data_inicio and data_fim and date_column:
+            sql += f" AND {date_column} BETWEEN %s AND %s"
+            params = params + (data_inicio, data_fim)
+
+    sql = _convert_placeholders(engine, sql)
 
     try:
-        resultado = pd.read_sql(sql, engine, params=params)
+        pl_res = read_sql_polars(sql, engine, params=params)
+        resultado = pl_res.to_pandas()
 
         # Aplicar filtro específico da REDE para views que contêm dados de vendas
         views_com_valores = [
@@ -2740,9 +3641,11 @@ def ler_view(
 
 
 def criar_grafico(df: pd.DataFrame, tipo: str, titulo: str) -> str:
-    """Função genérica para criar e salvar gráficos a partir de um DataFrame."""
     inicio = time.time()
-    print(f"[DEBUG] Criando gráfico: {tipo}")
+    print(f"[DEBUG] Criando gráfico tipo '{tipo}', titulo '{titulo}'. DF empty? {df.empty if hasattr(df, 'empty') else 'N/A'}")
+    if not df.empty:
+        print(f"[DEBUG] Colunas do DF para {tipo}: {df.columns.tolist()}")
+    
     fig = None
     if df.empty:
         df_placeholder = pd.DataFrame([{"label": "Sem dados", "value": 1}])
@@ -2790,272 +3693,181 @@ def criar_grafico(df: pd.DataFrame, tipo: str, titulo: str) -> str:
 
     if fig:
         if "pie" in str(type(fig.data[0])).lower():
-            # Remover rótulos de dentro da pizza, manter apenas na legenda
             fig.update_traces(textposition="none", textinfo="none")
             fig.update_layout(showlegend=True)
-        dir_path = criar_diretorio_relatorios()
-        img_path = os.path.join(
-            dir_path, f'grafico_{tipo}_{datetime.now().strftime("%Y%m%d%H%M%S")}.png'
-        )
-        try:
-            # Primeiro, tentar salvar normalmente
-            fig.write_image(img_path, width=800, height=600, engine="kaleido")
-            log_tempo_execucao(f"criar_grafico({tipo})", inicio)
-            return img_path
-        except Exception as e:
-            print(f"[WARNING] Erro ao salvar gráfico {tipo} com kaleido: {e}")
-            try:
-                # Tentar com engine alternativo
-                import plotly.io as pio
-
-                pio.write_image(fig, img_path, width=800, height=600, format="png")
-                log_tempo_execucao(f"criar_grafico({tipo}) - fallback", inicio)
-                return img_path
-            except Exception as e2:
-                print(f"[ERROR] Erro fatal ao salvar gráfico {tipo}: {e2}")
-                log_tempo_execucao(f"criar_grafico({tipo}) - erro fatal", inicio)
-                # Retornar caminho vazio mas não falhar o relatório
-                return ""
+        fig.update_layout(width=800, height=400, margin=dict(l=20, r=20, t=40, b=20))
+        html_str = fig.to_html(full_html=False, include_plotlyjs=False, config={"responsive": True})
+        print(f"[DEBUG] ✓ Gráfico {tipo} gerado como HTML interativo ({len(html_str)} chars)")
+        log_tempo_execucao(f"criar_grafico({tipo})", inicio)
+        return html_str
     log_tempo_execucao(f"criar_grafico({tipo}) - vazio", inicio)
     return ""
 
 
 def gerar_tabela_html(df: pd.DataFrame, titulo: str) -> str:
     if df.empty:
-        return f'<div class="report-section"><h3>{titulo}</h3><p>Sem dados suficientes para esta análise.</p></div>'
+        return ""
 
     html = f'<div class="report-section"><h3>{titulo}</h3><table class="report-table">'
-    html += "<tr>" + "".join(f"<th>{col}</th>" for col in df.columns) + "</tr>"
+    html += "<tr>" + "".join(f'<th class="header-blue">{col}</th>' for col in df.columns) + "</tr>"
 
     for _, row in df.iterrows():
         html += "<tr>"
 
-        # Verificar se é linha de total
-        is_total_row = "TOTAL GERAL" in str(row.iloc[0])
+        # Verificar tipo de linha (checa todos os valores da linha)
+        all_vals = " ".join(str(v) for v in row.values).upper()
+        is_total_row = "TOTAL GERAL" in all_vals or "TOTAL:" in all_vals or "** TOTAL" in all_vals
+        is_subtotal_row = ("SUBTOTAL" in all_vals or "SUB-TOTAL" in all_vals) and not is_total_row
 
         for col in df.columns:
             valor = row[col]
-            # Formatação numérica
-            if isinstance(valor, (int, float)):
-                # Se é coluna de contagem, formatar como inteiro
-                if "Contagem" in col or "Quantidade" in col:
-                    valor_str = f"{int(valor):,}".replace(",", ".")
-                elif 0.0001 < abs(valor) < 1000:
-                    valor_str = format_currency_br(valor).replace("R$ ", "")
-                else:
-                    valor_str = str(int(valor)) if valor == int(valor) else str(valor)
-            else:
-                valor_str = str(valor)
+            valor_str = str(valor)
 
-            valor_str = valor_str.replace("CREDITO", "CRÉDITO").replace(
-                "DEBITO", "DÉBITO"
-            )
+            # Heurística de formatação baseada no nome da coluna
+            col_lower = col.lower()
+            
+            if isinstance(valor, (int, float, complex)) and not pd.isna(valor):
+                # 1. Porcentagens
+                if "%" in col or "taxa" in col_lower or "perc" in col_lower:
+                    valor_str = f"{float(valor):.2f}%"
+                # 2. Valores Monetários (se não for contagem)
+                elif any(word in col_lower for word in ["valor", "vl_", "faturamento", "bruto", "liquido", "perda", "total", "mdr", "antecipacoes"]):
+                    if "quantidade" not in col_lower and "contagem" not in col_lower:
+                        valor_str = format_currency_br(valor)
+                # 3. Quantidades / Inteiros
+                elif any(word in col_lower for word in ["quantidade", "contagem", "nsu", "autorizacao", "transacoes"]):
+                    try:
+                        valor_str = f"{int(float(valor)):,}".replace(",", ".")
+                    except:
+                        valor_str = str(valor)
+                # Fallback para outros números pequenos/médios
+                elif isinstance(valor, float):
+                    valor_str = f"{valor:.2f}".replace(".", ",")
+
+            # Limpezas estéticas
+            valor_str = valor_str.replace("R$ 0,00", "0,00").replace("CREDITO", "CRÉDITO").replace("DEBITO", "DÉBITO")
+            
+            # Se for R$ 0,00 sem R$, deixar -
+            if valor_str == "0,00":
+                valor_str = "-"
+
+            # Aplicar alinhamento à direita para números e monetários
+            style = ""
+            if isinstance(valor, (int, float, complex)) and not pd.isna(valor):
+                style = "text-align: right;"
+            elif "R$" in valor_str or "%" in valor_str or (valor_str.replace(",", "").replace(".", "").isdigit() and len(valor_str) < 15):
+                 # Heurística para strings que parecem números formatados
+                 style = "text-align: right;"
 
             # Aplicar formatação
             if is_total_row:
-                # Toda linha de total: vermelha e negrito
-                html += (
-                    f"<td style='color: #9c1313; font-weight: bold;'>{valor_str}</td>"
-                )
+                html += f"<td style='color: #9c1313; font-weight: bold; background-color: #fff0f0; {style}'>{valor_str}</td>"
+            elif is_subtotal_row:
+                html += f"<td style='font-weight: bold; background-color: #f0f4ff; color: #223a6b; {style}'>{valor_str}</td>"
             else:
-                # Célula normal (sem formatação especial para colunas de perda)
-                html += f"<td>{valor_str}</td>"
+                html += f"<td style='{style}'>{valor_str}</td>"
+        
         html += "</tr>"
 
     html += "</table></div>"
     return html
 
 
-def criar_diretorio_relatorios():
-    dir_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "relatorios")
-    os.makedirs(dir_path, exist_ok=True)
-    return dir_path
+
 
 
 def obter_ecs_distintos_processamento(
     engine: Engine, processamento_id: str, adquirente: str = None
 ) -> List[str]:
-    """Busca todos os EC IDs distintos presentes em um processamento, opcionalmente filtrado por adquirente."""
     try:
-        # Busca ECs distintos nas vendas processadas
+        base_id = _get_base_id(processamento_id)
+        # Tentar primeiro em vendas_calculos (mais específico para o relatório)
+        # Usamos o ID base com LIKE para maior resiliência
         if adquirente:
-            query = "SELECT DISTINCT ec_id FROM vendas_processadas WHERE processamentoid = %s AND ec_id IS NOT NULL AND adquirente = %s"
-            df_ecs = pd.read_sql(query, engine, params=(processamento_id, adquirente))
+            query = "SELECT DISTINCT ec_id FROM vendas_calculos WHERE calc_id LIKE %s AND ec_id IS NOT NULL AND ec_id != '' AND adquirente = %s"
+            pl_ecs = read_sql_polars(query, engine, params=(f"{base_id}%", adquirente))
+            df_ecs = pl_ecs.to_pandas()
         else:
-            query = "SELECT DISTINCT ec_id FROM vendas_processadas WHERE processamentoid = %s AND ec_id IS NOT NULL"
-            df_ecs = pd.read_sql(query, engine, params=(processamento_id,))
+            query = "SELECT DISTINCT ec_id FROM vendas_calculos WHERE calc_id LIKE %s AND ec_id IS NOT NULL AND ec_id != ''"
+            pl_ecs = read_sql_polars(query, engine, params=(f"{base_id}%",))
+            df_ecs = pl_ecs.to_pandas()
+
+        if not df_ecs.empty:
+            ecs_list = df_ecs["ec_id"].dropna().astype(str).tolist()
+            ecs_list = [ec.strip() for ec in ecs_list if ec.strip()]
+            if ecs_list:
+                ecs_list.sort()
+                return sorted(list(set(ecs_list)))
+
+        # Fallback para vendas_processadas (usa o base_id)
+        base_id = _get_base_id(processamento_id)
+        if adquirente:
+            query = "SELECT DISTINCT ec_id FROM vendas_processadas WHERE processamentoid LIKE %s AND ec_id IS NOT NULL AND ec_id != '' AND adquirente = %s"
+            pl_ecs = read_sql_polars(query, engine, params=(f"{base_id}%", adquirente))
+            df_ecs = pl_ecs.to_pandas()
+        else:
+            query = "SELECT DISTINCT ec_id FROM vendas_processadas WHERE processamentoid LIKE %s AND ec_id IS NOT NULL AND ec_id != ''"
+            pl_ecs = read_sql_polars(query, engine, params=(f"{base_id}%",))
+            df_ecs = pl_ecs.to_pandas()
 
         if df_ecs.empty:
             return []
 
-        # Remove valores nulos e converte para lista
         ecs_list = df_ecs["ec_id"].dropna().astype(str).tolist()
-
-        # Remove valores vazios e ordena
         ecs_list = [ec.strip() for ec in ecs_list if ec.strip()]
         ecs_list.sort()
 
-        return ecs_list
+        return sorted(list(set(ecs_list)))
     except Exception as e:
         print(f"Erro ao buscar ECs distintos: {e}")
         return []
 
 
 def obter_dados_processamento(engine: Engine, processamento_id: str) -> Dict[str, Any]:
+    """Obtém metadados do processamento. Se não encontrar no banco, retorna objeto com valores padrão."""
+    base_id = _get_base_id(processamento_id)
     metadados_sql = (
-        "SELECT * FROM controle_processamentos WHERE id_processamento = :proc_id"
+        "SELECT * FROM controle_processamentos WHERE id_processamento LIKE :proc_id"
     )
-    metadados = fetch_one(engine, metadados_sql, {"proc_id": processamento_id})
+    
+    try:
+        metadados = fetch_one(engine, metadados_sql, {"proc_id": f"{base_id}%"})
+    except Exception as e:
+        print(f"[ERROR] Erro ao buscar metadados do processamento: {e}")
+        metadados = None
+
     if not metadados:
-        raise ValueError(f"Processamento ID {processamento_id} não encontrado.")
+        print(f"[WARNING] Processamento ID {base_id} (base de {processamento_id}) não encontrado em controle_processamentos.")
+        # Em vez de levantar erro, retorna metadados mínimos para permitir a geração do relatório
+        metadados = {
+            "id_processamento": base_id,
+            "cliente_nome": f"Cálculo {base_id}",
+            "adquirente": "Todos",
+            "data_inicio": None,
+            "data_fim": None,
+            "is_fallback": True
+        }
 
-    if metadados.get("cliente_id"):
+    if metadados.get("cliente_id") and metadados.get("is_fallback") is not True:
         cliente_sql = "SELECT nome_fantasia, cnpj FROM clientes WHERE cliente_id = :cid"
-        cliente = fetch_one(engine, cliente_sql, {"cid": metadados["cliente_id"]})
-        if cliente:
-            nome = cliente["nome_fantasia"]
-            cnpj = cliente.get("cnpj", "")
-            if cnpj:
-                cnpj_digits = re.sub(r"\D", "", str(cnpj))
-                if len(cnpj_digits) == 14:
-                    cnpj = f"{cnpj_digits[:2]}.{cnpj_digits[2:5]}.{cnpj_digits[5:8]}/{cnpj_digits[8:12]}-{cnpj_digits[12:]}"
-                nome = f"{nome} ({cnpj})"
-            metadados["cliente_nome"] = nome
+        try:
+            cliente = fetch_one(engine, cliente_sql, {"cid": metadados["cliente_id"]})
+            if cliente:
+                nome = cliente["nome_fantasia"]
+                cnpj = cliente.get("cnpj", "")
+                if cnpj:
+                    cnpj_digits = re.sub(r"\D", "", str(cnpj))
+                    if len(cnpj_digits) == 14:
+                        cnpj = f"{cnpj_digits[:2]}.{cnpj_digits[2:5]}.{cnpj_digits[5:8]}/{cnpj_digits[8:12]}-{cnpj_digits[12:]}"
+                    nome = f"{nome} ({cnpj})"
+                metadados["cliente_nome"] = nome
+        except Exception as e:
+            print(f"[WARNING] Erro ao buscar dados do cliente para o relatório: {e}")
+            
+    if not metadados.get("cliente_nome"):
+        metadados["cliente_nome"] = f"Cálculo {base_id}"
+        
     return metadados
-
-    # Gera gráficos
-    grafico_bandeiras_path = criar_grafico(
-        ler_view(
-            engine,
-            "vw_grafico_vendas_por_bandeira",
-            processamento_id,
-            data_inicio,
-            data_fim,
-        ),
-        "bandeira",
-        "Distribuição de Vendas por Bandeira",
-    )
-    grafico_forma_pagamento_path = criar_grafico(
-        ler_view(
-            engine,
-            "vw_grafico_vendas_por_forma_pagamento",
-            processamento_id,
-            data_inicio,
-            data_fim,
-        ),
-        "forma_pagamento",
-        "Distribuição por Forma de Pagamento",
-    )
-    grafico_meses_path = criar_grafico(
-        ler_view(
-            engine,
-            "vw_grafico_vendas_por_mes",
-            processamento_id,
-            data_inicio,
-            data_fim,
-        ),
-        "vendas_mes",
-        "Quantidade de Vendas por Mês",
-    )
-    grafico_valores_path = criar_grafico(
-        ler_view(
-            engine,
-            "vw_grafico_valor_medio_por_bandeira",
-            processamento_id,
-            data_inicio,
-            data_fim,
-        ),
-        "valor_medio_bandeira",
-        "Valor Médio de Venda por Bandeira (R$)",
-    )
-
-    # Buscar ECs distintos no processamento
-    ecs_distintos = obter_ecs_distintos_processamento(engine, processamento_id)
-
-    # Buscar adquirentes distintos no processamento
-    adquirentes_distintos = obter_adquirentes_distintos_processamento(
-        engine, processamento_id
-    )
-
-    # Obter metadados do processamento
-    metadados = obter_dados_processamento(engine, processamento_id)
-
-    # The estatisticas_sumario and tabela_sumario_html are already created above
-
-    # Configuração do Template
-    def to_file_url2(path):
-        return "file:///" + os.path.abspath(path).replace("\\", "/")
-
-    project_root2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    assets_path2 = os.path.join(project_root2, "assets")
-    dir_path_relatorios2 = criar_diretorio_relatorios()
-
-    caminho_capa3 = os.path.join(assets_path2, "capa_relatorio.jpg")
-    caminho_cabecalho3 = os.path.join(assets_path2, "cabecalho_financial.png")
-
-    cover_image_url3 = (
-        to_file_url2(caminho_capa3) if os.path.exists(caminho_capa3) else ""
-    )
-    header_image_url3 = (
-        to_file_url2(caminho_cabecalho3) if os.path.exists(caminho_cabecalho3) else ""
-    )
-
-    if not cover_image_url:
-        print(f"[AVISO] Imagem de capa não encontrada em: {caminho_capa}")
-    if not header_image_url:
-        print(f"[AVISO] Imagem de cabeçalho não encontrada em: {caminho_cabecalho}")
-
-    # Texto de disclaimer/observação para o final do relatório
-    disclaimer_text2 = "Todas as análises são realizadas com base exclusivamente nos extratos oficiais fornecidos pela Adquirente; não alteramos arquivos."
-
-    # Inicializar variáveis de tabela se não existirem (valores padrão)
-    if "tabela_dados_bancarios_html" not in locals():
-        tabela_dados_bancarios_html = ""
-    if "tabela_vendas_filtradas_html" not in locals():
-        tabela_vendas_filtradas_html = ""
-    if "tabela_recebiveis_filtrados_html" not in locals():
-        tabela_recebiveis_filtrados_html = ""
-
-    env2 = Environment(loader=FileSystemLoader(dir_path_relatorios))
-    template2 = env2.get_template("template_relatorio.html")
-
-    html_content2 = template2.render(
-        cover_image_path=cover_image_url,
-        header_image_path=header_image_url,
-        tabela_sumario_html=tabela_sumario_html,
-        tabela_perdas_semestre_html=tabela_perdas_semestre_html,
-        tabela_min_max_taxas_html=tabela_min_max_taxas_html,
-        tabela_contagem_taxas_html=tabela_contagem_taxas_html,
-        tabela_sumario_recebiveis_html=tabela_sumario_recebiveis_html,
-        tabela_dados_bancarios_html=tabela_dados_bancarios_html,
-        tabela_vendas_filtradas_html=tabela_vendas_filtradas_html,
-        tabela_recebiveis_filtrados_html=tabela_recebiveis_filtrados_html,
-        grafico_bandeiras_path=to_file_url(grafico_bandeiras_path),
-        grafico_forma_pagamento_path=to_file_url(grafico_forma_pagamento_path),
-        grafico_meses_path=to_file_url(grafico_meses_path),
-        grafico_valores_path=to_file_url(grafico_valores_path),
-        data_geracao=datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-        materialidade_valor="R$ 0,00",
-        materialidade_percentual="0,00%",
-        perda_mdr_valor="R$ 0,00",
-        perda_rr_valor="R$ 0,00",
-        recebiveis_valor="R$ 0,00",
-        disclaimer_text=disclaimer_text2,
-        adquirente_principal=metadados.get("adquirente", ""),
-    )
-
-    # Geração do HTML
-    safe_proc_id = re.sub(r"[^\w\-]", "_", processamento_id)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    html_path = os.path.join(
-        dir_path_relatorios, f"relatorio_{safe_proc_id}_{timestamp}.html"
-    )
-
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(html_content)
-
-    print(f"[INFO] Relatório HTML gerado em: {html_path}")
-    return html_path, None
 
 
 def gerar_relatorio_mensal_html(
@@ -3068,522 +3880,289 @@ def gerar_relatorio_mensal_html(
     adquirente: str = None,
     incluir_filtradas: bool = False,
     incluir_recebiveis_filtrados: bool = False,
-) -> Tuple[str, Optional["pd.DataFrame"]]:
+    apenas_com_perdas: bool = False,
+    progress_callback: Optional[Any] = None,
+    modelo: str = "completo",
+) -> Tuple[str, Optional["pd.DataFrame"], Optional[str]]:
     """
-    Gera relatório mensal de conciliação usando template específico.
-
-    Args:
-        engine: Conexão com banco de dados
-        processamento_id: ID do processamento
-        calc_tipo: Tipo de cálculo (log_mensal, cad, etc)
-        mes_referencia: String no formato "Mês/Ano" (ex: "Janeiro/2025")
-        data_inicio: Data inicial do período
-        data_fim: Data final do período
-        adquirente: Filtro por adquirente
-        incluir_filtradas: Se deve incluir tabela de vendas filtradas
-        incluir_recebiveis_filtrados: Se deve incluir tabela de recebíveis filtrados
-
-    Returns:
-        Tupla (caminho_html, dataframe_base)
+    Versão otimizada com Polars para o relatório mensal.
     """
-    print(f"[DEBUG] === INÍCIO GERAÇÃO RELATÓRIO MENSAL ===")
-    print(f"[DEBUG] Processamento ID: {processamento_id}, Tipo: {calc_tipo}")
-    print(f"[DEBUG] Mês Referência: {mes_referencia}")
+    import gc
+    gc.collect()
 
     inicio_total = time.time()
+    print("[DEBUG] === INÍCIO GERAÇÃO RELATÓRIO MENSAL OTIMIZADO (POLARS) ===")
 
-    # Buscar metadados do processamento
-    metadados = obter_dados_processamento(engine, processamento_id)
+    # Funções auxiliares para o template
+    def to_file_url(path):
+        return to_base64_url(path)
 
-    # Buscar ECs e adquirentes distintos
-    ecs_distintos = obter_ecs_distintos_processamento(
-        engine, processamento_id, adquirente
-    )
-    adquirentes_distintos = obter_adquirentes_distintos_processamento(
-        engine, processamento_id
-    )
+    # Configuração de caminhos e URLs de assets (Capa/Logos)
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assets_path = os.path.join(project_root, "assets")
+    caminho_capa = os.path.join(assets_path, "capa_relatorio.jpg")
+    caminho_cabecalho = os.path.join(assets_path, "cabecalho_financial.png")
 
-    # Determinar adquirente principal
-    if adquirente:
-        adquirente_principal = adquirente
-    elif adquirentes_distintos:
-        adquirente_principal = adquirentes_distintos[0]
-    else:
-        adquirente_principal = metadados.get("adquirente", "Não informado")
+    cover_image_url = to_file_url(caminho_capa) if os.path.exists(caminho_capa) else ""
+    header_image_url = to_file_url(caminho_cabecalho) if os.path.exists(caminho_cabecalho) else ""
 
-    # Buscar dados (JOIN vendas_calculos + vendas_processadas)
-    join_sql = """
-        SELECT 
-            vp.id AS venda_id, vp.Data_da_venda, vp.Bandeira, 
-            vc.forma_pagamento AS Forma_de_pagamento,
-            vp.Taxas_RR, vp.Valor_RR, vc.vl_venda, vc.tx_venda, vc.desc_venda,
-            vc.vl_liq_venda, vc.tx_calc, vc.desc_calc, vc.vl_liq_calc, vc.perda
-        FROM vendas_processadas vp
-        JOIN vendas_calculos vc ON vp.id = vc.id_venda
-        WHERE vc.calc_id = %s AND vc.calc_tipo = %s
-    """
-
-    if adquirente:
-        join_sql += " AND vp.adquirente = %s"
-        params = (processamento_id, calc_tipo, adquirente)
-    else:
-        params = (processamento_id, calc_tipo)
-
-    df_join = pd.read_sql(join_sql, engine, params=params)
-    df_join = filtrar_valores_rede_depara(df_join)
-    df_join = calcular_previsao_pagamento_rede(df_join)
-
-    # Calcular estatísticas do mês
-    total_transacoes = len(df_join)
-    faturamento_bruto = df_join["vl_venda"].sum() if not df_join.empty else 0
-    valor_liquido = df_join["vl_liq_venda"].sum() if not df_join.empty else 0
-
-    # Calcular valores min, max e médio
-    if not df_join.empty:
-        valor_min = pd.to_numeric(df_join["vl_venda"], errors="coerce").min()
-        valor_max = pd.to_numeric(df_join["vl_venda"], errors="coerce").max()
-        valor_medio = (
-            faturamento_bruto / total_transacoes if total_transacoes > 0 else 0
-        )
-    else:
-        valor_min = valor_max = valor_medio = 0
-
-    # Calcular período das transações
-    primeira_venda, ultima_venda = calcular_periodo_completo(
-        engine, processamento_id, adquirente
-    )
-
-    print(
-        f"[DEBUG] Período calculado: primeira={primeira_venda}, ultima={ultima_venda}"
-    )
-
-    # Calcular período em dias
-    periodo_dias = 0
-    if primeira_venda and ultima_venda:
-        try:
-            data_min = pd.to_datetime(primeira_venda)
-            data_max = pd.to_datetime(ultima_venda)
-            periodo_dias = (
-                data_max - data_min
-            ).days + 1  # +1 para incluir o dia inicial
-            print(f"[DEBUG] Período em dias: {periodo_dias}")
-        except Exception as e:
-            print(f"[DEBUG] Erro ao calcular período em dias: {e}")
-            periodo_dias = 0
-
-    # Calcular materialidade corretamente: soma das perdas reais
-    print("\n" + "=" * 80)
-    print("[DEBUG] CÁLCULO DE MATERIALIDADE MENSAL")
-    print(f"[DEBUG] Processamento ID: {processamento_id}")
-    print(f"[DEBUG] Faturamento Bruto: {format_currency_br(faturamento_bruto)}")
-    print("=" * 80)
-
-    # 1. Perdas em vendas: diferença entre vl_liq_venda e vl_liq_calc
-    total_perdas_vendas = 0
-    if not df_join.empty and "vl_liq_calc" in df_join.columns:
-        df_join["perda_real"] = df_join["vl_liq_venda"] - df_join["vl_liq_calc"]
-        total_perdas_vendas = df_join["perda_real"].sum()
-
-        # Estatísticas detalhadas das perdas
-        perdas_positivas = df_join[df_join["perda_real"] > 0]["perda_real"].sum()
-        perdas_negativas = df_join[df_join["perda_real"] < 0]["perda_real"].sum()
-        qtd_com_perda = len(df_join[df_join["perda_real"] != 0])
-
-        print(f"\n[VENDAS] Análise de Perdas:")
-        print(f"  • Total de transações analisadas: {len(df_join):,}")
-        print(f"  • Transações com divergência: {qtd_com_perda:,}")
-        print(
-            f"  • Faturamento Bruto (vl_venda): {format_currency_br(faturamento_bruto)}"
-        )
-        print(
-            f"  • Faturamento Líquido Real (vl_liq_venda): {format_currency_br(valor_liquido)}"
-        )
-        print(
-            f"  • Faturamento Líquido Calculado (vl_liq_calc): {format_currency_br(df_join['vl_liq_calc'].sum())}"
-        )
-        print(
-            f"  • Perdas positivas (a mais cobrado): {format_currency_br(perdas_positivas)}"
-        )
-        print(
-            f"  • Perdas negativas (a menos cobrado): {format_currency_br(perdas_negativas)}"
-        )
-        print(f"  ► TOTAL PERDAS EM VENDAS: {format_currency_br(total_perdas_vendas)}")
-
-    # 2. Recebíveis processados
-    total_recebiveis = 0
-    try:
-        sql_recebiveis = """
-        SELECT 
-            lancamento,
-            COUNT(*) as quantidade,
-            SUM(COALESCE(valor_recebivel, 0)) as total
-        FROM recebiveis_processados 
-        WHERE processamentoid = %s
-        GROUP BY lancamento
-        ORDER BY total DESC
-        """
-        df_recebiveis_mat = pd.read_sql(
-            sql_recebiveis, engine, params=(processamento_id,)
-        )
-
-        if not df_recebiveis_mat.empty:
-            total_recebiveis = df_recebiveis_mat["total"].sum()
-
-            print(f"\n[RECEBÍVEIS] Análise Detalhada:")
-            print(f"  • Total de tipos de lançamentos: {len(df_recebiveis_mat)}")
-
-            for _, row in df_recebiveis_mat.iterrows():
-                lancamento = row["lancamento"] if row["lancamento"] else "Sem descrição"
-                quantidade = (
-                    int(row["quantidade"]) if not pd.isna(row["quantidade"]) else 0
-                )
-                valor = row["total"] if not pd.isna(row["total"]) else 0
-                print(
-                    f"  • {lancamento}: {quantidade} lançamento(s) = {format_currency_br(valor)}"
-                )
-
-            print(f"  ► TOTAL RECEBÍVEIS: {format_currency_br(total_recebiveis)}")
-        else:
-            print(f"\n[RECEBÍVEIS] Nenhum recebível encontrado")
-            total_recebiveis = 0
-
-    except Exception as e:
-        print(f"\n[RECEBÍVEIS] Erro ao calcular: {e}")
-        total_recebiveis = 0
-
-    # Total de inconformidades
-    total_materialidade = total_perdas_vendas + total_recebiveis
-
-    print("\n" + "-" * 80)
-    print("[MATERIALIDADE TOTAL]")
-    print(f"  • Perdas em Vendas: {format_currency_br(total_perdas_vendas)}")
-    print(f"  • Recebíveis Processados: {format_currency_br(total_recebiveis)}")
-    print(f"  ► TOTAL MATERIALIDADE: {format_currency_br(total_materialidade)}")
-    print(
-        f"  ► Percentual sobre Faturamento: {(total_materialidade / faturamento_bruto * 100) if faturamento_bruto > 0 else 0:.2f}%"
-    )
-    print("-" * 80)
-    print(f"COMPOSIÇÃO DA MATERIALIDADE DE {format_currency_br(total_materialidade)}:")
-    print(f"  - Perdas MDR (vendas): {format_currency_br(total_perdas_vendas)}")
-    print(f"  - Recebíveis (taxas/descontos): {format_currency_br(total_recebiveis)}")
-    print("=" * 80 + "\n")
-
-    # Determinar período em português baseado nas transações reais
-    meses_pt = {
-        1: "Janeiro",
-        2: "Fevereiro",
-        3: "Março",
-        4: "Abril",
-        5: "Maio",
-        6: "Junho",
-        7: "Julho",
-        8: "Agosto",
-        9: "Setembro",
-        10: "Outubro",
-        11: "Novembro",
-        12: "Dezembro",
-    }
-
-    if not mes_referencia:
-        # Usar primeira_venda para determinar o mês de referência (período das transações)
-        if primeira_venda:
-            try:
-                data_ref = pd.to_datetime(primeira_venda)
-                mes_nome = meses_pt.get(data_ref.month, data_ref.strftime("%B"))
-                mes_referencia = f"{mes_nome}/{data_ref.year}"
-                print(
-                    f"[DEBUG] Mês de referência calculado das transações: {mes_referencia}"
-                )
-            except Exception as e:
-                print(f"[DEBUG] Erro ao determinar mês de transações: {e}")
-                # Fallback para data_inicio se fornecida
-                if data_inicio:
-                    mes_nome = meses_pt.get(
-                        data_inicio.month, data_inicio.strftime("%B")
-                    )
-                    mes_referencia = f"{mes_nome}/{data_inicio.year}"
-                else:
-                    agora = datetime.now()
-                    mes_nome = meses_pt.get(agora.month, agora.strftime("%B"))
-                    mes_referencia = f"{mes_nome}/{agora.year}"
-        elif data_inicio:
-            mes_nome = meses_pt.get(data_inicio.month, data_inicio.strftime("%B"))
-            mes_referencia = f"{mes_nome}/{data_inicio.year}"
-        else:
-            agora = datetime.now()
-            mes_nome = meses_pt.get(agora.month, agora.strftime("%B"))
-            mes_referencia = f"{mes_nome}/{agora.year}"
-
-    periodo_analise = f"{data_inicio.strftime('%d/%m/%Y') if data_inicio else 'N/A'} a {data_fim.strftime('%d/%m/%Y') if data_fim else 'N/A'}"
-
-    # Status da conciliação
-    materialidade_percentual = (
-        (total_materialidade / faturamento_bruto * 100) if faturamento_bruto > 0 else 0
-    )
-
-    if materialidade_percentual < 1:
-        status_conciliacao = "✓ Conforme"
-        status_class = "status-ok"
-    elif materialidade_percentual < 3:
-        status_conciliacao = "⚠ Atenção"
-        status_class = "status-alert"
-    else:
-        status_conciliacao = "✗ Crítico"
-        status_class = "status-alert"
-
-    # Gerar gráficos (apenas pizzas para relatório mensal)
-    grafico_bandeiras_path = ""
-    grafico_forma_pagamento_path = ""
-
-    try:
-        print("[DEBUG] Tentando gerar gráfico de bandeiras...")
-        grafico_bandeiras_path = criar_grafico_vendas_por_bandeira(df_join)
-    except Exception as e:
-        print(f"[AVISO] Falha ao gerar gráfico de bandeiras: {e}")
-        grafico_bandeiras_path = ""
-
-    try:
-        print("[DEBUG] Tentando gerar gráfico de forma de pagamento...")
-        grafico_forma_pagamento_path = criar_grafico_vendas_por_forma_pagamento(df_join)
-    except Exception as e:
-        print(f"[AVISO] Falha ao gerar gráfico de forma de pagamento: {e}")
-        grafico_forma_pagamento_path = ""
-
-    # Gerar tabelas HTML
-    estatisticas_taxas = calcular_estatisticas_taxas(df_join)
-
-    # Buscar recebíveis
-    df_recebiveis = calcular_sumario_recebiveis(engine, processamento_id)
-
-    # Preparar DataFrames para calcular perdas (adaptar estrutura esperada pela função)
-    df_processadas_adapted = df_join.copy()
-    df_processadas_adapted["id"] = df_processadas_adapted["venda_id"]
-
-    df_calculos_adapted = df_join[["venda_id", "perda"]].copy()
-    df_calculos_adapted["id_venda"] = df_calculos_adapted["venda_id"]
-
-    # Adicionar coluna perda_rr se existir no df_join
-    if "Taxas_RR" in df_join.columns and "Valor_RR" in df_join.columns:
-        # Calcular perda_rr se não existir
-        if "perda_rr" not in df_join.columns:
-            df_join["perda_rr"] = df_join["Valor_RR"].fillna(0)
-        df_calculos_adapted["perda_rr"] = df_join["perda_rr"].fillna(0)
-    else:
-        df_calculos_adapted["perda_rr"] = 0
-
-    # NOVA: Calcular tabela consolidada mensal
-    df_tabela_consolidada = calcular_tabela_consolidada_mensal(
-        engine, processamento_id, df_processadas_adapted, df_calculos_adapted
-    )
-
-    # Calcular perdas por semestre - COM faturamento no relatório mensal
-    try:
-        df_perdas = calcular_perdas_por_semestre(
-            df_processadas_adapted, df_calculos_adapted, incluir_faturamento=True
-        )
-    except Exception as e:
-        print(f"[DEBUG] Erro ao calcular perdas: {e}")
-        # Criar DataFrame vazio se houver erro
-        df_perdas = pd.DataFrame()
-
-    # Calcular min/max taxas
-    df_min_max_taxas = calcular_min_max_taxas_agrupado(df_join)
-
-    # Calcular contagem de taxas
-    df_contagem_taxas = calcular_contagem_taxas_agrupado(df_join)
-
-    # Buscar dados bancários
-    df_dados_bancarios = obter_dados_bancarios_distintos(engine, processamento_id)
-
-    tabela_sumario_html = criar_tabela_sumario(
-        {
-            "quantidade": total_transacoes,
-            "valor_total": faturamento_bruto,
-            "valor_medio": valor_medio,
-            "valor_min": valor_min,
-            "valor_max": valor_max,
-            "valor_liquido": valor_liquido,
-            "primeira_venda": (
-                primeira_venda.strftime("%d/%m/%Y") if primeira_venda else ""
-            ),
-            "ultima_venda": ultima_venda.strftime("%d/%m/%Y") if ultima_venda else "",
-            "periodo_dias": periodo_dias,
-        },
-        metadados,
-        estatisticas_taxas,
-        ecs_distintos,
-        adquirentes_distintos,
-    )
-
-    tabela_perdas_mes_html = (
-        gerar_tabela_html(df_perdas, "Análise de Perdas Estimadas")
-        if not df_perdas.empty
-        else ""
-    )
-
-    tabela_min_max_taxas_html = (
-        gerar_tabela_html(df_min_max_taxas, "Taxas Mínimas e Máximas por Bandeira")
-        if not df_min_max_taxas.empty
-        else ""
-    )
-
-    tabela_contagem_taxas_html = (
-        gerar_tabela_html(df_contagem_taxas, "Contagem de Transações por Bandeira")
-        if not df_contagem_taxas.empty
-        else ""
-    )
-
-    tabela_sumario_recebiveis_html = (
-        gerar_tabela_html(df_recebiveis, "Resumo de Recebíveis")
-        if not df_recebiveis.empty
-        else ""
-    )
-
-    tabela_dados_bancarios_html = (
-        gerar_tabela_html(df_dados_bancarios, "Dados Bancários")
-        if not df_dados_bancarios.empty
-        else ""
-    )
-
-    # Tabelas filtradas (opcionais)
+    # Inicialização preventiva de variáveis
+    grafico_bandeiras_html = ""
+    grafico_forma_pagamento_html = ""
+    grafico_meses_html = ""
+    grafico_valores_html = ""
+    primeira_venda = None
+    ultima_venda = None
+    quantidade = 0
+    valor_total = 0
+    valor_medio = 0
+    valor_min = 0
+    valor_max = 0
+    total_materialidade = 0
+    materialidade_percentual = 0
+    adquirente_principal = adquirente or "Todos"
+    
+    # Inicilização de tabelas HTML
+    tabela_sumario_html = ""
+    tabela_perdas_semestre_html = ""
+    tabela_min_max_taxas_html = ""
+    tabela_contagem_taxas_html = ""
+    tabela_sumario_recebiveis_html = ""
+    tabela_dados_bancarios_html = ""
     tabela_vendas_filtradas_html = ""
     tabela_recebiveis_filtrados_html = ""
+    tabela_evidencias_maiores_valores_html = ""
+    tabela_evidencias_menores_valores_html = ""
+    tabela_evidencias_maiores_taxas_html = ""
+    tabela_evidencias_menores_taxas_html = ""
 
-    if incluir_filtradas:
-        df_vendas_filtradas = gerar_demonstrativo_vendas_filtradas(
-            engine, processamento_id
-        )
-        if not df_vendas_filtradas.empty:
-            tabela_vendas_filtradas_html = gerar_tabela_html(
-                df_vendas_filtradas, "Demonstrativo de Outras Vendas"
-            )
+    if progress_callback: progress_callback(10, "Iniciando relatório mensal...")
 
-    if incluir_recebiveis_filtrados:
-        df_recebiveis_filtrados = gerar_demonstrativo_recebiveis_filtrados(
-            engine, processamento_id
-        )
-        if not df_recebiveis_filtrados.empty:
-            tabela_recebiveis_filtrados_html = gerar_tabela_html(
-                df_recebiveis_filtrados, "Demonstrativo de Outros Recebíveis"
-            )  # Identificar divergências
-    divergencias_encontradas = []
-    if not df_perdas.empty and "perda_total" in df_perdas.columns:
-        perdas_valores = df_perdas["perda_total"].dropna()
-        if len(perdas_valores) > 0:
-            divergencias_encontradas.append(
-                {
-                    "tipo": "Taxas MDR",
-                    "descricao": "Divergências entre taxas cadastradas e aplicadas",
-                    "quantidade": len(perdas_valores),
-                    "impacto": format_currency_br(perdas_valores.sum()),
-                }
-            )
+    # 1. Metadados e Contexto
+    metadados = obter_dados_processamento(engine, processamento_id)
+    adquirentes_distintos = obter_adquirentes_distintos_processamento(engine, processamento_id)
+    ecs_distintos = obter_ecs_distintos_processamento(engine, processamento_id, adquirente)
 
-    # Recomendações
-    recomendacoes = []
-    if materialidade_percentual > 2:
-        recomendacoes.append(
-            {
-                "prioridade": "🔴 Alta",
-                "descricao": "Revisar taxas aplicadas pela adquirente e solicitar ajustes contratuais",
-            }
-        )
-    if materialidade_percentual > 1:
-        recomendacoes.append(
-            {
-                "prioridade": "🟡 Média",
-                "descricao": "Monitorar transações com taxas variáveis e solicitar padronização",
-            }
-        )
+    if adquirente and adquirente != "None":
+        adquirente_principal = adquirente
+    elif adquirentes_distintos:
+        adquirente_principal = ", ".join(adquirentes_distintos)
+    else:
+        adquirente_principal = "Não identificado"
+    # Validar ou Auto-detectar calc_tipo
+    needs_detection = not calc_tipo
+    if calc_tipo:
+        try:
+            with engine.connect() as temp_conn:
+                sql_check = "SELECT COUNT(*) FROM vendas_calculos WHERE calc_id = :p1 AND calc_tipo = :p2"
+                count = temp_conn.execute(text(sql_check), {"p1": processamento_id, "p2": calc_tipo}).scalar()
+                if count == 0:
+                    needs_detection = True
+        except:
+            needs_detection = True
 
-    # Preparar contexto para template
+    if needs_detection:
+        try:
+            with engine.connect() as temp_conn:
+                sql_tipo = "SELECT calc_tipo FROM vendas_calculos WHERE calc_id = :p1 LIMIT 1"
+                res_tipo = temp_conn.execute(text(sql_tipo), {"p1": processamento_id}).scalar()
+                if res_tipo:
+                    calc_tipo = res_tipo
+        except:
+            if not calc_tipo: calc_tipo = "log_mensal"
+
+    # 2. Busca de dados principal via cache Parquet (evita re-query do MySQL)
+    df_cached = load_vendas_calculos_cached(engine, processamento_id, calc_tipo)
+
+    debug_log(f"Cached data loaded: {len(df_cached)} rows")
+
+    # Aplicar filtros no Polars
+    lf_filtered = df_cached.lazy()
+    if adquirente and adquirente not in ("Todos", "None", "todos"):
+        lf_filtered = lf_filtered.filter(pl.col("adquirente") == adquirente)
+    
+    # Identificar coluna de data correta
+    cols = lf_filtered.collect_schema().names()
+    data_col = next((c for c in ["Data_da_venda", "data_venda", "Data"] if c in cols), "data_venda")
+
+    if data_inicio:
+        dt_ini = pl.lit(data_inicio).cast(pl.Date)
+        lf_filtered = lf_filtered.filter(pl.col(data_col).cast(pl.Date) >= dt_ini)
+    if data_fim:
+        dt_fim = pl.lit(data_fim).cast(pl.Date)
+        lf_filtered = lf_filtered.filter(pl.col(data_col).cast(pl.Date) <= dt_fim)
+    if apenas_com_perdas:
+        lf_filtered = lf_filtered.filter(
+            (pl.col("perda") > 0) | (pl.col("perda_rr").fill_null(0) > 0)
+        )
+    df_pl = lf_filtered.collect()
+    
+    # 3. Processamento Otimizado (Polars Lazy)
+    lf = df_pl.lazy()
+    lf = filtrar_valores_rede_depara(lf)
+    lf = calcular_previsao_pagamento_rede(lf)
+    df_main = lf.collect() if isinstance(lf, pl.LazyFrame) else lf
+    
+    if df_main.is_empty():
+        print("[DEBUG] Nenhum registro encontrado para o relatório mensal.")
+        # Retorno seguro se vazio
+        return "", None, None
+    
+    # Estatísticas Básicas
+    stats = df_main.select([
+        pl.len().alias("count"), 
+        pl.col("vl_venda").cast(pl.Float64).sum().fill_null(0).alias("total"),
+        pl.col("vl_liq_venda").cast(pl.Float64).sum().fill_null(0).alias("liquido"), 
+        pl.col("vl_venda").min().alias("min"),
+        pl.col("vl_venda").max().alias("max"), 
+        pl.col(data_col).min().alias("primeira"),
+        pl.col(data_col).max().alias("ultima")
+    ]).row(0, named=True)
+
+    total_transacoes = stats["count"]
+    faturamento_bruto = stats["total"] or 0
+    valor_liquido = stats["liquido"] or 0
+    valor_min = stats["min"] or 0
+    valor_max = stats["max"] or 0
+    valor_medio = faturamento_bruto / total_transacoes if total_transacoes > 0 else 0
+    primeira_venda = stats["primeira"]
+    ultima_venda = stats["ultima"]
+    periodo_dias = (ultima_venda - primeira_venda).days + 1 if (primeira_venda and ultima_venda) else 0
+
+    df_join = df_main.to_pandas()
+
+    if not mes_referencia and primeira_venda:
+        meses_pt = {1:"Janeiro",2:"Fevereiro",3:"Março",4:"Abril",5:"Maio",6:"Junho",
+                    7:"Julho",8:"Agosto",9:"Setembro",10:"Outubro",11:"Novembro",12:"Dezembro"}
+        mes_nome = meses_pt.get(primeira_venda.month, primeira_venda.strftime("%B"))
+        mes_referencia = f"{mes_nome}/{primeira_venda.year}"
+
+    # 4. Materialidade (Polars)
+    total_perdas_vendas = df_main.select(pl.col("perda").sum()).row(0)[0] or 0
+    total_perdas_rr = df_main.select(pl.col("perda_rr").sum()).row(0)[0] or 0
+    
+    total_recebiveis = 0
+    try:
+        sql_rec = "SELECT SUM(COALESCE(valor_recebivel,0)) FROM recebiveis_processados WHERE processamentoid = :p1"
+        total_recebiveis = engine.connect().execute(text(sql_rec), {"p1": processamento_id}).scalar() or 0
+    except: pass
+    
+    total_materialidade = total_perdas_vendas + total_perdas_rr + total_recebiveis
+    materialidade_percentual = (total_materialidade / faturamento_bruto * 100) if faturamento_bruto > 0 else 0
+
+    # 5. Gráficos (Threading)
+    graficos_paths = {}
+    threads = []
+    def run_g(df, func, out_dict, key): 
+        try: out_dict[key] = func(df)
+        except: out_dict[key] = ""
+    
+    t1 = threading.Thread(target=run_g, args=(df_join, criar_grafico_vendas_por_bandeira, graficos_paths, "bandeira"))
+    t2 = threading.Thread(target=run_g, args=(df_join, criar_grafico_vendas_por_forma_pagamento, graficos_paths, "forma"))
+    threads.extend([t1, t2]); t1.start(); t2.start()
+    for t in threads: t.join()
+
+    # 6. Tabelas HTML
+    df_tabela_consolidada = calcular_tabela_consolidada_mensal(engine, processamento_id, df_main, df_main, data_inicio, data_fim)
+    df_perdas = calcular_perdas_por_semestre(df_main, incluir_faturamento=True)
+    df_min_max_taxas = calcular_min_max_taxas_agrupado(df_main)
+    df_contagem_taxas = calcular_contagem_taxas_agrupado(df_main)
+    df_dados_bancarios = obter_dados_bancarios_distintos(engine, processamento_id, data_inicio, data_fim)
+    evidencias = obter_evidencias_transacoes(engine, processamento_id, calc_tipo, data_inicio, data_fim, df=df_main)
+
+    def to_h(df, title): return gerar_tabela_html(df, title) if not (df is None or (isinstance(df, pd.DataFrame) and df.empty)) else ""
+    
+    ps_str = primeira_venda.strftime("%d/%m/%Y") if primeira_venda else ""
+    us_str = ultima_venda.strftime("%d/%m/%Y") if ultima_venda else ""
+
     context = {
-        "cover_image_path": os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "assets", "capa_relatorio.jpg"
-        ),
-        "header_image_path": os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "assets",
-            "cabecalho_financial.png",
-        ),
+        "cover_image_path": cover_image_url,
+        "header_image_path": header_image_url,
         "mes_referencia": mes_referencia,
-        "periodo_analise": periodo_analise,
-        "tabela_sumario_html": tabela_sumario_html,
-        "tabela_consolidada_html": (
-            gerar_tabela_html(df_tabela_consolidada, "Análise Consolidada")
-            if not df_tabela_consolidada.empty
-            else ""
-        ),
-        "tabela_contagem_taxas_html": tabela_contagem_taxas_html,
-        "tabela_sumario_recebiveis_html": tabela_sumario_recebiveis_html,
-        "tabela_dados_bancarios_html": tabela_dados_bancarios_html,
-        "tabela_recebiveis_filtrados_html": tabela_recebiveis_filtrados_html,
-        "tabela_vendas_filtradas_html": tabela_vendas_filtradas_html,
-        "grafico_bandeiras_path": (
-            grafico_bandeiras_path if grafico_bandeiras_path else ""
-        ),
-        "grafico_forma_pagamento_path": (
-            grafico_forma_pagamento_path if grafico_forma_pagamento_path else ""
-        ),
+        "periodo_analise": f"{ps_str} a {us_str}",
+        "tabela_sumario_html": criar_tabela_sumario({"quantidade": total_transacoes, "valor_total": faturamento_bruto, "valor_medio": valor_medio, "valor_min": valor_min, "valor_max": valor_max, "valor_liquido": valor_liquido, "primeira_venda": ps_str, "ultima_venda": us_str, "periodo_dias": periodo_dias}, metadados, calcular_estatisticas_taxas(df_join), ecs_distintos, adquirentes_distintos),
+        "tabela_consolidada_html": to_h(df_tabela_consolidada, "Análise Consolidada"),
+        "tabela_perdas_mes_html": to_h(df_perdas, "Análise de Perdas Estimadas"),
+        "tabela_min_max_taxas_html": to_h(df_min_max_taxas, "Taxas Mínimas e Máximas"),
+        "tabela_contagem_taxas_html": to_h(df_contagem_taxas, "Contagem de Transações"),
+        "tabela_dados_bancarios_html": to_h(df_dados_bancarios, "Dados Bancários"),
+        "grafico_bandeiras_html": graficos_paths.get("bandeira", ""),
+        "grafico_forma_pagamento_html": graficos_paths.get("forma", ""),
         "materialidade_valor": format_currency_br(total_materialidade),
         "materialidade_percentual": f"{materialidade_percentual:.2f}%",
         "data_processamento": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-        "disclaimer_text": "Este relatório é baseado exclusivamente nos dados fornecidos pela adquirente e tem caráter informativo. Recomenda-se análise detalhada dos valores apresentados.",
     }
 
-    # Renderizar template
-    template_dir = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "relatorios"
-    )
-    env = Environment(loader=FileSystemLoader(template_dir))
-    template = env.get_template("template_relatorio_mensal.html")
-    html_content = template.render(**context)
-
-    # Salvar HTML
+    # Render e Salvar
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    _templates_dir = os.path.normpath(os.path.join(current_dir, "..", "templates"))
+    if not os.path.exists(_templates_dir):
+        _templates_dir = os.path.normpath(os.path.join(current_dir, "..", "..", "templates"))
+    
+    env = Environment(loader=FileSystemLoader(_templates_dir))
+    template_name = "template_relatorio_mensal_sem_capa.html" if modelo == "sem_capa" else "template_relatorio_mensal.html"
+    html_content = env.get_template(template_name).render(**context)
+    
     dir_path = criar_diretorio_relatorios()
-
-    # Sanitizar nome do cliente removendo caracteres inválidos para Windows
-    cliente_nome = metadados.get("cliente_nome", "cliente")
-    # Remover caracteres problemáticos: < > : " / \ | ? * ( ) . ,
-    caracteres_invalidos = [
-        "<",
-        ">",
-        ":",
-        '"',
-        "/",
-        "\\",
-        "|",
-        "?",
-        "*",
-        "(",
-        ")",
-        ".",
-        ",",
-    ]
-    for char in caracteres_invalidos:
-        cliente_nome = cliente_nome.replace(char, "")
-    # Substituir espaços por underscores e limitar tamanho
-    cliente_nome = cliente_nome.replace(" ", "_")[:50]
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    # Sanitizar mês de referência
-    mes_ref_safe = (
-        mes_referencia.replace("/", "_").replace(" ", "_")
-        if mes_referencia
-        else "atual"
-    )
-
-    html_filename = f"relatorio_mensal_{cliente_nome}_{mes_ref_safe}_{timestamp}.html"
+    html_filename = f"relatorio_mensal_{processamento_id}_{timestamp}.html"
     html_path = os.path.join(dir_path, html_filename)
+    with open(html_path, "w", encoding="utf-8") as f: f.write(html_content)
 
-    with open(html_path, "w", encoding="utf-8") as f:
-        f.write(html_content)
+    # 7. Excel (ZERO SQL)
+    gc.collect()
+    excel_filename = f"relatorio_mensal_{processamento_id}_{timestamp}"
 
-    print(f"[DEBUG] Relatório mensal salvo em: {html_path}")
-    print(f"[DEBUG] Tempo total: {time.time() - inicio_total:.2f}s")
+    # Normalizar bandeira para evitar duplicidade de abas por casing (ex: MASTERCARD vs Mastercard)
+    _band_col_norm = next((c for c in ["bandeira", "Bandeira"] if c in df_join.columns), None)
+    if _band_col_norm:
+        _band_map = {
+            "MASTERCARD": "Mastercard", "VISA": "Visa", "ELO": "Elo",
+            "HIPERCARD": "Hipercard", "AMEX": "Amex", "AMERICAN EXPRESS": "American Express",
+            "CABAL": "Cabal", "BANESCARD": "Banescard", "DINERS": "Diners",
+            "DISCOVER": "Discover", "PIX": "Pix", "HIPER": "Hiper",
+        }
+        df_join[_band_col_norm] = df_join[_band_col_norm].replace(_band_map)
 
-    return html_path, None
+    _excel_row_limit = 100000
+    df_join_excel = df_join.head(_excel_row_limit) if len(df_join) > _excel_row_limit else df_join
+    if len(df_join) > _excel_row_limit:
+        print(f"[WARNING] Mensal: Dataset com {len(df_join)} linhas. Truncando Vendas Completas para {_excel_row_limit}.")
+    dataframes_excel = {
+        "1. Vendas Completas": df_join_excel,
+    }
+
+    # Abas analíticas por Bandeira + Forma de Pagamento — usa dataset COMPLETO (sem limite de linhas)
+    _band_col = next((c for c in ["bandeira", "Bandeira"] if c in df_join.columns), None)
+    _forma_col = next((c for c in ["forma_pagamento", "Forma_de_pagamento", "Forma de Pagamento"] if c in df_join.columns), None)
+    if _band_col and _forma_col:
+        _grupos = df_join.groupby([_band_col, _forma_col], sort=True)
+        for (_band, _forma), _grp in _grupos:
+            _nome_aba = f"{_band} - {_forma}"[:31]
+            dataframes_excel[_nome_aba] = _grp.reset_index(drop=True)
+
+    dataframes_excel.update({
+        "2. Análise Consolidada": df_tabela_consolidada,
+        "3. Perdas Semestre": df_perdas,
+        "4. Taxas Min-Max": df_min_max_taxas,
+        "5. Contagem Transações": df_contagem_taxas,
+        "6. Dados Bancários": df_dados_bancarios
+    })
+    excel_path = gerar_excel_relatorio(dataframes_excel, excel_filename)
+
+    # 8. Relatório Sintético
+    try:
+        sintetico_path = gerar_relatorio_sintetico_html(
+            metadados=metadados, total_transacoes=total_transacoes, faturamento_bruto=faturamento_bruto,
+            valor_liquido=valor_liquido, ticket_medio=valor_medio, taxa_media=df_join["tx_venda"].mean() if not df_join.empty else 0,
+            total_divergencias=total_materialidade, primeira_venda=primeira_venda, ultima_venda=ultima_venda,
+            periodo_dias=periodo_dias, adquirente=metadados.get("adquirente", "Não identificado"), processamento_id=processamento_id
+        )
+    except: sintetico_path = None
+
+    print(f"[DEBUG] Tempo total mensal: {time.time() - inicio_total:.2f}s")
+    return html_path, None, sintetico_path
+    return html_path, None, sintetico_path
 
 
 def criar_interface_relatorio(engine: Engine) -> Any:
@@ -3606,6 +4185,25 @@ def criar_interface_relatorio(engine: Engine) -> Any:
         name="Filtrar por Adquirente", options=[], width=300
     )
 
+    # Widget para mostrar o período de vendas
+    periodo_info = pn.pane.Markdown(
+        "",
+        styles={
+            "background-color": "#e3f2fd",
+            "padding": "10px",
+            "border-radius": "5px",
+            "margin": "10px 0",
+        },
+        visible=False,
+    )
+
+    # Widgets de filtro de data
+    data_inicial_input = pn.widgets.DatePicker(
+        name="Data Inicial (opcional)", width=200
+    )
+
+    data_final_input = pn.widgets.DatePicker(name="Data Final (opcional)", width=200)
+
     # Checkbox para incluir vendas filtradas (apenas para retroativo)
     incluir_filtradas_check = pn.widgets.Checkbox(
         name="Incluir Demonstrativo de Vendas Filtradas", value=False, width=300
@@ -3614,6 +4212,13 @@ def criar_interface_relatorio(engine: Engine) -> Any:
     # Checkbox para incluir recebíveis filtrados (apenas para retroativo)
     incluir_recebiveis_filtrados_check = pn.widgets.Checkbox(
         name="Incluir Demonstrativo de Recebíveis Filtrados", value=False, width=300
+    )
+
+    # Checkbox para filtrar apenas vendas com perdas
+    apenas_com_perdas_check = pn.widgets.Checkbox(
+        name="Apenas vendas com perdas (perda > 0 ou perda_rr > 0)",
+        value=False,
+        width=350,
     )
 
     def get_adquirentes(processamento_id):
@@ -3635,10 +4240,10 @@ def criar_interface_relatorio(engine: Engine) -> Any:
     calc_options = (
         [
             (
-                f"{row.calc_id} | {tipo_amigavel(row.calc_tipo)}",
-                (row.calc_id, row.calc_tipo),
+                f"{row['calc_id']} | {tipo_amigavel(row['calc_tipo'])}",
+                (row['calc_id'], row['calc_tipo']),
             )
-            for _, row in df_calcs.iterrows()
+            for row in df_calcs.to_dict(orient="records")
         ]
         if not df_calcs.empty
         else [("Nenhum cálculo", (None, None))]
@@ -3650,7 +4255,7 @@ def criar_interface_relatorio(engine: Engine) -> Any:
 
     # Atualizar opções de adquirente ao trocar processamento
     def on_calc_change(event):
-        print(f"\n[DEBUG SEGUNDA FUNÇÃO] === on_calc_change AUTOMÁTICO ===")
+        print("\n[DEBUG SEGUNDA FUNÇÃO] === on_calc_change AUTOMÁTICO ===")
         calc_id_tipo = calc_select.value
         print(f"[DEBUG SEGUNDA FUNÇÃO] calc_select.value = {calc_id_tipo}")
 
@@ -3660,15 +4265,43 @@ def criar_interface_relatorio(engine: Engine) -> Any:
             )
             adquirente_select.options = ["Todos"]
             adquirente_select.value = "Todos"
+            adquirente_select.disabled = False
             return
 
         processamento_id, _ = calc_id_tipo
         print(f"[DEBUG SEGUNDA FUNÇÃO] Processamento ID: {processamento_id}")
 
         try:
+            # ⏳ Desabilitar selectbox durante carregamento
+            adquirente_select.disabled = True
+            adquirente_select.name = "Carregando adquirentes..."
+
             print("[DEBUG SEGUNDA FUNÇÃO] Chamando get_adquirentes...")
             adquirentes = get_adquirentes(processamento_id)
             print(f"[DEBUG SEGUNDA FUNÇÃO] Adquirentes encontrados: {adquirentes}")
+
+            # Buscar período de vendas
+            try:
+                _, periodo, _ = obter_adquirentes_e_periodo_processamento(
+                    engine, processamento_id
+                )
+
+                if periodo and "data_min" in periodo and "data_max" in periodo:
+                    data_min_str = periodo["data_min"].strftime("%d/%m/%Y")
+                    data_max_str = periodo["data_max"].strftime("%d/%m/%Y")
+                    periodo_info.object = (
+                        f"📅 **Período de vendas:** {data_min_str} até {data_max_str}"
+                    )
+                    periodo_info.visible = True
+                    print(
+                        f"[DEBUG SEGUNDA FUNÇÃO] Período: {data_min_str} até {data_max_str}"
+                    )
+                else:
+                    periodo_info.visible = False
+                    print("[DEBUG SEGUNDA FUNÇÃO] Nenhum período encontrado")
+            except Exception as e:
+                print(f"[DEBUG SEGUNDA FUNÇÃO] Erro ao buscar período: {str(e)}")
+                periodo_info.visible = False
 
             if adquirentes:
                 new_options = ["Todos"] + adquirentes
@@ -3687,27 +4320,31 @@ def criar_interface_relatorio(engine: Engine) -> Any:
             print(f"[DEBUG SEGUNDA FUNÇÃO] ❌ Erro ao carregar adquirentes: {str(e)}")
             adquirente_select.options = ["Todos"]
             adquirente_select.value = "Todos"
+        finally:
+            # ✅ Reabilitar selectbox após carregamento
+            adquirente_select.disabled = False
+            adquirente_select.name = "Filtrar por Adquirente"
 
-        print(f"[DEBUG SEGUNDA FUNÇÃO] === FIM on_calc_change AUTOMÁTICO ===\n")
+        print("[DEBUG SEGUNDA FUNÇÃO] === FIM on_calc_change AUTOMÁTICO ===\n")
 
     calc_select.param.watch(on_calc_change, "value")
 
     # Carregar adquirentes automaticamente na inicialização da segunda função
-    print(f"\n[DEBUG SEGUNDA FUNÇÃO] === INICIALIZANDO INTERFACE ===")
+    print("\n[DEBUG SEGUNDA FUNÇÃO] === INICIALIZANDO INTERFACE ===")
     print(f"[DEBUG SEGUNDA FUNÇÃO] calc_select criado com {len(calc_options)} opções")
 
     # Se há cálculos disponíveis, carregar adquirentes do primeiro
     if calc_options and calc_options[0][1] != (None, None):
-        print(f"[DEBUG SEGUNDA FUNÇÃO] Carregando adquirentes iniciais...")
+        print("[DEBUG SEGUNDA FUNÇÃO] Carregando adquirentes iniciais...")
         on_calc_change(None)
     else:
         print(
-            f"[DEBUG SEGUNDA FUNÇÃO] Nenhum cálculo disponível para carregar adquirentes"
+            "[DEBUG SEGUNDA FUNÇÃO] Nenhum cálculo disponível para carregar adquirentes"
         )
         adquirente_select.options = ["Todos"]
         adquirente_select.value = "Todos"
 
-    print(f"[DEBUG SEGUNDA FUNÇÃO] === FIM INICIALIZAÇÃO ===\n")
+    print("[DEBUG SEGUNDA FUNÇÃO] === FIM INICIALIZAÇÃO ===\n")
 
     btn_gerar = pn.widgets.Button(
         name="🔍 Gerar Relatório HTML", button_type="primary", width=200
@@ -3716,6 +4353,12 @@ def criar_interface_relatorio(engine: Engine) -> Any:
     status = pn.pane.Markdown("")
     btn_abrir_relatorio = pn.widgets.Button(
         name="📂 Abrir HTML", button_type="success", width=200, visible=False
+    )
+    btn_baixar_excel = pn.widgets.Button(
+        name="📊 Baixar Excel", button_type="success", width=200, visible=False
+    )
+    btn_abrir_sintetico = pn.widgets.Button(
+        name="📄 Abrir Sintético", button_type="primary", width=200, visible=False
     )
 
     def on_gerar_relatorio(event):
@@ -3734,26 +4377,47 @@ def criar_interface_relatorio(engine: Engine) -> Any:
             adquirente_select.value if adquirente_select.value != "Todos" else None
         )
 
+        # Capturar datas selecionadas e converter para datetime se necessário
+        data_inicio = data_inicial_input.value
+        data_fim = data_final_input.value
+
+        # Converter de date para datetime se necessário
+        if data_inicio:
+            from datetime import datetime
+
+            if not isinstance(data_inicio, datetime):
+                data_inicio = datetime.combine(data_inicio, datetime.min.time())
+        if data_fim:
+            from datetime import datetime
+
+            if not isinstance(data_fim, datetime):
+                data_fim = datetime.combine(data_fim, datetime.max.time())
+
         status.object = (
             f"⏳ Gerando relatório {tipo_relatorio_select.name}... Por favor, aguarde."
         )
         btn_abrir_relatorio.visible = False
+        btn_baixar_excel.visible = False
+        btn_abrir_sintetico.visible = False
 
         try:
             if tipo_relatorio == "mensal":
                 # Gerar relatório mensal
-                html_path, _ = gerar_relatorio_mensal_html(
+                html_path, _, sintetico_path = gerar_relatorio_mensal_html(
                     engine,
                     processamento_id,
                     calc_tipo=calc_tipo,
                     adquirente=adquirente_selecionado,
                     incluir_filtradas=incluir_filtradas_check.value,
                     incluir_recebiveis_filtrados=incluir_recebiveis_filtrados_check.value,
+                    data_inicio=data_inicio,
+                    data_fim=data_fim,
+                    apenas_com_perdas=apenas_com_perdas_check.value,
                 )
                 tipo_msg = "Mensal"
             else:
                 # Gerar relatório retroativo (padrão)
-                html_path, _ = gerar_relatorio_html(
+                html_path, _, sintetico_path = gerar_relatorio_html(
                     engine,
                     processamento_id,
                     calc_tipo=calc_tipo,
@@ -3761,11 +4425,25 @@ def criar_interface_relatorio(engine: Engine) -> Any:
                     adquirente=adquirente_selecionado,
                     incluir_filtradas=incluir_filtradas_check.value,
                     incluir_recebiveis_filtrados=incluir_recebiveis_filtrados_check.value,
+                    data_inicio=data_inicio,
+                    data_fim=data_fim,
+                    apenas_com_perdas=apenas_com_perdas_check.value,
                 )
                 tipo_msg = "Retroativo"
 
             btn_abrir_relatorio.visible = True
             btn_abrir_relatorio.html_path = html_path
+
+            # Verificar se o Excel foi gerado e armazenar o caminho
+            excel_path = html_path.replace(".html", ".xlsx")
+            if os.path.exists(excel_path):
+                btn_baixar_excel.visible = True
+                btn_baixar_excel.excel_path = excel_path
+
+            # Verificar se o relatório sintético foi gerado
+            if sintetico_path and os.path.exists(sintetico_path):
+                btn_abrir_sintetico.visible = True
+                btn_abrir_sintetico.sintetico_path = sintetico_path
 
             # Mostrar no status qual adquirente foi usado no filtro
             filtro_info = (
@@ -3773,6 +4451,12 @@ def criar_interface_relatorio(engine: Engine) -> Any:
                 if adquirente_selecionado
                 else " (Todos os adquirentes)"
             )
+
+            # Adicionar info de período se filtrado
+            if data_inicio or data_fim:
+                periodo_info = f" | Período: {data_inicio.strftime('%d/%m/%Y') if data_inicio else 'Início'} até {data_fim.strftime('%d/%m/%Y') if data_fim else 'Fim'}"
+                filtro_info += periodo_info
+
             status.object = f"✅ Relatório {tipo_msg} gerado com sucesso!{filtro_info} <br> **Arquivo salvo em:** `{html_path}`"
         except Exception as e:
             status.object = f"❌ Erro ao gerar relatório: {e}"
@@ -3780,24 +4464,42 @@ def criar_interface_relatorio(engine: Engine) -> Any:
 
             traceback.print_exc()
             btn_abrir_relatorio.visible = False
+            btn_baixar_excel.visible = False
+            btn_abrir_sintetico.visible = False
 
     def on_abrir_relatorio(event):
         if hasattr(btn_abrir_relatorio, "html_path") and btn_abrir_relatorio.html_path:
             os.startfile(btn_abrir_relatorio.html_path)
 
+    def on_baixar_excel(event):
+        if hasattr(btn_baixar_excel, "excel_path") and btn_baixar_excel.excel_path:
+            os.startfile(btn_baixar_excel.excel_path)
+
+    def on_abrir_sintetico(event):
+        if (
+            hasattr(btn_abrir_sintetico, "sintetico_path")
+            and btn_abrir_sintetico.sintetico_path
+        ):
+            os.startfile(btn_abrir_sintetico.sintetico_path)
+
     btn_gerar.on_click(on_gerar_relatorio)
     btn_abrir_relatorio.on_click(on_abrir_relatorio)
+    btn_baixar_excel.on_click(on_baixar_excel)
+    btn_abrir_sintetico.on_click(on_abrir_sintetico)
 
     return pn.Column(
         titulo,
         pn.layout.Divider(),
         pn.Row(tipo_relatorio_select),
         pn.Row(calc_select, adquirente_select),
+        periodo_info,
+        pn.Row(data_inicial_input, data_final_input),
         pn.Row(incluir_filtradas_check),
         pn.Row(incluir_recebiveis_filtrados_check),
+        pn.Row(apenas_com_perdas_check),
         pn.Row(btn_gerar),
         status,
         pn.layout.Divider(),
-        btn_abrir_relatorio,
+        pn.Row(btn_abrir_relatorio, btn_abrir_sintetico, btn_baixar_excel),
         sizing_mode="stretch_width",
     )

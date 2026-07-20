@@ -1,0 +1,1 @@
+Hook useFormasPagamento removido conforme solicitado em 12/01/2026.

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+          xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+          xmlns:x="urn:schemas-microsoft-com:office:excel"
+          xmlns:o="urn:schemas-microsoft-com:office:office">
+
+  <Styles>
+    <Style ss:ID="header">
+      <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+      <Interior ss:Color="#1E3A8A" ss:Pattern="Solid"/>
+      <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+    </Style>
+    <Style ss:ID="subtotal">
+      <Font ss:Bold="1"/>
+      <Interior ss:Color="#E8EDF7" ss:Pattern="Solid"/>
+    </Style>
+    <Style ss:ID="total">
+      <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+      <Interior ss:Color="#1E3A8A" ss:Pattern="Solid"/>
+    </Style>
+    <Style ss:ID="number">
+      <NumberFormat ss:Format="#,##0.00"/>
+    </Style>
+    <Style ss:ID="date">
+      <NumberFormat ss:Format="DD/MM/YYYY"/>
+    </Style>
+    <Style ss:ID="default">
+      <Alignment ss:Vertical="Center"/>
+    </Style>
+  </Styles>
+
+  {%- for aba in abas %}
+  <Worksheet ss:Name="{{ aba.nome[:31] }}">
+    <Table>
+
+      {# Linha de cabeçalho #}
+      <Row>
+        {%- for col in aba.colunas %}
+        <Cell ss:StyleID="header"><Data ss:Type="String">{{ col }}</Data></Cell>
+        {%- endfor %}
+      </Row>
+
+      {# Linhas de dados #}
+      {%- for row in aba.linhas %}
+      <Row>
+        {%- for val in row %}
+        {%- if val is number %}
+        <Cell ss:StyleID="number"><Data ss:Type="Number">{{ val }}</Data></Cell>
+        {%- else %}
+        <Cell ss:StyleID="default"><Data ss:Type="String">{{ val | default('') }}</Data></Cell>
+        {%- endif %}
+        {%- endfor %}
+      </Row>
+      {%- endfor %}
+
+    </Table>
+  </Worksheet>
+  {%- endfor %}
+
+</Workbook>

@@ -1,37 +1,377 @@
+# ===================================
+# CONCILIE - .gitignore
+# Sistema de Conciliação Financeira
+# ===================================
+
+# ==================
+# Python
+# ==================
+# Ambientes virtuais
 .venv/
+venv/
+venv2/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Cache Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+
+# Distribuição / Packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# ==================
+# Banco de Dados
+# ==================
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# MySQL dumps
+*.sql
+*.dump
+
+# Schemas temporários
+mysql_schema.json
+sqlite_schema.json
+schema_differences.json
+
+# ==================
+# Dados e Arquivos de Trabalho
+# ==================
+# Planilhas Excel
 *.xlsx
 *.xls
-.DS_Store
-# Arquivos de ambiente virtual
-venv/
-env/
-.venv/
-.env
+*.xlsm
+*.xlsb
 
-# Arquivos de cache do Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# CSVs com dados sensíveis
+data/*.csv
+arquivos_processados/*.csv
 
-# Arquivos de configuração do editor/IDE
+# Relatórios gerados (exceto templates que agora estão em /templates)
+relatorios/*.html
+!relatorios/.gitkeep
+
+# Pasta de templates (rastrear todos os templates)
+templates/*.html
+!templates/.gitkeep
+relatorios/*.png
+relatorios/*.pdf
+
+# Diretórios de dados locais
+data/concilie.db*
+data/arquivos_processados/*
+data/lancamento_planilhas/*.xlsx
+data/lancamento_planilhas/*.xls
+data/venda_planilhas/*.xlsx
+data/venda_planilhas/*.xls
+
+# Arquivos processados
+arquivos_processados/*
+!arquivos_processados/.gitkeep
+
+# Planilhas de lançamento e venda
+lancamento_planilhas/*.xlsx
+lancamento_planilhas/*.xls
+venda_planilhas/*.xlsx
+venda_planilhas/*.xls
+
+# ==================
+# Logs e Debug
+# ==================
+*.log
+debug.txt
+*.debug
+logs/
+*.bak
+
+# ==================
+# IDEs e Editores
+# ==================
+# VS Code
 .vscode/
+*.code-workspace
+
+# PyCharm
 .idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
 *.swp
+*.swo
+*~
+.vim/
 
-# Arquivos de build/distribuição
-build/
-dist/
-*.egg-info
+# Emacs
+*~
+\#*\#
+.\#*
 
-# Arquivos de sistema operacional
+# ==================
+# Sistema Operacional
+# ==================
+# macOS
 .DS_Store
-Thumbs.db
+.AppleDouble
+.LSOverride
+._*
 
-# ARQUIVOS SENSÍVEIS (Exemplo!)
-# Se você tiver um arquivo com senhas, NUNCA o envie.
-# Ex: local_settings.py, config.ini, etc.
-# *.ini
-# *.json  # Cuidado com este, pois pode conter dados sensíveis
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+
+# ==================
+# Específico do Projeto
+# ==================
+# Ferramentas de desenvolvimento (não distribuir)
+dev_tools/
+
+# Diretórios não relacionados (devem ser removidos)
+spotify_downloader/
+bd_structures/
+docs_old/
+# Ignorar arquivos doc avulsos mas rastrear docs/stories/
+docs/*.md
+docs/*.pdf
+docs/*.docx
+# scripts/ apenas na raiz do projeto (não afeta apps/api/scripts/)
+/scripts/
+
+# Arquivos de teste temporários (debug scripts na raiz)
+check_*.py
+debug_*.py
+diag_*.py
+verify_*.py
+stress_*.py
+
+# MCP config (contém API keys)
+.mcp.json
+
+# Configurações locais (senhas, etc)
+local_settings.py
+.env
+.env.local
+.env.*.local
+.env.mysql
+.env.sqlite
+.env.active
+.env.production
+.env.staging
+conf/local_*.py
+
+# Mas manter exemplos de configuração
+!.env.example
+!**/.env.example
+
+# ==================
+# Secrets (blindagem para agentes autônomos)
+# ==================
+# Qualquer variante de .env, em qualquer diretório
+.env*
+!.env.example
+!**/.env.example
+# Pasta genérica para segredos em texto puro
+secrets/
+.env.consolidado
+credentials.json
+credentials.*.json
+
+# Pastas de trabalho/debug locais com dados reais de clientes (nunca versionar)
+avaliar/
+tmp_debug/
+
+# Cache local do pnpm
+.pnpm-store/
+
+# Exceção: o arquivo criptografado via SOPS DEVE ser versionado
+!secrets.enc.env
+!*.enc.env
+
+# Temporários
+temp/
+tmp/
+temp_debug/
+*.tmp
+
+# Backups
+backup/
+*.backup
+.venv_backup*/
+
+# Arquivos binários e distribuições
+*.exe
+*.msi
+*.dmg
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# ==================
+# Mantidos no Repositório
+# ==================
+# Estrutura de diretórios vazios (usar .gitkeep)
+!data/.gitkeep
+!relatorios/.gitkeep
+!temp/.gitkeep
+!arquivos_processados/.gitkeep
+
+# Assets essenciais (imagens do sistema)
+!assets/*.png
+!assets/*.jpg
+!assets/*.jpeg
+
+# Documentação
+!*.md
+!README.md
+!CHANGELOG.md
+
+# Templates
+!templates/*.html
+
+# Exceptions
+!apps/web/src/lib/
+
+# Environment & Secrets (AIOX)
+*.key
+*.pem
+
+# Dependencies (AIOX)
+node_modules/
+node_modules
+
+# AIOX Local (AIOX)
+.aiox-core/local/
+.claude/settings.local.json
+.aiox/install-log.txt
+
+# AI Tool Configs (local, não versionar)
+.agent/
+.aiox-core/
+.antigravity/
+.claude/
+.codex/
+.cursor/
+.gemini/
+
+# ==================
+# Scripts de Debug / Diagnóstico (não versionar)
+# ==================
+apps/api/check_*.py
+apps/api/debug_*.py
+apps/api/diag_*.py
+apps/api/verify_*.py
+apps/api/quick_*.py
+apps/api/dump_*.py
+apps/api/kill_*.py
+apps/api/list_*.py
+apps/api/safe_*.py
+apps/api/stress_*.py
+apps/api/export_*.py
+apps/api/migrate_tasks*.py
+apps/api/*.txt
+check_*.py
+check_db_*.py
+check_deps.py
+check_schema.py
+discover_venvs.py
+export_db.py
+trace_imports.py
+tmp_*.py
+db_check_results.txt
+db_export.json
+schema_output.txt
+venvs.txt
+
+# package-lock.json (projeto usa pnpm)
+package-lock.json
+
+# Cache de relatórios de abusividade
+apps/api/relatorios_cache/abusividade/
+
+# Cartas de contestação geradas
+apps/api/contestacoes/
+
+# ==================
+# Caches e Artefatos de Teste
+# ==================
+# Cache de parquet (dados gerados em runtime)
+apps/api/parquet_cache/
+
+# Cache de relatórios gerados
+apps/api/relatorios_cache/
+
+# Playwright — artefatos de teste
+.playwright-mcp/
+apps/web/playwright-report/
+apps/web/test-results/
+
+# Screenshots de referência (geradas em runtime)
+screenshots/
+
+# Scripts de diagnóstico avulsos
+apps/api/read_headers.py
+apps/api/simulate_import.py
+apps/web/functional_review.js

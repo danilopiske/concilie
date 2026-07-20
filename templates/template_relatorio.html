@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Relatório Analítico - {{ cliente_nome }}</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+    <style>
+        @media print {
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            body {
+                margin: 0;
+            }
+            .main-content {
+                margin: 0.8cm !important;
+            }
+            .cover-page {
+                width: 100% !important;
+                height: 100vh !important;
+                page-break-after: always !important;
+            }
+            .cover-page img {
+                max-width: 100% !important;
+                max-height: 100% !important;
+                object-fit: contain !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            img {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .report-header {
+                width: 100% !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                left: 0 !important;
+            }
+        }
+
+        body {
+            margin: 0; 
+            font-family: Arial, sans-serif;
+            color: #223a6b;
+        }
+
+        .cover-page {
+            width: 100vw;
+            height: 100vh;
+            background-color: #f8f9fa;
+            page-break-after: always;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .cover-page img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .main-content {
+            padding: 0.8cm; 
+        }
+
+        .report-header {
+            width: 100%;
+            margin-left: 0;
+            margin-right: 0;
+            margin-bottom: 10px;
+        }
+
+        .report-header img {
+            width: 100%;
+            height: auto;
+        }
+
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            font-size: 10px;
+        }
+
+        .report-table th, .report-table td {
+            border: 1px solid #ddd;
+            padding: 4px;
+            text-align: left;
+        }
+
+        .report-table th {
+            font-weight: bold;
+        }
+
+        .report-table .header-blue {
+            background-color: #223a6b;
+            color: white;
+            font-weight: bold;
+        }
+
+        .report-section {
+            margin-top: 15px;
+            margin-bottom: 10px;
+            page-break-inside: avoid;
+        }
+
+        .report-section h3 {
+            color: #223a6b;
+            border-bottom: 2px solid #223a6b;
+            padding-bottom: 5px;
+        }
+
+        .intro-section h2 {
+            text-align:center; 
+            color:#223a6b; 
+            font-size:1.3em; 
+            font-weight:bold; 
+            margin-bottom: 18px; 
+            margin-top: 10px;
+        }
+
+        .intro-section p {
+            font-size:1.08em; 
+            text-align:left; 
+            margin-bottom: 24px; 
+            line-height: 1.6;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            page-break-inside: avoid;
+            margin-top: 10px;
+        }
+
+        .chart-cell {
+            page-break-inside: avoid;
+        }
+
+        .chart-cell img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            border: 1px solid #eee;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #print-btn {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 9999;
+            background: #223a6b;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        }
+        #print-btn:hover { background: #1a2d55; }
+        #print-btn:disabled { background: #888; cursor: wait; }
+
+        @media print {
+            #print-btn { display: none !important; }
+            .chart-cell {
+                break-inside: avoid;
+                page-break-inside: avoid;
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+            .chart-grid {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    
+    {% if cover_image_path %}
+    <div class="cover-page">
+        <img src="{{ cover_image_path }}" alt="Capa do Relatório">
+    </div>
+    {% endif %}
+
+    <div class="main-content">
+        
+        {% if header_image_path %}
+        <div class="report-header">
+            <img src="{{ header_image_path }}" alt="Cabeçalho">
+        </div>
+        {% endif %}
+
+        <div class="intro-section">
+            <h2>Perdas Financeiras nas Transações com Cartões, Vouchers e Pix</h2>
+            <p>
+                Pequenas variações nas transações muitas vezes <strong>passam despercebidas</strong> pelos estabelecimentos. São valores aparentemente irrelevantes de centavos que são <strong><span style="color:#9c1313">descontados ou retidos</span></strong> pelas adquirentes de maneira equivocada.
+            </p>
+            <p>
+                Muitas empresas <strong><span style="color:#9c1313">não</span></strong> estão levando em consideração as diversas legendas de descontos, excesso de códigos internos, fragmentação das informações nos extratos e elementos complexos que <strong><span style="color:#9c1313">afetam</span></strong> o faturamento com cartões e vouchers.
+            </p>
+            <p>
+                Nossa <strong><span style="color:#223a6b">conciliação sistêmica</span></strong>, aliada à <strong><span style="color:#223a6b">auditoria estrutural</span></strong> do faturamento retroativo e recorrente, <strong><span style="color:#9c1313">vai além da conciliação tradicional</span></strong>, fornecemos análises tecnicamente <strong>mais</strong> estruturadas, em conformidade com as regulamentações do Banco Central.
+            </p>
+            <p>
+                <strong><span style="color:#9c1313">Objetivo:</span></strong> identificar e eliminar as perdas ocultas que passam despercebidas, implementando ações corretivas e eficazes.
+            </p>
+        </div>
+
+        <div class="report-section">
+            <h3>Efeitos financeiros das perdas na sua Empresa</h3>
+            <table class="report-table">
+                <tr class="header-blue">
+                    <th style="width:20%;">Impacto</th>
+                    <th>Descrição</th>
+                </tr>
+                <tr><td><strong>Financeira</strong></td><td>Impactos negativos no fluxo de caixa; redução da lucratividade; incertezas na projeção de entradas.</td></tr>
+                <tr><td><strong>Tecnológica</strong></td><td>Riscos de integração e sincronização entre sistemas ERP e adquirentes, somados a inconsistências de layout decorrentes da falta de padronização, criando ajustes manuais.</td></tr>
+                <tr><td><strong>Administrativa</strong></td><td>Desconhecimento das regras contratuais e ausência de indicadores objetivos comprometem a gestão e elevam o risco de divergências.</td></tr>
+                <tr><td><strong>Consultoria</strong></td><td>Espaço para ajustar as condições comerciais atuais a níveis mais favoráveis para o estabelecimento; redução de perdas que não eram visíveis antes da coleta de dados e conciliação avançada, monitoramento do faturamento com cartões e entrega de resultados.</td></tr>
+            </table>
+        </div>
+
+        <div class="report-section">
+            <h3>Nossa Tecnologia</h3>
+            <p style="font-size: 1.1em; text-align: center; margin-bottom: 20px; line-height: 1.4;">
+                As análises são potencializadas por um <strong style="color: #223a6b;">software exclusivo, de alta performance</strong>, desenvolvido com rigor técnico para assegurar <strong>robustez e precisão</strong> em cada processamento.
+            </p>
+            <p style="font-size: 1.3em; text-align: center; font-weight: bold; color: #223a6b; background-color: #f0f9ff; padding: 15px; border-left: 4px solid #223a6b; margin: 20px 0;">
+                Conciliamos <span style="color: #9c1313;">10 mil transações</span> em apenas <span style="color: #9c1313;">30 segundos</span>
+            </p>
+        </div>
+        
+        {% if tabela_sumario_html %}{{ tabela_sumario_html | safe }}{% endif %}
+        {% if tabela_perdas_semestre_html %}{{ tabela_perdas_semestre_html | safe }}{% endif %}
+        {% if tabela_min_max_taxas_html %}{{ tabela_min_max_taxas_html | safe }}{% endif %}
+        {% if tabela_contagem_taxas_html %}{{ tabela_contagem_taxas_html | safe }}{% endif %}
+        {% if tabela_sumario_recebiveis_html %}{{ tabela_sumario_recebiveis_html | safe }}{% endif %}
+        {% if tabela_dados_bancarios_html %}{{ tabela_dados_bancarios_html | safe }}{% endif %}
+
+        {% if tabela_vendas_filtradas_html %}
+        {{ tabela_vendas_filtradas_html | safe }}
+        {% endif %}
+
+        {% if tabela_recebiveis_filtrados_html %}
+        {{ tabela_recebiveis_filtrados_html | safe }}
+        {% endif %}
+
+        <div class="report-section">
+            <h3>Gráficos de Análise</h3>
+            <div class="chart-grid">
+                <div class="chart-cell">{{ grafico_bandeiras_html | safe }}</div>
+                <div class="chart-cell">{{ grafico_forma_pagamento_html | safe }}</div>
+                <div class="chart-cell">{{ grafico_meses_html | safe }}</div>
+                <div class="chart-cell">{{ grafico_valores_html | safe }}</div>
+            </div>
+        </div>
+
+        <!-- Materialidade e Nota Técnica -->
+        <div class="report-section" style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+            <div style="margin-bottom: 25px;">
+                <p style="font-size: 0.8em; font-weight: bold; color: #223a6b; margin-bottom: 8px;">
+                    <strong><u>MATERIALIDADE:</u></strong>
+                </p>
+                <p style="font-size: 0.7em; color: #223a6b; margin: 0; line-height: 1.4; padding-left: 20px;">
+                    As inconformidades apuradas totalizam <strong style="color: #9c1313;">{{ materialidade_valor }}</strong>, correspondendo a <strong style="color: #9c1313;">{{ materialidade_percentual }}</strong> de possíveis perdas no faturamento.
+                </p>
+            </div>
+            
+            <div style="margin-bottom: 25px;">
+                <p style="font-size: 0.8em; font-weight: bold; color: #223a6b; margin-bottom: 8px;">
+                    <strong><u>NOTA TÉCNICA:</u></strong>
+                </p>
+                <p style="font-size: 0.7em; color: #223a6b; margin: 0; line-height: 1.4; padding-left: 20px;">
+                    Todas as análises são realizadas exclusivamente com base nos extratos oficiais fornecidos pela Adquirente; não alteramos arquivos.
+                </p>
+            </div>
+
+            {% if adquirente_principal and 'cielo' in adquirente_principal.lower() %}
+            <div style="margin-bottom: 25px;">
+                <p style="font-size: 0.8em; font-weight: bold; color: #223a6b; margin-bottom: 8px;">
+                    <strong><u>TIPOS DE INCONSISTÊNCIAS DETECTÁVEIS:</u></strong>
+                </p>
+                <p style="font-size: 0.7em; color: #223a6b; margin: 0; line-height: 1.4; padding-left: 20px;">
+                    Oscilações nas taxas MDR; Transações antecipadas; Aplicação de CM; Aluguéis; Ajustes D; Tarifas Programas DB; Taxas vendas canceladas; Contestações portador do cartão; Farol; Est cob do cartão; Est cob vendas pagas em duplicidade; Est correção monetária; Taxas plano OC; Variáveis nas taxas diárias mesmas bandeiras; Cobranças RA/RR; Serviços cadastrados desconhecidos pelo Estabelecimento.
+
+                </p>
+            </div>
+            {% elif adquirente_principal and 'rede' in adquirente_principal.lower() %}
+            <div style="margin-bottom: 25px;">
+                <p style="font-size: 0.8em; font-weight: bold; color: #223a6b; margin-bottom: 8px;">
+                    <strong><u>TIPOS DE INCONSISTÊNCIAS DETECTÁVEIS:</u></strong>
+                </p>
+                <p style="font-size: 0.7em; color: #223a6b; margin: 0; line-height: 1.4; padding-left: 20px;">
+                    Oscilações nas taxas MDR. Transações antecipadas. Aplicação de CM. Cobranças por máquinas inativas. Ajustes cobranças. Aluguéis. Variáveis nas taxas diárias mesmas bandeiras. Tx vendas canceladas. Chargeback/cancelamentos. Contestações T/P. Valores bloqueados. Cobranças P. Cobranças EA. Modalidades ajustadas.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Disclaimer/Observação Final -->
+        <div class="report-section" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <p style="font-size: 0.5em; text-align: center; font-style: italic; color: #666; margin: 15px 0; line-height: 1.4;">
+                {{ disclaimer_text }}
+            </p>
+        </div>
+    </div>
+
+    <button id="print-btn">🖨️ Imprimir / Salvar PDF</button>
+
+    <script>
+    (function () {
+        var btn = document.getElementById('print-btn');
+        var saved = [];
+
+        function chartsToImages() {
+            var cells = document.querySelectorAll('.chart-cell');
+            saved = [];
+            var promises = [];
+            cells.forEach(function (cell) {
+                var div = cell.querySelector('.plotly-graph-div');
+                if (div && div.data) {
+                    var w = div.offsetWidth || 800;
+                    var h = div.offsetHeight || 400;
+                    var p = Plotly.toImage(div, { format: 'png', width: w, height: h })
+                        .then(function (url) {
+                            saved.push({ cell: cell, html: cell.innerHTML });
+                            var img = document.createElement('img');
+                            img.src = url;
+                            img.style.cssText = 'width:100%;height:auto;display:block;';
+                            cell.innerHTML = '';
+                            cell.appendChild(img);
+                        })
+                        .catch(function () { saved.push(null); });
+                    promises.push(p);
+                } else {
+                    saved.push(null);
+                }
+            });
+            return Promise.all(promises);
+        }
+
+        function restoreCharts() {
+            saved.forEach(function (item) {
+                if (item) item.cell.innerHTML = item.html;
+            });
+            saved = [];
+        }
+
+        btn.addEventListener('click', function () {
+            btn.textContent = '⏳ Preparando gráficos...';
+            btn.disabled = true;
+            chartsToImages().then(function () {
+                window.onafterprint = function () {
+                    restoreCharts();
+                    btn.textContent = '🖨️ Imprimir / Salvar PDF';
+                    btn.disabled = false;
+                    window.onafterprint = null;
+                };
+                window.print();
+                setTimeout(function () {
+                    if (saved.length > 0) {
+                        restoreCharts();
+                        btn.textContent = '🖨️ Imprimir / Salvar PDF';
+                        btn.disabled = false;
+                    }
+                }, 3000);
+            });
+        });
+    })();
+    </script>
+</body>
+</html>

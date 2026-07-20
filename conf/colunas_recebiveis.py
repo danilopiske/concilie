@@ -4,10 +4,11 @@ from typing import List
 
 def listar_colunas_recebiveis_processados(engine: Engine) -> List[str]:
     """
-    Lista os nomes das colunas da tabela recebiveis_processados no banco de dados.
+    Lista os nomes das colunas da tabela recebiveis_processados no banco de dados MySQL.
     """
     from .funcoesbd import fetch_all
 
+    # MySQL: usa INFORMATION_SCHEMA
     rows = fetch_all(
         engine,
         """

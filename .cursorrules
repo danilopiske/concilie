@@ -1,0 +1,14 @@
+Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
+
+When working with Python libraries (FastAPI, SQLAlchemy, Panel, Pydantic), automatically fetch documentation from Context7.
+
+When working with TypeScript/JavaScript libraries (Next.js, React, pnpm, Poetry), automatically fetch documentation from Context7.
+
+For the Financial project, prioritize documentation for:
+- FastAPI (backend API framework)
+- SQLAlchemy (database ORM)
+- Panel/HoloViz (current UI framework)
+- Next.js 14+ (target frontend framework)
+- React 18+ (target UI library)
+- Pydantic (data validation)
+- MySQL/SQLite adapters
