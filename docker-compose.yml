@@ -5,7 +5,7 @@ services:
     container_name: financial-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: C0nc!l!3@123#
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: concilie
     volumes:
       - mysql-data:/var/lib/mysql

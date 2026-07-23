@@ -289,11 +289,15 @@ class ReconciliationCore:
                     progress_callback(60, "Aplicando lógica de menor taxa (LOG)...")
 
                 df_log_map = df_vendas.group_by(["periodo_log", "forma_pgto_clean", "bandeira_clean"]).agg(
-                    pl.col("Taxas_Perc").min().alias("min_tx_venda"),
-                    # ⚠️ Ignorar Taxas_RR = 0 ao calcular a menor taxa do período: a maioria
-                    # das vendas de um grupo (bandeira+forma+período) não usa Receba Rápido,
-                    # então incluir essas taxas zeradas no min() sempre resultava em 0,00%,
-                    # tornando a opção "menor do período" inútil para RR.
+                    # ⚠️ Ignorar Taxas_Perc = 0 ao calcular a menor taxa do período: taxa
+                    # zerada é sinal de linha com dado ausente/errado na planilha de origem,
+                    # não uma tarifa real. Um punhado de linhas assim não pode derrubar a
+                    # taxa "lógica" considerada pro grupo (bandeira+forma+período) inteiro
+                    # (ver caso EC 84985160, Visa débito à vista 2023/2024).
+                    pl.col("Taxas_Perc").filter(pl.col("Taxas_Perc") > 0).min().alias("min_tx_venda"),
+                    # ⚠️ Mesma lógica para Taxas_RR: a maioria das vendas de um grupo não usa
+                    # Receba Rápido, então incluir essas taxas zeradas no min() sempre
+                    # resultava em 0,00%, tornando a opção "menor do período" inútil para RR.
                     pl.col("Taxas_RR").filter(pl.col("Taxas_RR") > 0).min().alias("min_tx_rr_venda"),
                 )
 
